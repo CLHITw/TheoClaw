@@ -1,0 +1,30 @@
+# 知識庫實驗的範例任務（中文提問）。同一份任務在不同的組別（不用 wiki、英文 wiki、繁體 wiki、
+# 不同編譯模型）各跑一次，再用 python -m theoclaw.evals cost 比較 token、成本與品質。
+# Example tasks for the knowledge-base experiments (questions in Chinese). Run the same file in
+# each arm (no wiki, English wiki, 繁體 wiki, other compile model), then compare with `evals cost`.
+# Topical questions have no verse to look up, so the no-wiki arm is expected to struggle there.
+
+- id: kbx-verse-rom-8-16
+  category: verse-note
+  prompt: 衛斯理怎樣解釋羅馬書 8:16？請先引用經文，再引用他註釋的英文原句並翻譯。
+  expect:
+    refs: [羅馬書 8:16]
+  graders: [example_no_unsourced_quotes, example_english_quotes_in_sources]
+
+- id: kbx-topic-general-rules
+  category: topical
+  prompt: 衛斯理在 1743 年的《總規》（General Rules）中，要求會友用哪三條規則表明他們渴望得救？請引用原文。
+  expect:
+    must_mention: ["no harm", "doing good", "ordinances"]   # for a grader you write
+  graders: [example_english_quotes_in_sources]
+
+- id: kbx-topic-christian-perfection
+  category: topical
+  prompt: 衛斯理在《基督徒完全論》（A Plain Account of Christian Perfection）中如何定義「基督徒的完全」？請引用英文原句並說明。
+  graders: [example_english_quotes_in_sources]
+
+- id: kbx-topic-romans-justification
+  category: bible-topical
+  prompt: 羅馬書中保羅怎樣論述「因信稱義」？請列出三處關鍵經文，用和合本引用並說明。
+  notes: 給 bible-cuv-romans 知識庫用；經文仍以 lookup_verse 查證。
+  graders: [example_no_unsourced_quotes]

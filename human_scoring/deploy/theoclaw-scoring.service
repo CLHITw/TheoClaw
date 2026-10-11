@@ -1,0 +1,15 @@
+[Unit]
+Description=TheoClaw 線上人工評分（含提問模式，預設 deepseek-flash）
+After=network-online.target
+
+[Service]
+User=theoclaw
+WorkingDirectory=/opt/theoclaw
+# 提問模式：每人每天 30 題，總花費上限 5 美元；要改上限就改這一行，再 systemctl restart theoclaw-scoring
+ExecStart=/opt/theoclaw/.venv/bin/python human_scoring/human_server.py serve --chat --host 127.0.0.1 --port 8765 --daily-limit 30 --budget 5
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

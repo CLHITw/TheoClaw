@@ -1,0 +1,11 @@
+# 實驗四：查詢用哪個模型？同一個 wiki，三個查詢模型；看成本降多少、品質掉多少。
+# Experiment 4: which query model? One wiki, three query models: how much cheaper, how much worse.
+# 之後加 LLM 裁判時注意：裁判是 deepseek-flash，評 deepseek 那一組會偏袒自己，那一組改用人工評分對照。
+
+name: query-model
+tasks: tasks/kb.example.yaml
+n: 3
+arms:
+  - {label: query-qwen-max, model: qwen3.8-max, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-max}
+  - {label: query-qwen-flash, model: qwen3.8-flash, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-max}
+  - {label: query-deepseek, model: deepseek-flash, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-max}

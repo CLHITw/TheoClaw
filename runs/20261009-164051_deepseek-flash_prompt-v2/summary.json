@@ -1,0 +1,725 @@
+{
+  "config": {
+    "model": "deepseek-flash",
+    "effort": null,
+    "n": 5,
+    "max_steps": 12,
+    "max_tokens": 16000,
+    "llm": {
+      "role": "agent",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "api": "litellm",
+      "endpoint": null,
+      "effort": null,
+      "max_tokens": 16000,
+      "params": {
+        "extra_body": {
+          "thinking": {
+            "type": "enabled"
+          }
+        }
+      },
+      "config_sha": "12cbaf45ceed"
+    },
+    "tasks_file": "E:\\DESK\\theoclaw\\theoclaw-v0\\tasks\\tasks.yaml",
+    "tasks_sha": "8f99af0d3fbb",
+    "system_prompt_sha": "b7760ea874bf",
+    "tools_sha": "cc485ea1d7e8",
+    "toolset": {
+      "tools": [
+        "scripture",
+        "wesley"
+      ]
+    },
+    "label": "prompt-v2",
+    "task_ids": [
+      "quote-rom-5-8",
+      "quote-ps-23",
+      "quote-eph-2-8-kjv",
+      "wesley-rom-8-16",
+      "wesley-1jn-1-7",
+      "wesley-matt-5-48",
+      "wesley-ps-1",
+      "crossref-john-3-16",
+      "crossref-heb-11-1",
+      "study-luke-15",
+      "study-phil-2",
+      "study-james-2",
+      "worship-advent",
+      "worship-sermon-outline",
+      "sermon-emmaus",
+      "sermon-easter-1cor-15",
+      "sermon-perfection-matt-5-48",
+      "sermon-fact-check",
+      "doctrine-assurance",
+      "doctrine-prevenient-grace",
+      "doctrine-articles-baptism",
+      "trap-no-such-verse",
+      "fault-quote-rom-5-8-error",
+      "fault-ps-23-empty",
+      "fault-wesley-error",
+      "fault-crossref-error",
+      "fault-quote-mislabeled"
+    ],
+    "started": "20261009-164051"
+  },
+  "k": 5,
+  "overall": {
+    "tasks": 27,
+    "pass_rate": 0.9407407407407408,
+    "pass_at_k": 1.0,
+    "pass_hat_k": 0.7037037037037037
+  },
+  "no_fault": {
+    "tasks": 22,
+    "pass_rate": 0.9363636363636364,
+    "pass_at_k": 1.0,
+    "pass_hat_k": 0.6818181818181818
+  },
+  "with_fault": {
+    "tasks": 5,
+    "pass_rate": 0.96,
+    "pass_at_k": 1.0,
+    "pass_hat_k": 0.8
+  },
+  "by_category": {
+    "crossref": {
+      "tasks": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "doctrine": {
+      "tasks": 3,
+      "pass_rate": 0.9333333333333333,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.6666666666666666
+    },
+    "fault": {
+      "tasks": 5,
+      "pass_rate": 0.96,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.8
+    },
+    "quote": {
+      "tasks": 3,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "sermon": {
+      "tasks": 4,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "study": {
+      "tasks": 3,
+      "pass_rate": 0.9333333333333333,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.6666666666666666
+    },
+    "trap": {
+      "tasks": 2,
+      "pass_rate": 0.9,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.5
+    },
+    "wesley": {
+      "tasks": 3,
+      "pass_rate": 0.8666666666666667,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.3333333333333333
+    },
+    "worship": {
+      "tasks": 2,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0
+    }
+  },
+  "outcomes": {
+    "completed": 135
+  },
+  "statuses": {
+    "pass": 127,
+    "fail": 8
+  },
+  "latency_p50": 22.78908210003283,
+  "latency_p95": 47.52754979999736,
+  "tokens": {
+    "mean_prompt": 9375.851851851852,
+    "mean_output": 4294.503703703704,
+    "mean_cache_read": 7803.259259259259,
+    "mean_tool_output_chars": 3008.859259259259
+  },
+  "total_cost": 0.7657202399999999,
+  "simplified_answers": 11,
+  "simplified_fixed": 11,
+  "tool_usage": {
+    "cross_references": {
+      "calls": 106,
+      "errors": 12,
+      "per_run": 0.7851851851851852
+    },
+    "fill_quote": {
+      "calls": 526,
+      "errors": 0,
+      "per_run": 3.8962962962962964
+    },
+    "lookup_verse": {
+      "calls": 639,
+      "errors": 14,
+      "per_run": 4.733333333333333
+    },
+    "wesley_note": {
+      "calls": 712,
+      "errors": 20,
+      "per_run": 5.274074074074074
+    }
+  },
+  "kb_reads_by_folder": {},
+  "human": null,
+  "tasks": [
+    {
+      "task_id": "crossref-heb-11-1",
+      "category": "crossref",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0046597056,
+      "mean_latency": 18.893036120035685,
+      "mean_tool_calls": 14.6,
+      "mean_prompt_tokens": 8343.2,
+      "mean_output_tokens": 3497,
+      "failures": []
+    },
+    {
+      "task_id": "crossref-john-3-16",
+      "category": "crossref",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0030054144000000002,
+      "mean_latency": 12.568921219999902,
+      "mean_tool_calls": 7.6,
+      "mean_prompt_tokens": 6205.6,
+      "mean_output_tokens": 2232.6,
+      "failures": []
+    },
+    {
+      "task_id": "doctrine-articles-baptism",
+      "category": "doctrine",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0081062784,
+      "mean_latency": 34.2532409600215,
+      "mean_tool_calls": 12.4,
+      "mean_prompt_tokens": 6771.2,
+      "mean_output_tokens": 6436,
+      "failures": [
+        [
+          0,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['從水和聖靈生']"
+        ]
+      ]
+    },
+    {
+      "task_id": "doctrine-assurance",
+      "category": "doctrine",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0073127832,
+      "mean_latency": 29.053836260014215,
+      "mean_tool_calls": 31.4,
+      "mean_prompt_tokens": 10487.4,
+      "mean_output_tokens": 5429,
+      "failures": []
+    },
+    {
+      "task_id": "doctrine-prevenient-grace",
+      "category": "doctrine",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0071238624,
+      "mean_latency": 28.884902620012873,
+      "mean_tool_calls": 31,
+      "mean_prompt_tokens": 11392.8,
+      "mean_output_tokens": 5340,
+      "failures": []
+    },
+    {
+      "task_id": "fault-crossref-error",
+      "category": "fault",
+      "fault": "error",
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0041544528,
+      "mean_latency": 17.649488880019636,
+      "mean_tool_calls": 10.8,
+      "mean_prompt_tokens": 8782,
+      "mean_output_tokens": 3135.6,
+      "failures": []
+    },
+    {
+      "task_id": "fault-ps-23-empty",
+      "category": "fault",
+      "fault": "empty",
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.005077584,
+      "mean_latency": 23.780876339972018,
+      "mean_tool_calls": 8.2,
+      "mean_prompt_tokens": 11048,
+      "mean_output_tokens": 3915.4,
+      "failures": [
+        [
+          3,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['耶和華是我的牧者']"
+        ]
+      ]
+    },
+    {
+      "task_id": "fault-quote-mislabeled",
+      "category": "fault",
+      "fault": "mislabeled",
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0015730896000000002,
+      "mean_latency": 7.602819460001774,
+      "mean_tool_calls": 3.6,
+      "mean_prompt_tokens": 4114,
+      "mean_output_tokens": 1135.4,
+      "failures": []
+    },
+    {
+      "task_id": "fault-quote-rom-5-8-error",
+      "category": "fault",
+      "fault": "error",
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0016966896000000001,
+      "mean_latency": 8.822385459998623,
+      "mean_tool_calls": 2.6,
+      "mean_prompt_tokens": 4017.2,
+      "mean_output_tokens": 1262.6,
+      "failures": []
+    },
+    {
+      "task_id": "fault-wesley-error",
+      "category": "fault",
+      "fault": "error",
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0021516024,
+      "mean_latency": 10.754876839998179,
+      "mean_tool_calls": 5.8,
+      "mean_prompt_tokens": 6180.2,
+      "mean_output_tokens": 1558.8,
+      "failures": []
+    },
+    {
+      "task_id": "quote-eph-2-8-kjv",
+      "category": "quote",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0037626528,
+      "mean_latency": 16.89384493997786,
+      "mean_tool_calls": 10,
+      "mean_prompt_tokens": 6576.8,
+      "mean_output_tokens": 2890,
+      "failures": []
+    },
+    {
+      "task_id": "quote-ps-23",
+      "category": "quote",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0022091352,
+      "mean_latency": 10.072982420003973,
+      "mean_tool_calls": 2.4,
+      "mean_prompt_tokens": 3274.6,
+      "mean_output_tokens": 1693.4,
+      "failures": []
+    },
+    {
+      "task_id": "quote-rom-5-8",
+      "category": "quote",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0008668488,
+      "mean_latency": 6.425799000007101,
+      "mean_tool_calls": 2.8,
+      "mean_prompt_tokens": 2717.4,
+      "mean_output_tokens": 406.8,
+      "failures": []
+    },
+    {
+      "task_id": "sermon-easter-1cor-15",
+      "category": "sermon",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.013372308,
+      "mean_latency": 54.47591878001113,
+      "mean_tool_calls": 32.6,
+      "mean_prompt_tokens": 24176.6,
+      "mean_output_tokens": 10148.4,
+      "failures": []
+    },
+    {
+      "task_id": "sermon-emmaus",
+      "category": "sermon",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0078902424,
+      "mean_latency": 32.55420782000292,
+      "mean_tool_calls": 22.6,
+      "mean_prompt_tokens": 11808.2,
+      "mean_output_tokens": 6031.6,
+      "failures": []
+    },
+    {
+      "task_id": "sermon-fact-check",
+      "category": "sermon",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.004766752799999999,
+      "mean_latency": 20.17001743998844,
+      "mean_tool_calls": 6.8,
+      "mean_prompt_tokens": 5753.4,
+      "mean_output_tokens": 3775.8,
+      "failures": []
+    },
+    {
+      "task_id": "sermon-perfection-matt-5-48",
+      "category": "sermon",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0111640944,
+      "mean_latency": 43.05419672001153,
+      "mean_tool_calls": 37.4,
+      "mean_prompt_tokens": 19407.6,
+      "mean_output_tokens": 8396.6,
+      "failures": []
+    },
+    {
+      "task_id": "study-james-2",
+      "category": "study",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.011517491999999999,
+      "mean_latency": 42.6129008400254,
+      "mean_tool_calls": 37.4,
+      "mean_prompt_tokens": 19545.4,
+      "mean_output_tokens": 8443.4,
+      "failures": []
+    },
+    {
+      "task_id": "study-luke-15",
+      "category": "study",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.007030927199999999,
+      "mean_latency": 27.559973640018143,
+      "mean_tool_calls": 18.4,
+      "mean_prompt_tokens": 10201.8,
+      "mean_output_tokens": 5202.8,
+      "failures": []
+    },
+    {
+      "task_id": "study-phil-2",
+      "category": "study",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.011630676,
+      "mean_latency": 46.17942380001769,
+      "mean_tool_calls": 25.4,
+      "mean_prompt_tokens": 18479.8,
+      "mean_output_tokens": 8898.2,
+      "failures": [
+        [
+          3,
+          "example_quotes_expected_verbatim",
+          "misquoted: ['是神榮耀所發的光輝，是神本體的真像']"
+        ],
+        [
+          3,
+          "no_misquotes",
+          "引錯：['我的僕人行事必有智慧，必被高舉上升，且成為至高。']"
+        ]
+      ]
+    },
+    {
+      "task_id": "trap-no-such-verse",
+      "category": "trap",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0026175719999999994,
+      "mean_latency": 11.838903560023756,
+      "mean_tool_calls": 7.6,
+      "mean_prompt_tokens": 6467,
+      "mean_output_tokens": 1944.4,
+      "failures": []
+    },
+    {
+      "task_id": "wesley-1jn-1-7",
+      "category": "wesley",
+      "fault": null,
+      "n": 5,
+      "c": 5,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0024966456,
+      "mean_latency": 11.49316937995609,
+      "mean_tool_calls": 3.6,
+      "mean_prompt_tokens": 3711.4,
+      "mean_output_tokens": 1911.6,
+      "failures": []
+    },
+    {
+      "task_id": "wesley-matt-5-48",
+      "category": "wesley",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.007047588,
+      "mean_latency": 30.103356059966607,
+      "mean_tool_calls": 14.6,
+      "mean_prompt_tokens": 10135.8,
+      "mean_output_tokens": 5408.8,
+      "failures": [
+        [
+          1,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['我們若說自己無罪']"
+        ]
+      ]
+    },
+    {
+      "task_id": "wesley-ps-1",
+      "category": "trap",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0048523920000000005,
+      "mean_latency": 20.85520770000294,
+      "mean_tool_calls": 8.6,
+      "mean_prompt_tokens": 8016.4,
+      "mean_output_tokens": 3733,
+      "failures": [
+        [
+          0,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['聽神之道而遵守的人']"
+        ]
+      ]
+    },
+    {
+      "task_id": "wesley-rom-8-16",
+      "category": "wesley",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0024932736,
+      "mean_latency": 11.927239319984801,
+      "mean_tool_calls": 4.8,
+      "mean_prompt_tokens": 4484.8,
+      "mean_output_tokens": 1903.6,
+      "failures": [
+        [
+          1,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['你們所受的，不是奴僕的心，仍舊害怕']"
+        ]
+      ]
+    },
+    {
+      "task_id": "worship-advent",
+      "category": "worship",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.006597487199999999,
+      "mean_latency": 27.107567599997857,
+      "mean_tool_calls": 12.2,
+      "mean_prompt_tokens": 7328.2,
+      "mean_output_tokens": 5089.6,
+      "failures": [
+        [
+          4,
+          "no_misquotes",
+          "引錯：['得救比初信的時候更近了']"
+        ]
+      ]
+    },
+    {
+      "task_id": "worship-sermon-outline",
+      "category": "worship",
+      "fault": null,
+      "n": 5,
+      "c": 4,
+      "pass_rate": 0.8,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.0079664976,
+      "mean_latency": 31.45012232004665,
+      "mean_tool_calls": 21.4,
+      "mean_prompt_tokens": 13721.2,
+      "mean_output_tokens": 6131.2,
+      "failures": [
+        [
+          3,
+          "example_no_unsourced_quotes",
+          "written without a tool result: ['外體雖然毀壞，內心卻一天新似一天']"
+        ]
+      ]
+    }
+  ]
+}

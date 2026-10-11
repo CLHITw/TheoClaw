@@ -1,0 +1,17 @@
+# 實驗一：wiki 用什麼語言編譯？同一批來源分別編成英文與繁體中文 wiki，用中文提問，
+# 比較每次回答的 token、成本與品質；另有一組不用 wiki 的對照組。
+# Experiment 1: which language should the wiki be compiled in? Same sources compiled to an
+# English and a 繁體 wiki, queried in Chinese; plus a control arm without a wiki.
+#
+# 先編譯 / build first:
+#   python -m theoclaw.kb.compile build wesley-core --language en
+#   python -m theoclaw.kb.compile build wesley-core --language zh-Hant
+
+name: wiki-language
+tasks: tasks/kb.example.yaml
+n: 3
+# query model: the agent role in config/llm.yaml, the same in every arm
+arms:
+  - {label: no-wiki, tools: "scripture,wesley"}
+  - {label: wiki-en, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-max}
+  - {label: wiki-zh, tools: "scripture,kb", kb: wesley-core.zh-Hant.qwen3.8-max}

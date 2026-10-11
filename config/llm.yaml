@@ -1,0 +1,78 @@
+# 所有 LLM 介面設定都在這一個檔：哪個角色用哪個服務、哪個模型、什麼參數，以及每個模型的價格。
+# All LLM settings in one file: which provider, model and settings each role uses, and each model's prices.
+#
+# 金鑰不要寫在這裡（這個檔會進 git）。金鑰寫在專案根目錄的 .env（複製 .env.example），或設成環境變數。
+# API keys never go here (this file is committed). Put them in .env at the project root, or in the environment.
+#
+# 檢查設定：python -m theoclaw.llm show        試打每個角色：python -m theoclaw.llm ping
+# 整組換掉：$env:THEOCLAW_LLM_CONFIG = "config/llm.claude.yaml"（另存一份，例如全部換成 Claude）
+
+# ── 角色 roles ────────────────────────────────────────────────────────────────
+# 每個角色選一個模型；服務（provider）與請求參數由 models 表決定。
+# 指令列的 --model 仍可臨時覆寫，例如 --model deepseek-flash。
+roles:
+  agent:        # 神學 agent 回答問題：ask、evals run、experiment
+    # 2026-10-09 盲評 270 個回答（每題 5 次）：deepseek-flash 135/135 可用、qwen3.8-max 132/135，
+    # deepseek 費用約五分之一、快約五倍，所以改用 deepseek-flash
+    model: deepseek-flash
+    max_tokens: 16000
+  kb_query:     # kb.query ask：只憑 wiki 回答，用來試一個知識庫
+    model: qwen3.8-flash
+    max_tokens: 16000
+  compile:      # kb.compile build：OpenKB 編譯 wiki（經 LiteLLM 呼叫）。wiki 品質由它決定、又只付一次，所以用最強的
+    model: qwen3.8-max
+  judge:        # LLM 裁判（第二階段）：用和 agent 不同家的模型，避免偏袒自己的答案
+    model: qwen3.8-max
+    max_tokens: 8000
+  tokenizer:    # 計 token：只有 Anthropic 有免費的 count_tokens；none = 只算字數
+    model: none
+
+# ── 服務 providers ────────────────────────────────────────────────────────────
+#   api:            litellm   = 經 LiteLLM（通義千問、DeepSeek 等；agent、編譯、裁判都能用）
+#                   anthropic = Anthropic SDK（Claude，或有 Anthropic 相容端點的服務）
+#   api_key_env:    存金鑰的環境變數名稱。OpenKB 編譯時由 LiteLLM 自己讀這個變數，所以要用 LiteLLM 認得的名稱
+#   base_url_env:   存接口地址的環境變數名稱；沒設就用該服務的預設地址
+#   litellm_prefix: 模型在 LiteLLM 的前綴，例如 dashscope/qwen3.8-flash
+default_provider: dashscope
+providers:
+  dashscope:                         # 阿里雲百煉（通義千問）
+    api: litellm
+    api_key_env: DASHSCOPE_API_KEY
+    base_url_env: DASHSCOPE_API_BASE # 金鑰綁定地域，地址要和金鑰同一地域（見 .env.example）
+    litellm_prefix: dashscope
+  deepseek:
+    api: litellm
+    api_key_env: DEEPSEEK_API_KEY
+    base_url_env: DEEPSEEK_API_BASE  # 通常不用設
+    litellm_prefix: deepseek
+  anthropic:                         # 保留：之後若要比較 Claude，在 .env 填 ANTHROPIC_API_KEY 即可
+    api: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    litellm_prefix: anthropic
+
+# ── 模型 models ───────────────────────────────────────────────────────────────
+# 每百萬 tokens 的美元價格（2026-10-09 核對官方價目表；引用成本前請再確認）。
+#   provider: 預設為 default_provider
+#   params:   原樣傳給 LiteLLM 的請求參數（思考模式等）；OpenKB 編譯不經過這裡，用的是服務預設值
+#   effort: false 表示不送 Anthropic 的 effort 參數（LiteLLM 服務一律不送）
+# 不在表裡的模型也能用，只是沒有價格，報告裡不算成本。
+models:
+  # 通義千問，北京地域價格（官方美元價；人民幣價為 max ¥12 / ¥36、flash ¥0.80 / ¥2.70）。
+  # 換到新加坡地域時改成：qwen3.8-max 2.00 / 6.00（快取 0.25）；qwen3.8-flash 0.15 / 0.47
+  qwen3.8-max:
+    {provider: dashscope, input: 1.65, output: 4.951, cache_read: 0.206, cache_write: 1.65,
+     params: {extra_body: {enable_thinking: true}}}
+  qwen3.8-flash:
+    # 官方頁沒列快取價，暫以原價計（成本略偏高）
+    {provider: dashscope, input: 0.113, output: 0.382, cache_read: 0.113, cache_write: 0.113,
+     params: {extra_body: {enable_thinking: true}}}
+  # DeepSeek：deepseek-flash 就是 DeepSeek-V4.1-Flash（約 ¥2 / ¥8）。用較貴時段的價格（週一至五 UTC 01–04 與 06–10 時），其餘時段減半。
+  deepseek-flash:
+    {provider: deepseek, input: 0.30, output: 1.20, cache_read: 0.006, cache_write: 0.30,
+     params: {extra_body: {thinking: {type: enabled}}}}
+  # deepseek-v4-pro: {provider: deepseek, input: 1.32, output: 3.96, cache_read: 0.044, cache_write: 1.32}
+
+  # Claude（目前沒用到，保留給之後比較）
+  claude-opus-5-5:   {provider: anthropic, input: 4.00, output: 20.00, cache_read: 0.20, cache_write: 5.00}
+  claude-sonnet-5-5: {provider: anthropic, input: 2.00, output: 10.00, cache_read: 0.20, cache_write: 2.50}
+  claude-haiku-4-5:  {provider: anthropic, input: 1.00, output: 5.00,  cache_read: 0.10, cache_write: 1.25, effort: false}

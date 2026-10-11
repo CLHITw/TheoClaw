@@ -1,0 +1,71 @@
+# 知識庫編譯設定：每個 profile 是一組要編譯的來源。所有來源都取自 Methodist 文件夾。
+# Knowledge-base build profiles. Every source comes from the Methodist folder (source_dir).
+#
+# 來源的寫法 / how to write a source:
+#   file:     Methodist 文件夾（含 Global_base、HK 等子文件夾）裡的檔名；同名檔案在兩個子文件夾時寫成 HK/檔名
+#   pages:    只取 PDF 的這些頁，例如 "1503-1530"
+#   outline:  只取 PDF 書籤標題含這段文字的部分，例如 羅馬書（先用 outline 指令查看書籤）
+#   to_text:  把（截取後的）PDF 轉成純文字 .md 再編譯
+#   s2t:      把簡體字轉成繁體（文字檔，或 to_text 之後）
+#   name:     放進 inputs/ 時的檔名（預設沿用原檔名）。這份副本在 knowledge/<輸出名>/inputs/，原檔不會被改動
+#   wesley_nt_notes: true   衛斯理新約註釋，取自 03 號 PDF 解析出的 data/wesley_nt.json，每卷書一個檔
+#
+# 編譯模型在 config/llm.yaml 的 compile 角色設定（某個 profile 也可以寫自己的 model:）。
+# 編譯模型與 wiki 語言可在指令列用 --model / --language 覆寫；輸出到 knowledge/<profile>.<language>.<model>/。
+
+source_dir: E:/DESK/theoclaw/Methodist
+
+defaults:
+  language: en          # en 或 zh-Hant
+
+profiles:
+  smoke:
+    description: 試跑：總規中文版（轉繁體），幾乎不花錢，用來確認 OpenKB 與模型設定可用
+    model: qwen3.8-flash   # 只測流程，用便宜的模型
+    sources:
+      - {file: 06_The_General_Rules_Bilingual_Wesley_1743.md, s2t: true, name: 總規-中文.md}
+
+  general-rules-en:
+    description: 總規英文原文；和 general-rules-zh 是同一份文件的兩種語言（來源語言對照）
+    sources:
+      - {file: 08_John_Wesley_The_General_Rules_1743_text.pdf, name: general-rules-1743-en.pdf}
+
+  general-rules-zh:
+    description: 總規中文版（轉繁體），和 general-rules-en 對照；中文版是摘要加英文引文，不是逐句翻譯
+    sources:
+      - {file: 06_The_General_Rules_Bilingual_Wesley_1743.md, s2t: true, name: 總規-中文.md}
+
+  wesley-core:
+    description: 衛斯理新約註釋、基督徒完全論、總規、循道衛理宗教條款
+    sources:
+      - {wesley_nt_notes: true}
+      - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, name: plain-account-of-christian-perfection.pdf}
+      - {file: 08_John_Wesley_The_General_Rules_1743_text.pdf, name: general-rules-1743-en.pdf}
+      - {file: 09_United_Methodist_Articles_of_Religion_text.pdf, name: articles-of-religion.pdf}
+
+  wesley-sermons:
+    description: 衛斯理標準講道（1,281 頁，費用最高，最後再編）
+    sources:
+      - {file: 01_John_Wesley_Standard_Sermons.pdf, name: standard-sermons.pdf}
+
+  zh-course:
+    description: 中文信仰課程教材（中文來源；dry run 顯示字數為 0 的檔案是掃描檔，需要先做文字辨識）
+    sources:
+      - {file: 01 我為何要信？.pdf, name: 課程01-我為何要信.pdf}
+      - {file: 02 我信上帝（學員版）.pdf, name: 課程02-我信上帝.pdf}
+      - {file: 03 我信主耶穌基督（一）.pdf, name: 課程03-我信主耶穌基督一.pdf}
+      - {file: 04 我信主耶穌基督（2）十架與復活.pdf, name: 課程04-十架與復活.pdf}
+      - {file: 05 我信聖靈（1） 聖靈位格  成聖生活.pdf, name: 課程05-聖靈位格與成聖生活.pdf}
+      - {file: 06 我信聖靈（2）.pdf, name: 課程06-我信聖靈二.pdf}
+      - {file: 屬靈恩賜.pdf}
+
+  bible-cuv-romans:
+    description: 新標點和合本（繁體）羅馬書；先用 outline 指令確認書籤名稱，沒有書籤就改用 pages
+    sources:
+      - {file: 00_聖經_新標點和合本_繁體_全文_公版.pdf, outline: 羅馬書, name: 和合本-羅馬書.pdf}
+
+  background:
+    description: 背景資料：衛斯理日記、自由循道會 2019 年紀律書（只作背景，不代表本會立場）
+    sources:
+      - {file: 04_John_Wesley_The_Journal_of_John_Wesley.pdf, name: wesley-journal.pdf}
+      - {file: 07_Free_Methodist_Church_Book_of_Discipline_2019.pdf, name: free-methodist-discipline-2019.pdf}

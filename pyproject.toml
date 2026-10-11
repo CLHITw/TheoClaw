@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "theoclaw"
+version = "0.4.0"
+description = "A Bible-study agent for a Methodist fellowship, and the eval harness that measures it"
+requires-python = ">=3.10,<3.14"
+dependencies = ["anthropic>=1.0", "litellm==1.87.2", "pyyaml>=6", "opencc-python-reimplemented>=0.1.7"]
+
+[project.optional-dependencies]
+kb = ["openkb", "pypdf>=4"]          # compiling knowledge bases
+dev = ["pytest>=8", "pypdf>=4"]
+
+[project.scripts]
+theoclaw = "theoclaw.agent.__main__:main"
+theoclaw-kb-compile = "theoclaw.kb.compile.__main__:main"
+theoclaw-kb-query = "theoclaw.kb.query.__main__:main"
+theoclaw-eval = "theoclaw.evals.__main__:main"
+theoclaw-llm = "theoclaw.llm.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["theoclaw*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

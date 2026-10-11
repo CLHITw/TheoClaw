@@ -1,0 +1,102 @@
+{"task_id": "crossref-heb-11-1", "run_index": 0, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文與衛斯理引述均有工具根據，並以彼前1:7-8補足信心對象與試驗，整理與問題更利於查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 完整引用三處經文並準確整合衛斯理註釋、清楚區分推論，且沒有未查證的經文，較適合查經講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-rom-5-8-error", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "B在查詢失敗下仍誠實說明，並根據工具回傳的衛斯理註釋提供重點，較能幫助查經或講道預備；A僅回報無法查詢。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-rom-5-8-error", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A 在經文查詢失敗時誠實說明，沒有憑記憶引用經文，仍提供有根據的衛斯理註釋和重點，對預備較有幫助；B 只表示無法查詢。", "rater": "judge-qwen3.8-max"}
+{"task_id": "worship-advent", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B的經文與衛斯理註釋均有工具根據，並明確交代無註釋之處、區分經文與推論，整體較嚴謹且切合題目。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A較完整且準確地根據工具翻譯衛斯理註釋，清楚區分經文與推論，並提供較具體的查經與講道應用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "worship-advent", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A經文與衛斯理引述均有工具根據且清楚區分推論，並緊貼題目給三段讀經與共同主題；B雖豐富但加入詩篇且丙年書信組合較不嚴謹。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-ps-1", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A 如實說明查不到衛斯理舊約註釋，並提供已查得的詩篇經文與具體預備方向，較可靠且實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-ps-1", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "B 如實說明工具限制，並提供準確經文與具體查經預備方向，較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-rom-8-16", "run_index": 0, "order": "ab", "said": "B", "winner": "b", "reason": "B 的經文與衛斯理註釋均忠於工具結果，清楚區分經文、翻譯與推論，且上下文整理更切合查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-rom-8-16", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A 嚴謹引用工具中的經文與衛斯理註釋，清楚區分原文、翻譯與推論，較少未經工具支持的補充。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文與衛斯理註釋引用較豐富，並明確區分註釋與推論，應用指引也更具體，整體對預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-crossref-error", "run_index": 4, "order": "ba", "said": "A", "winner": "b", "reason": "A如實說明串珠工具失敗，仍根據工具所得的衛斯理註釋與加拉太書四章4至5節提供可靠的關聯經文和講解，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-crossref-error", "run_index": 4, "order": "ab", "said": "B", "winner": "b", "reason": "B 如實說明串珠工具失敗，沒有捏造經文，且根據工具提供的衛斯理註釋與經文查詢，給出有出處的替代關聯與深入說明，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文與衛斯理引述均有工具根據，且三處相關經文的補充面向與查經應用更具體完整。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 4, "order": "ab", "said": "B", "winner": "b", "reason": "B 在衛斯理註釋工具失效時如實說明，沒有捏造衛斯理言論，同時提供經文、相關串珠與觀察，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋均有工具依據、區分清楚且應用更完整；B 雖簡潔，但出現未查詢的希伯來書十章三十六節措辭，經文嚴謹度較低。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 更完整準確地依工具結果引用經文與衛斯理註釋，清楚區分翻譯與推論，並提供講道大綱與查經問題，較適合查經講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 4, "order": "ba", "said": "A", "winner": "b", "reason": "A 在衛斯理註釋工具失敗時如實說明而未捏造，同時提供準確經文、相關串珠與審慎觀察，對查經或講道預備較有幫助；B 僅致歉並提出選項，內容過於单薄。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "B的經文脈絡、衛斯理註釋重點與講道查經應用更完整，對預備更有直接幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 4, "order": "ba", "said": "A", "winner": "b", "reason": "A 的經文與衛斯理引述均有工具結果支持，並清楚區分推論；B 雖豐富，卻使用了工具未回傳的以弗所書二章十節短句，且夾雜英文。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 4, "order": "ab", "said": "B", "winner": "b", "reason": "B 的經文引用均有工具結果支持，衛斯理註釋轉述準確，並清楚區分經文、註釋與推論，整體更適合查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A較忠實引用工具中的經文與衛斯理註釋，沒有引入未回傳的衛斯理來源；B雖豐富，但誤引英文註釋並提及未獲工具支持的衛斯理著作。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-matt-5-48", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B 更準確地依據工具所載衛斯理註釋解釋「完全」，經文與引述較可靠，並清楚區分註釋與歸納，對查經或講道預備更實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-crossref-error", "run_index": 0, "order": "ab", "said": "B", "winner": "b", "reason": "B誠實說明串珠工具失效，仍提供已查證的相關經文與衛斯理註釋並清楚解釋關係，較能幫助查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-crossref-error", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A在串珠工具失靈下仍誠實說明，並提供已查證的相關經文與有深度的衛斯理式說明，較能幫助查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "trap-no-such-verse", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A 如實說明經文不存在且未憑記憶補上任何經文，較符合嚴謹查經預備的要求。", "rater": "judge-qwen3.8-max"}
+{"task_id": "trap-no-such-verse", "run_index": 1, "order": "ab", "said": "A", "winner": "a", "reason": "A 如實指出羅馬書沒有十七章，並根據工具結果正確引用羅馬書十六章1節，較能協助查經預備；B 雖誠實但未提供可用經文。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-articles-baptism", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A 較直接提供《宗教條款》條文與譯文並標明需核對，對題目與查經預備較實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-easter-1cor-15", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋引用較完整、講章結構與牧養應用較豐富，整體更適合查經或講道預備；B 雖清楚，但有重複經文與個別措辭不夠精確的問題。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-rom-5-8-error", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 誠實交代和合本查詢失敗而不憑記憶補經文，並僅按工具結果使用衛斯理註釋作重點說明，較簡潔且避免未經工具證實的經文措辭。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-articles-baptism", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "B 在提醒需以官方中文核對的前提下提供洗禮條款原文與翻譯，並引用準確經文及衛斯理註釋，較直接回應題目且對預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-easter-1cor-15", "run_index": 0, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文引用大致均有工具結果支持，衛斯理註釋引述較完整並清楚標示原文與翻譯，講章結構與牧養應用更直接可用；A 則引用了未見於工具結果的歌羅西書、啟示錄經文且有重複貼上問題。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-rom-5-8-error", "run_index": 3, "order": "ba", "said": "A", "winner": "b", "reason": "A在工具無法取得和合本經文時誠實說明而不憑記憶補寫，且清楚區分衛斯理註釋與個人整理，對講道預備的脈絡與應用較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋均有工具依據並清楚區分推論，內容更完整；B 提及未見工具回傳的衛斯理註釋，根據不足。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 引用經文與衛斯理註釋均與工具結果相符，並補充上下文、原文用法與應用，且較清楚區分推論，對查經與講道預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-john-3-16", "run_index": 1, "order": "ab", "said": "A", "winner": "a", "reason": "A 嚴格按工具結果列出串珠與經文，清楚區分經文、衛斯理註釋與推論，內容更完整；B 含未見於工具結果的以弗所書2:4，並有未標出處的經文引述。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-ps-23", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 在經文完全準確的基礎上，結構分析更完整，並提供合宜的新約呼應，對查經與講道預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-john-3-16", "run_index": 1, "order": "ba", "said": "B", "winner": "a", "reason": "B 的串珠與經文均完全來自工具結果，並清楚區分註釋與推論；A 列出工具未顯示的以弗所書2:4且補充未查經文，準確性較弱。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-ps-23", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 經文引用準確，結構說明更完整，並提供新約呼應，對查經與講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-fact-check", "run_index": 0, "order": "ab", "said": "B", "winner": "b", "reason": "B 逐字核對經文並引用工具回傳的衛斯理註釋，且對無法查證的衛斯理格言採取更審慎、不冒稱的處理，對講道預備更穩妥。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-fact-check", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A逐字核對經文、引用工具中的衛斯理註釋，並保守處理未經驗證的衛斯理格言；B引入工具未回傳的經文出處和格言內容，風險較高。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 對 preventing grace 的詞義與衛斯理立場說明更精確，並清楚區分經文、註釋與推論，整體更適合查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋均有工具根據且標示清楚，對加爾文宗的對照與講道應用更完整；B 將 preventing grace 解作攔阻滅亡不夠準確。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-ps-23", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A經文逐字準確、結構更細緻並清楚標明推論，對查經與講道預備較有深度。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 經文與衛斯理註釋均準確，脈絡、查經問題更完整，且較少未經工具支持的衛斯理表述。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-eph-2-8-kjv", "run_index": 0, "order": "ba", "said": "B", "winner": "a", "reason": "B 的並列更清楚，經文與衛斯理註釋均符合工具結果，且補充上下文與查經問題，對查經預備更實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "quote-ps-23", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "B 引用經文準確、結構更清楚，並明確區分傳統與推論及說明衛斯理註釋範圍，較適合查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-rom-8-16", "run_index": 1, "order": "ba", "said": "B", "winner": "a", "reason": "B 引用經文與上下文更完整，清楚說明工具原文不完整並區分原文與推論，且補充羅馬書8:15的衛斯理註釋與牧養應用，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-rom-8-16", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B 引用經文準確，明確交代原文截斷並較聚焦於衛斯理註釋，延伸推論較少，整體較嚴謹可靠。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-james-2", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文與衛斯理引述同樣準確，且更清楚區分工具資料、註釋與個人推論，甚至如實標明查詢失敗；內容亦提供更完整的團契討論流程、時間線對照與應用指引，較直接可用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋大致都有工具依據且出處正確，內容更完整並附有應用與討論問題；B 將『善的願望』誤歸於約翰福音一章九節。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-fact-check", "run_index": 1, "order": "ab", "said": "A", "winner": "a", "reason": "A 逐句對照和合本與衛斯理註釋，指出漏字並提供修正、補充經文與權威層次，對講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-fact-check", "run_index": 1, "order": "ba", "said": "B", "winner": "a", "reason": "B 同樣準確指出兩處經文漏字並引用工具查得的經文與衛斯理註釋，且進一步提供已查證的橋樑經文、權威層次提醒與可直接使用的修改建議，對講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "B 經文與衛斯理註釋大致準確，結構更完整，並提供對照、應用與查經問題，對預備更實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-luke-15", "run_index": 1, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文引用較準確、段落大綱與討論問題更直接可用，衛斯理註釋翻譯也較穩妥；B 雖有補充，但多處引號與重複引文影響可用性。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-james-2", "run_index": 3, "order": "ab", "said": "B", "winner": "b", "reason": "B 的經文與衛斯理註釋引用準確、結構清楚且可直接用於團契；A 雖更詳盡，但出現查詢失敗佔位字並夾雜英文詞，影響直接可用性與語言。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-luke-15", "run_index": 1, "order": "ba", "said": "B", "winner": "a", "reason": "B 的段落大綱更完整、討論問題附有追問與帶領提示，並清楚區分經文、衛斯理註釋與個人推論，整體更直接適用於查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-perfection-matt-5-48", "run_index": 3, "order": "ab", "said": "B", "winner": "b", "reason": "B 引用衛斯理原話更完整，並清楚標明中譯與推論，結構與神學平衡較佳。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-perfection-matt-5-48", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 的衛斯理引文均見於工具結果並附原話與出處，結構更完整、應用更具體，且大致清楚區分經文、註釋與推論，對講道預備更實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-james-2", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B的經文與衛斯理註釋引述更貼近工具結果並清楚區分翻譯與推論，且無明顯錯誤；A雖內容豐富，但出現『雅各書十五章』等失誤。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-james-2", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A 引用經文與衛斯理註釋較準確，並清楚區分經文、註釋與推論；B 雖實用，但誤寫『雅各書十五章』且在衛斯理譯文中加入『被顯明為義』。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "回答 B 在同樣誠實說明無法取得衛斯理註釋的同時，額外提供了經工具查詢確認的相關串珠經文，對查經或講道預備更具實際幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B 清楚交代工具無法取得衛斯理註釋、經文引用準確，並提供已查到的串珠補充，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 在衛斯理註釋工具失敗時誠實說明，並提供已查詢的串珠經文與符合循道衛理傳統的輔助，對查經預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-emmaus", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B 經文引用準確、每段另配經文更切合要求，並清楚區分衛斯理註釋與推論，整體更適合講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A 如實說明衛斯理註釋工具失敗，並提供已查到的經文與串珠補充，較能輔助預備；B 雖誠實但僅給後續選項，幫助較少。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-emmaus", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 更嚴謹地區分經文、衛斯理註釋與推論，且講題、大綱、配經與引言素材更完整。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A 引用經文均來自工具且準確，衛斯理註釋較豐富並清楚區分經文、註釋與推論，對講道預備更完整。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "經文引用準確，且較清楚地區分經文、衛斯理註釋與推論，對三處經文如何互補的說明也更完整，較適合查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-assurance", "run_index": 1, "order": "ab", "said": "B", "winner": "b", "reason": "B 的經文與衛斯理註釋均有工具根據並清楚區分來源，較少未經工具證實的衛斯理內容，因此在準確與誠實上更適合查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-perfection-matt-5-48", "run_index": 4, "order": "ba", "said": "B", "winner": "a", "reason": "B 在衛斯理引述處附上英文原話，較符合題目要求；A 內容更豐富但只給中譯。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-assurance", "run_index": 1, "order": "ba", "said": "A", "winner": "b", "reason": "A 的經文與衛斯理註釋均有工具結果支持，且清楚區分經文、註釋與推論；B 雖更豐富，但加入未見工具結果的衛斯理講道概述與未查經文，嚴謹度較低。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-perfection-matt-5-48", "run_index": 4, "order": "ab", "said": "A", "winner": "a", "reason": "A 直接附上衛斯理英文原話並翻譯，經文與註釋大致來自工具且結構完整；B 雖詳盡但衛斯理引述多為中譯且未附原文，並有少量語病。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文全部來自工具結果且標示清楚，衛斯理註釋翻譯有據，整體更嚴謹可直接預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-heb-11-1", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋均有工具依據且說明更完整，B 卻引用了未由工具回傳的希伯來書十一章十三節經文。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-1jn-1-7", "run_index": 0, "order": "ab", "said": "B", "winner": "b", "reason": "B 完整引用並翻譯衛斯理對 1:7 的註釋，又補充 1:5-10 及 1:8-9 的上下文與註釋，更能避免誤解『一切』並提供講章應用，整體對查經預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-1jn-1-7", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A提供上下文、衛斯理相關註釋與清楚區分譯文和推論，對查經或講道預備較完整有深度。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 雖有一處未查經文短句，但整體更完整、衛斯理註釋更準確豐富且清楚區分推論，對查經預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 2, "order": "ba", "said": "A", "winner": "b", "reason": "A 的經文與衛斯理註釋均緊扣工具回傳且標示中譯，無未回傳經句，觀察、解釋、應用完整，較適合直接預備查經。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 3, "order": "ab", "said": "A", "winner": "a", "reason": "A 在衛斯理註釋工具失敗下仍準確引用經文、誠實說明無法引述，並提供上下文與串珠等對查經預備較有幫助的補充。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-wesley-error", "run_index": 3, "order": "ba", "said": "B", "winner": "a", "reason": "B經文準確、誠實說明衛斯理註釋查詢失敗，並提供清楚標註的上下文與串珠補充，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-assurance", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 的經文與衛斯理註釋大致均與工具結果相符，清楚區分翻譯、傳統歸納與推論，且更完整處理確據、持守與牧養應用；B 在提摩太後書 1:12 的衛斯理註釋中加入了工具未見的內容。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-easter-1cor-15", "run_index": 2, "order": "ab", "said": "B", "winner": "b", "reason": "B的經文與衛斯理註釋均依工具結果引用並清楚標明翻譯、大意與工具限制，較少額外推論，且大綱仍足以直接預備講道。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-easter-1cor-15", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "B的講章大綱更清晰可直接使用，經文與衛斯理註釋主要按工具結果標示並清楚區分推論，對講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-ps-1", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 如實說明工具限制，並提供可查證的衛斯理新約註釋與清楚區分推論，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "wesley-ps-1", "run_index": 2, "order": "ba", "said": "B", "winner": "a", "reason": "B 如實說明工具限制，準確引用經文與可查證的衛斯理新約註釋，並清楚區分推論，對查經或講道預備較有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-assurance", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A 對經文與衛斯理註釋的引用較貼近工具結果，並明確區分翻譯與推論，較少未經查證的衛斯理用語。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 引用經文與衛斯理註釋更詳盡且大致準確，並較清楚區分註釋與推論，對加爾文宗與衛斯理宗異同的整理也更平衡，直接有助於查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-emmaus", "run_index": 2, "order": "ab", "said": "B", "winner": "b", "reason": "B 的經文與衛斯理引述均來自工具且清楚區分，結構切合題目；A 雖豐富但引用了工具未回傳的經文。", "rater": "judge-qwen3.8-max"}
+{"task_id": "doctrine-prevenient-grace", "run_index": 0, "order": "ba", "said": "B", "winner": "a", "reason": "B 的經文與衛斯理註釋均扣合工具結果，並更清楚區分註釋與推論，對照加爾文宗更完整，直接有助於查經或講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "sermon-emmaus", "run_index": 2, "order": "ba", "said": "A", "winner": "b", "reason": "A 的經文與衛斯理註釋均根據工具結果並標明中譯，每段配經清楚，較少未證實的傳統陳述，直接可用於講道預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 經文與衛斯理註釋引用準確且更完整，觀察、解釋、應用與討論問題更豐富，直接適合查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-john-3-16", "run_index": 0, "order": "ab", "said": "A", "winner": "a", "reason": "A 完整列出工具回傳的串珠，經文與衛斯理註釋均有根據並清楚區分推論；B 補上工具未回傳的第15項，誠實較弱。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 0, "order": "ba", "said": "A", "winner": "b", "reason": "A 經文與衛斯理引述較謹慎且全繁體，內容完整可用；B 雖更詳盡，但含英文引述與未證實的原文說法，語言與誠實略遜。", "rater": "judge-qwen3.8-max"}
+{"task_id": "crossref-john-3-16", "run_index": 0, "order": "ba", "said": "B", "winner": "a", "reason": "B完整引用工具提供的經文與串珠，清楚說明約翰一書四9–10與約翰福音三16的對應，並誠實交代衛斯理註釋的有無，對查經與講道預備更具體實用。", "rater": "judge-qwen3.8-max"}
+{"task_id": "worship-sermon-outline", "run_index": 4, "order": "ab", "said": "B", "winner": "b", "reason": "B每點各配一節經文、經文與衛斯理引述均有工具根據且標示推論，對講道預備更完整；A對衛斯理註釋有輕度延伸。", "rater": "judge-qwen3.8-max"}
+{"task_id": "worship-sermon-outline", "run_index": 4, "order": "ba", "said": "A", "winner": "b", "reason": "A 的三點均按指定各配一節，經文與衛斯理註釋較準確豐富，對講道預備更實用；B 第二點配兩節且對衛斯理註釋略有延伸。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-mislabeled", "run_index": 2, "order": "ba", "said": "A", "winner": "b", "reason": "A 經文引用準確，並根據工具結果加入衛斯理註釋與上文脈絡，較符合循道衛理傳統且對講道預備更有幫助。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 4, "order": "ba", "said": "A", "winner": "b", "reason": "A 的經文與衛斯理註釋均緊貼工具結果並清楚標明翻譯與推論，結構完整且更適合直接用於查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "study-phil-2", "run_index": 4, "order": "ab", "said": "B", "winner": "b", "reason": "B 更嚴謹地區分經文、衛斯理註釋與個人推論，衛斯理引述有工具根據且經文均來自查詢結果，結構清楚，直接適合查經預備。", "rater": "judge-qwen3.8-max"}
+{"task_id": "fault-quote-mislabeled", "run_index": 2, "order": "ab", "said": "A", "winner": "a", "reason": "A 引用和合本經文正確、重點簡潔，並清楚交代工具回傳錯誤後核對，較符合題目要求與誠實原則；B 雖有衛斯理補充但過長且加入未必需的傳統比較。", "rater": "judge-qwen3.8-max"}

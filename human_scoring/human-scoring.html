@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TheoClaw 人工評分</title>
+<style>
+  :root {
+    --bg: #f8f7f4;
+    --card: #ffffff;
+    --border: #e0ddd5;
+    --text: #2d2a26;
+    --text-light: #6b6560;
+    --accent: #4a6741;
+    --accent-hover: #3d5536;
+    --accent-light: #e8f0e5;
+    --danger: #c0392b;
+    --success: #27ae60;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+  .header-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .progress-info {
+    font-size: 0.85rem;
+    color: var(--text-light);
+  }
+  .progress-bar {
+    width: 100%;
+    max-width: 200px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+
+  /* Main */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 16px;
+  }
+
+  /* Upload area */
+  .upload-area {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 40px 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+  .upload-area:hover { border-color: var(--accent); }
+  .upload-area h2 { font-size: 1.1rem; margin-bottom: 8px; }
+  .upload-area p { color: var(--text-light); font-size: 0.9rem; margin-bottom: 16px; }
+  .file-input { display: none; }
+  .btn {
+    display: inline-block;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-secondary:hover { background: var(--accent-light); }
+  .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+
+  /* Meta info bar */
+  .meta-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+  }
+  .meta-tag {
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .card-content { font-size: 0.95rem; white-space: pre-wrap; }
+
+  /* Tool calls */
+  .tool-call {
+    background: #f5f3ef;
+    border-left: 3px solid var(--border);
+    padding: 8px 12px;
+    margin: 6px 0;
+    font-size: 0.85rem;
+    font-family: "SF Mono", "Consolas", monospace;
+    border-radius: 0 4px 4px 0;
+    overflow-x: auto;
+  }
+  .tool-call.error { border-left-color: var(--danger); }
+  .tool-name { color: var(--accent); font-weight: 600; }
+
+  /* Scoring dimensions */
+  .dimensions { margin-top: 8px; }
+  .dim-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dim-row:last-child { border-bottom: none; }
+  .dim-info { flex: 1; min-width: 200px; }
+  .dim-name { font-weight: 600; font-size: 0.95rem; }
+  .dim-question { font-size: 0.8rem; color: var(--text-light); margin-top: 2px; }
+  .dim-options { display: flex; gap: 4px; flex-shrink: 0; }
+  .dim-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dim-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .dim-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .dim-btn.na.active {
+    background: var(--text-light);
+    border-color: var(--text-light);
+  }
+
+  /* Verdict */
+  .verdict-section { margin-top: 16px; }
+  .verdict-options { display: flex; gap: 12px; margin-top: 8px; }
+  .verdict-btn {
+    flex: 1;
+    max-width: 120px;
+    padding: 10px;
+    border: 2px solid var(--border);
+    background: var(--card);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .verdict-btn:hover { border-color: var(--accent); }
+  .verdict-btn.active-yes {
+    background: #e8f5e9;
+    border-color: var(--success);
+    color: var(--success);
+  }
+  .verdict-btn.active-no {
+    background: #fdeaea;
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  /* Category select */
+  .category-section { margin-top: 16px; }
+  .category-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    background: var(--card);
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .category-select:focus { outline: none; border-color: var(--accent); }
+
+  /* Comment */
+  .comment-section { margin-top: 16px; }
+  .comment-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+    margin-top: 8px;
+  }
+  .comment-input:focus { outline: none; border-color: var(--accent); }
+
+  /* Action buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .actions .btn { flex: 1; min-width: 140px; }
+
+  /* Rater name */
+  .rater-section {
+    margin-bottom: 16px;
+  }
+  .rater-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    width: 200px;
+    max-width: 100%;
+  }
+  .rater-input:focus { outline: none; border-color: var(--accent); }
+
+  /* Export section */
+  .export-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--text);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 200;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .container { padding: 12px 10px; }
+    .card { padding: 16px; }
+    .header-inner { flex-direction: column; align-items: flex-start; }
+    .dim-row { flex-direction: column; align-items: flex-start; }
+    .dim-options { width: 100%; justify-content: flex-start; }
+    .verdict-options { flex-direction: column; }
+    .verdict-btn { max-width: 100%; }
+    .actions { flex-direction: column; }
+    .actions .btn { width: 100%; }
+  }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+
+  /* Stats summary */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 0.75rem; color: var(--text-light); margin-top: 2px; }
+  .problem-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card);
+          cursor: pointer; font-size: 0.85rem; }
+  .chip.active { background: #fdeaea; border-color: var(--danger); color: var(--danger); }
+  details.tool-call summary { cursor: pointer; }
+  details.tool-call pre { white-space: pre-wrap; margin-top: 6px; font-family: inherit; }
+  .nav { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .help { font-size: 0.85rem; color: var(--text-light); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+         cursor: pointer; font-size: 0.95rem; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ask-input { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border);
+               border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px; }
+  .q-list { list-style: none; margin-top: 8px; }
+  .q-list li { padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.9rem; }
+  .q-list li:hover { color: var(--accent); }
+  .saved-tag { background: #e8f5e9; color: var(--success); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <h1>TheoClaw 人工評分</h1>
+    <div class="progress-info" id="progressInfo">載入中…</div>
+  </div>
+  <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+</header>
+
+<div class="container">
+  <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
+
+  <div id="introBox" class="card hidden">
+    <div class="card-title">說明</div>
+    <div class="card-content help">每一題是一個查經與講道預備助手的回答。請先看題目和「工具查到的資料」（經文、衛斯理註釋原文都在裡面，點開可看全文），再看回答，依下列各項打分。
+不知道或不適用的項目選 N。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。</div>
+  </div>
+
+  <div class="tabs hidden" id="tabs">
+    <button class="tab active" id="tabBlind" onclick="mode('blind')">評分指定題目</button>
+    <button class="tab" id="tabAsk" onclick="mode('ask')">自己提問並評分</button>
+  </div>
+
+  <div id="askSection" class="hidden">
+    <div class="card">
+      <div class="card-title">提問</div>
+      <div class="help">請像平常預備查經或講道一樣提問，助手會查經文和衛斯理註釋後回答（約 20 秒到一分鐘）。
+回答出來後，請用下面同一套標準評分。請不要輸入會友的姓名或私人資料。</div>
+      <textarea class="ask-input" id="askInput" placeholder="例如：我下主日要講路加福音 15 章，請給我講題和三段大綱。"></textarea>
+      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出問題</button></div>
+      <div class="help" id="askInfo" style="margin-top:8px"></div>
+    </div>
+    <div class="card hidden" id="waitCard">
+      <div class="card-title">回答</div>
+      <div class="card-content help" id="waitText">助手正在查經文並撰寫回答，通常 20 秒到一分鐘，請不要關閉頁面…</div>
+    </div>
+    <div class="card">
+      <div class="card-title">我問過的問題（點選可查看或修改評分）</div>
+      <ul class="q-list" id="qList"></ul>
+    </div>
+  </div>
+
+  <div id="scoringSection" class="hidden">
+    <div class="nav" id="navBar">
+      <button class="btn btn-secondary btn-sm" onclick="go(-1)">← 上一題</button>
+      <span id="posInfo" class="help"></span>
+      <button class="btn btn-secondary btn-sm" onclick="go(1)">下一題 →</button>
+    </div>
+    <div class="card"><div class="card-title">題目</div><div class="card-content" id="questionText"></div></div>
+    <div class="card"><div class="card-title">工具查到的資料（點開看全文）</div><div id="toolCalls"></div></div>
+    <div class="card"><div class="card-title">回答</div><div class="card-content" id="answerText"></div></div>
+    <div class="card"><div class="card-title">評分（1–5 分，5 最好；N = 不適用）</div><div class="dimensions" id="dimensions"></div></div>
+    <div class="card"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
+    <div class="card verdict-section">
+      <div class="card-title">總評</div>
+      <div class="card-content" id="verdictQuestion"></div>
+      <div class="verdict-options">
+        <button class="verdict-btn" id="verdictYes" onclick="setVerdict(true)">可以</button>
+        <button class="verdict-btn" id="verdictNo" onclick="setVerdict(false)">不可以</button>
+      </div>
+    </div>
+    <div class="card comment-section">
+      <div class="card-title">備註（選填：哪裡錯了、應該怎樣改）</div>
+      <textarea class="comment-input" id="commentInput"></textarea>
+    </div>
+    <div class="actions"><button class="btn" id="saveBtn" onclick="save()">儲存並到下一題</button></div>
+  </div>
+
+  <div id="doneSection" class="hidden">
+    <div class="export-section">
+      <h2 style="margin-bottom:12px">全部評完了，謝謝您！</h2>
+      <p style="color:var(--text-light)">評分已經存檔，不需要另外下載。若想修改，可按下方按鈕回到任何一題。</p>
+      <div class="actions" style="justify-content:center"><button class="btn btn-secondary" onclick="show(0)">回到第一題</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const code = new URLSearchParams(location.search).get('t') || '';
+let state = null, pos = 0, item = null, scores = {}, verdict = null, problems = new Set();
+
+function api(path, opts) {
+  const sep = path.includes('?') ? '&' : '?';
+  return fetch(path + sep + 't=' + encodeURIComponent(code), opts).then(r => r.json());
+}
+
+function fail(msg) {
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBox').classList.remove('hidden');
+  document.getElementById('progressInfo').textContent = '';
+}
+
+function init() {
+  if (!code) { fail('請使用負責人寄給您的專屬連結開啟本頁。'); return; }
+  api('/api/state').then(s => {
+    if (s.error) { fail(s.error); return; }
+    state = s;
+    document.querySelector('.header h1').textContent = 'TheoClaw 人工評分 · ' + s.rater;
+    document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
+    document.getElementById('introBox').classList.remove('hidden');
+    if (s.chat) document.getElementById('tabs').classList.remove('hidden');
+    const firstOpen = s.order.findIndex(id => !s.done.includes(id));
+    if (firstOpen < 0) { progress(); done(); } else { show(firstOpen); }
+  }).catch(() => fail('無法連線到評分伺服器，請稍後再試。'));
+}
+
+function progress() {
+  const n = state.done.length, total = state.order.length;
+  document.getElementById('progressInfo').textContent = '已評 ' + n + ' / ' + total;
+  document.getElementById('progressFill').style.width = (n / total * 100) + '%';
+}
+
+function done() {
+  document.getElementById('scoringSection').classList.add('hidden');
+  document.getElementById('doneSection').classList.remove('hidden');
+}
+
+let current = 'blind', polling = null;
+
+function mode(m) {
+  current = m;
+  document.getElementById('tabBlind').classList.toggle('active', m === 'blind');
+  document.getElementById('tabAsk').classList.toggle('active', m === 'ask');
+  document.getElementById('askSection').classList.toggle('hidden', m !== 'ask');
+  document.getElementById('introBox').classList.toggle('hidden', m === 'ask');
+  if (m === 'ask') {
+    document.getElementById('scoringSection').classList.add('hidden');
+    document.getElementById('doneSection').classList.add('hidden');
+    refreshAsk();
+  } else {
+    const firstOpen = state.order.findIndex(id => !state.done.includes(id));
+    if (firstOpen < 0) done(); else show(firstOpen);
+  }
+}
+
+function refreshAsk() {
+  api('/api/state').then(s => {
+    state.chat = s.chat;
+    const c = s.chat;
+    document.getElementById('askInfo').textContent = c.open
+      ? '今天還可以問 ' + c.remaining_today + ' 題。' : '本次測試的提問額度已用完，謝謝您的參與。';
+    document.getElementById('askBtn').disabled = !c.open || c.remaining_today <= 0;
+    const ul = document.getElementById('qList');
+    ul.innerHTML = '';
+    if (!c.questions.length) ul.innerHTML = '<li class="help">還沒有問過問題</li>';
+    c.questions.slice().reverse().forEach(q => {
+      const li = document.createElement('li');
+      li.textContent = (q.rated ? '✓ ' : '○ ') + q.prompt;
+      li.onclick = () => showId(q.id);
+      ul.appendChild(li);
+    });
+  });
+}
+
+function ask() {
+  const q = document.getElementById('askInput').value.trim();
+  if (q.length < 2) { showToast('請輸入問題'); return; }
+  const btn = document.getElementById('askBtn');
+  btn.disabled = true;
+  api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question: q})})
+    .then(r => {
+      if (r.error) { showToast(r.error); btn.disabled = false; return; }
+      const wait = document.getElementById('waitCard'), text = document.getElementById('waitText');
+      wait.classList.remove('hidden');
+      text.textContent = '助手正在查經文並撰寫回答，通常 20 秒到一分鐘，請不要關閉頁面…';
+      const stop = (msg) => { clearInterval(polling); btn.disabled = false; if (msg) text.textContent = msg; };
+      polling = setInterval(() => {
+        api('/api/job?id=' + r.job).then(j => {
+          if (j.error && !j.status) { stop('找不到這次提問（伺服器可能剛重新啟動），請再送出一次。'); return; }
+          if (j.status === 'running') {
+            text.textContent = '助手正在查經文並撰寫回答……已等 ' + j.elapsed + ' 秒，請不要關閉頁面。';
+            return;
+          }
+          if (j.status === 'error') { stop(j.error); refreshAsk(); return; }
+          stop(); wait.classList.add('hidden');
+          document.getElementById('askInput').value = '';
+          showId(j.item);
+        }).catch(() => { text.textContent = '連線不穩，正在重試…'; });
+      }, 3000);
+    })
+    .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+}
+
+function showId(id) {
+  const i = state.order.indexOf(id);
+  if (i >= 0) { show(i); return; }
+  load(id);
+}
+
+function go(step) {
+  const next = pos + step;
+  if (next >= 0 && next < state.order.length) show(next);
+}
+
+function show(i) {
+  pos = i;
+  load(state.order[i]);
+}
+
+function load(id) {
+  api('/api/item?id=' + encodeURIComponent(id)).then(it => {
+    if (it.error) { showToast(it.error); return; }
+    item = it;
+    document.getElementById('doneSection').classList.add('hidden');
+    document.getElementById('scoringSection').classList.remove('hidden');
+    document.getElementById('askSection').classList.add('hidden');
+    document.getElementById('navBar').style.visibility = it.chat ? 'hidden' : 'visible';
+    document.getElementById('posInfo').innerHTML = it.chat ? '' : '第 ' + it.position + ' / ' + it.total + ' 題' +
+      (state.done.includes(it.id) ? ' <span class="saved-tag">已評</span>' : '');
+    document.getElementById('questionText').textContent = it.prompt;
+    document.getElementById('answerText').textContent = it.answer;
+    const tc = document.getElementById('toolCalls');
+    tc.innerHTML = '';
+    if (!it.tools.length) tc.innerHTML = '<div class="help">（沒有呼叫工具）</div>';
+    it.tools.forEach((c, k) => {
+      const d = document.createElement('details');
+      d.className = 'tool-call' + (c.is_error ? ' error' : '');
+      const s = document.createElement('summary');
+      const ref = c.input.reference || JSON.stringify(c.input);
+      s.textContent = (k + 1) + '. ' + label(c.name) + '：' + ref + (c.is_error ? '（出錯）' : '');
+      const pre = document.createElement('pre');
+      pre.textContent = c.output || '（空白）';
+      d.appendChild(s); d.appendChild(pre); tc.appendChild(d);
+    });
+    const prev = it.previous || {};
+    scores = Object.assign({}, prev.scores || {});
+    verdict = prev.verdict === undefined ? null : prev.verdict;
+    problems = new Set(prev.problems || []);
+    document.getElementById('commentInput').value = prev.comment || '';
+    renderDims(); renderProblems(); setVerdict(verdict);
+    progress();
+    window.scrollTo(0, 0);
+  });
+}
+
+function label(name) {
+  return {lookup_verse: '查經文', fill_quote: '填入經文', cross_references: '串珠', wesley_note: '衛斯理註釋',
+          kb_read_file: '知識庫', kb_get_page_content: '知識庫'}[name] || name;
+}
+
+function renderDims() {
+  const box = document.getElementById('dimensions');
+  box.innerHTML = '';
+  state.rubric.dimensions.forEach(dim => {
+    const row = document.createElement('div'); row.className = 'dim-row';
+    const info = document.createElement('div'); info.className = 'dim-info';
+    info.innerHTML = '<div class="dim-name"></div><div class="dim-question"></div>';
+    info.children[0].textContent = dim.name; info.children[1].textContent = dim.question;
+    const opts = document.createElement('div'); opts.className = 'dim-options';
+    [1, 2, 3, 4, 5, null].forEach(v => {
+      const b = document.createElement('button');
+      b.className = 'dim-btn' + (v === null ? ' na' : '');
+      b.textContent = v === null ? 'N' : v;
+      if (dim.key in scores && scores[dim.key] === v) b.classList.add('active');
+      b.onclick = () => { scores[dim.key] = v; renderDims(); };
+      opts.appendChild(b);
+    });
+    row.appendChild(info); row.appendChild(opts); box.appendChild(row);
+  });
+}
+
+function renderProblems() {
+  const box = document.getElementById('problems');
+  box.innerHTML = '';
+  state.problems.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (problems.has(p.key) ? ' active' : '');
+    b.textContent = p.label;
+    b.onclick = () => { problems.has(p.key) ? problems.delete(p.key) : problems.add(p.key); renderProblems(); };
+    box.appendChild(b);
+  });
+}
+
+function setVerdict(v) {
+  verdict = v;
+  document.getElementById('verdictYes').classList.toggle('active-yes', v === true);
+  document.getElementById('verdictNo').classList.toggle('active-no', v === false);
+}
+
+function save() {
+  const missing = state.rubric.dimensions.filter(d => !(d.key in scores));
+  if (missing.length) { showToast('還有「' + missing[0].name + '」沒有評分'); return; }
+  if (verdict === null) { showToast('請選擇總評'); return; }
+  const btn = document.getElementById('saveBtn'); btn.disabled = true;
+  api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems],
+                          comment: document.getElementById('commentInput').value.trim()})})
+    .then(r => {
+      btn.disabled = false;
+      if (r.error) { showToast(r.error); return; }
+      showToast('已儲存');
+      if (item.chat) { mode('ask'); return; }
+      if (!state.done.includes(item.id)) state.done.push(item.id);
+      const next = state.order.findIndex((id, k) => k > pos && !state.done.includes(id));
+      const any = state.order.findIndex(id => !state.done.includes(id));
+      if (next >= 0) show(next); else if (any >= 0) show(any); else { progress(); done(); }
+    })
+    .catch(() => { btn.disabled = false; showToast('儲存失敗，請檢查網路後再按一次'); });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+init();
+</script>
+</body>
+</html>

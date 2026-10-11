@@ -1,0 +1,25 @@
+__pycache__/
+.venv/
+.pytest_cache/
+*.egg-info/
+knowledge/
+data/_raw/
+.env
+
+# 評分紀錄：只公開兩組主要對比、prompt v2 的跑次和校準報告（評審者為 claude 與 LLM 評審）
+runs/*
+!runs/20261009-101326_deepseek-flash/
+!runs/20261009-101342_qwen3.8-max/
+!runs/20261009-164051_deepseek-flash_prompt-v2/
+!runs/calibration/
+runs/*/*.bak
+runs/calibration/*.key.json
+# 牧者與其他真人評分不公開，只留 claude 和 LLM 評審
+runs/*/human/*
+!runs/*/human/claude.jsonl
+!runs/*/human/judge-*.jsonl
+
+# 線上評分：牧者代碼、伺服器資料、打包檔、舊版備份
+human_scoring/assignment.json
+human_scoring/_backup_原版/
+human_scoring/deploy/*.tar.gz

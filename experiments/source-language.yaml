@@ -1,0 +1,14 @@
+# 實驗二：來源用什麼語言？總規的英文原文與中文版各編成一個 wiki（wiki 語言相同），用中文提問。
+# Experiment 2: does the source language matter? The General Rules in English and in Chinese,
+# each compiled to a wiki in the same language, queried in Chinese.
+#
+#   python -m theoclaw.kb.compile build general-rules-en --language en
+#   python -m theoclaw.kb.compile build general-rules-zh --language en
+
+name: source-language
+tasks: tasks/kb.example.yaml
+only: [kbx-topic-general-rules]
+n: 5
+arms:
+  - {label: source-en, tools: "scripture,kb", kb: general-rules-en.en.qwen3.8-max}
+  - {label: source-zh, tools: "scripture,kb", kb: general-rules-zh.en.qwen3.8-max}

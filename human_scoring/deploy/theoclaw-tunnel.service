@@ -1,0 +1,11 @@
+[Unit]
+Description=Cloudflare 臨時通道：把 https 網址轉到本機 8765（不需要網域）
+After=network-online.target theoclaw-scoring.service
+
+[Service]
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8765
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# 實驗五：agent 用哪個模型？正式任務集，三個模型，工具相同（scripture + wesley）。
+# Experiment 5: which agent model? The real task set, three models, the same tools.
+# 之後加 LLM 裁判時注意：裁判是 deepseek-flash，評 deepseek 那一組會偏袒自己，那一組改用人工評分對照。
+
+name: agent-model
+tasks: tasks/tasks.yaml
+n: 1    # 先每題跑 1 次看實際成本；確認後改成 5
+arms:
+  - {label: agent-qwen-max, model: qwen3.8-max}
+  - {label: agent-qwen-flash, model: qwen3.8-flash}
+  - {label: agent-deepseek-flash, model: deepseek-flash}

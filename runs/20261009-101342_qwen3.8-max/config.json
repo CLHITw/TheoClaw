@@ -1,0 +1,63 @@
+{
+  "model": "qwen3.8-max",
+  "effort": null,
+  "n": 5,
+  "max_steps": 12,
+  "max_tokens": 16000,
+  "llm": {
+    "role": "agent",
+    "model": "qwen3.8-max",
+    "provider": "dashscope",
+    "api": "litellm",
+    "endpoint": null,
+    "effort": null,
+    "max_tokens": 16000,
+    "params": {
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    "config_sha": "12cbaf45ceed"
+  },
+  "tasks_file": "tasks/tasks.yaml",
+  "tasks_sha": "8f99af0d3fbb",
+  "system_prompt_sha": "107476b1a9f4",
+  "tools_sha": "cc485ea1d7e8",
+  "toolset": {
+    "tools": [
+      "scripture",
+      "wesley"
+    ]
+  },
+  "label": "",
+  "task_ids": [
+    "quote-rom-5-8",
+    "quote-ps-23",
+    "quote-eph-2-8-kjv",
+    "wesley-rom-8-16",
+    "wesley-1jn-1-7",
+    "wesley-matt-5-48",
+    "wesley-ps-1",
+    "crossref-john-3-16",
+    "crossref-heb-11-1",
+    "study-luke-15",
+    "study-phil-2",
+    "study-james-2",
+    "worship-advent",
+    "worship-sermon-outline",
+    "sermon-emmaus",
+    "sermon-easter-1cor-15",
+    "sermon-perfection-matt-5-48",
+    "sermon-fact-check",
+    "doctrine-assurance",
+    "doctrine-prevenient-grace",
+    "doctrine-articles-baptism",
+    "trap-no-such-verse",
+    "fault-quote-rom-5-8-error",
+    "fault-ps-23-empty",
+    "fault-wesley-error",
+    "fault-crossref-error",
+    "fault-quote-mislabeled"
+  ],
+  "started": "20261009-101342"
+}

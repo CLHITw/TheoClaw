@@ -1,0 +1,15 @@
+# 實驗三：編譯用便宜的模型會不會降低回答品質？同一批來源分別用三個模型編譯，查詢模型相同。
+# Experiment 3: does a cheaper compile model cost answer quality? Same sources, three compile
+# models, the same query model (the agent role in config/llm.yaml).
+#
+#   python -m theoclaw.kb.compile build wesley-core --model qwen3.8-max
+#   python -m theoclaw.kb.compile build wesley-core --model qwen3.8-flash
+#   python -m theoclaw.kb.compile build wesley-core --model deepseek-flash
+
+name: compile-model
+tasks: tasks/kb.example.yaml
+n: 3
+arms:
+  - {label: compiled-qwen-max, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-max}
+  - {label: compiled-qwen-flash, tools: "scripture,kb", kb: wesley-core.en.qwen3.8-flash}
+  - {label: compiled-deepseek, tools: "scripture,kb", kb: wesley-core.en.deepseek-flash}
