@@ -381,8 +381,8 @@
 
   <div id="introBox" class="card hidden">
     <div class="card-title">說明</div>
-    <div class="card-content help">每一題是一個查經與講道預備助手的回答。請先看題目和「工具查到的資料」（經文、衛斯理註釋原文都在裡面，點開可看全文），再看回答，依下列各項打分。
-不知道或不適用的項目選 N。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。</div>
+    <div class="card-content help" id="introText">每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。
+覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。</div>
   </div>
 
   <div class="tabs hidden" id="tabs">
@@ -418,9 +418,9 @@
     <div class="card"><div class="card-title">題目</div><div class="card-content" id="questionText"></div></div>
     <div class="card"><div class="card-title">工具查到的資料（點開看全文）</div><div id="toolCalls"></div></div>
     <div class="card"><div class="card-title">回答</div><div class="card-content" id="answerText"></div></div>
-    <div class="card"><div class="card-title">評分（1–5 分，5 最好；N = 不適用）</div><div class="dimensions" id="dimensions"></div></div>
-    <div class="card"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
-    <div class="card verdict-section">
+    <div class="card"><div class="card-title" id="scoreTitle">評分</div><div class="help" id="anchors"></div><div class="dimensions" id="dimensions"></div></div>
+    <div class="card" id="problemsCard"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
+    <div class="card verdict-section" id="verdictCard">
       <div class="card-title">總評</div>
       <div class="card-content" id="verdictQuestion"></div>
       <div class="verdict-options">
@@ -429,7 +429,7 @@
       </div>
     </div>
     <div class="card comment-section">
-      <div class="card-title">備註（選填：哪裡錯了、應該怎樣改）</div>
+      <div class="card-title">備註（選填：哪一句讓你覺得怪？貼上來就好，不用查證）</div>
       <textarea class="comment-input" id="commentInput"></textarea>
     </div>
     <div class="actions"><button class="btn" id="saveBtn" onclick="save()">儲存並到下一題</button></div>
@@ -468,6 +468,16 @@ function init() {
     state = s;
     document.querySelector('.header h1').textContent = 'TheoClaw 人工評分 · ' + s.rater;
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
+    const r = s.rubric, simple = r.verdict.auto_min !== undefined;
+    document.getElementById('scoreTitle').textContent = '評分（' + r.scale.min + '–' + r.scale.max + ' 分，' + r.scale.max + ' 最好' +
+      (r.allow_na ? '；N = 不適用' : '') + '）';
+    document.getElementById('anchors').innerHTML = '';
+    r.anchors.forEach(a => {
+      const d = document.createElement('div'); d.textContent = a.range + ' 分：' + a.meaning;
+      document.getElementById('anchors').appendChild(d);
+    });
+    document.getElementById('verdictCard').classList.toggle('hidden', simple);
+    document.getElementById('problemsCard').classList.toggle('hidden', simple);
     document.getElementById('introBox').classList.remove('hidden');
     if (s.chat) document.getElementById('tabs').classList.remove('hidden');
     const firstOpen = s.order.findIndex(id => !s.done.includes(id));
@@ -618,7 +628,10 @@ function renderDims() {
     info.innerHTML = '<div class="dim-name"></div><div class="dim-question"></div>';
     info.children[0].textContent = dim.name; info.children[1].textContent = dim.question;
     const opts = document.createElement('div'); opts.className = 'dim-options';
-    [1, 2, 3, 4, 5, null].forEach(v => {
+    const r = state.rubric, vals = [];
+    for (let v = r.scale.min; v <= r.scale.max; v++) vals.push(v);
+    if (r.allow_na) vals.push(null);
+    vals.forEach(v => {
       const b = document.createElement('button');
       b.className = 'dim-btn' + (v === null ? ' na' : '');
       b.textContent = v === null ? 'N' : v;
@@ -651,7 +664,7 @@ function setVerdict(v) {
 function save() {
   const missing = state.rubric.dimensions.filter(d => !(d.key in scores));
   if (missing.length) { showToast('還有「' + missing[0].name + '」沒有評分'); return; }
-  if (verdict === null) { showToast('請選擇總評'); return; }
+  if (verdict === null && state.rubric.verdict.auto_min === undefined) { showToast('請選擇總評'); return; }
   const btn = document.getElementById('saveBtn'); btn.disabled = true;
   api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems],

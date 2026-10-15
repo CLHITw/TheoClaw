@@ -96,6 +96,18 @@ def main(argv=None) -> None:
     p.add_argument("--human", default="claude")
     p.add_argument("--out")
 
+    gr = sub.add_parser("ground", help="groundedness against the retrieved text (RAGAS / FActScore style)").add_subparsers(dest="gcmd", required=True)
+    p = gr.add_parser("score", help="faithfulness, fact recall, context recall, relevance per answer")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--model", help="default: the judge role in config/llm.yaml")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--budget", type=float, help="stop starting new calls once this many USD are spent")
+    p = gr.add_parser("report", help="per-arm means, by category, and the paired difference of two arms")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--model")
+    p.add_argument("--out")
+
     h = sub.add_parser("human", help="human scoring of answers").add_subparsers(dest="hcmd", required=True)
     p = h.add_parser("rate", help="score answers in the terminal")
     p.add_argument("run_dirs", nargs="+")
@@ -166,6 +178,15 @@ def main(argv=None) -> None:
             print(judge.pair(args.run_a, args.run_b, args.model, limit=args.limit, workers=args.workers))
         else:
             text = judge.analyze(args.run_dirs, args.human)
+            if args.out:
+                Path(args.out).write_text(text, encoding="utf-8")
+            print(text)
+    elif args.cmd == "ground":
+        from . import ground
+        if args.gcmd == "score":
+            print(ground.score(args.run_dirs, args.model, workers=args.workers, limit=args.limit, budget_usd=args.budget))
+        else:
+            text = ground.report(args.run_dirs, args.model)
             if args.out:
                 Path(args.out).write_text(text, encoding="utf-8")
             print(text)

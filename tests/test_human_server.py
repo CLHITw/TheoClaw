@@ -31,7 +31,7 @@ def test_blind_items_full_tools_and_ratings_on_disk(tmp_path):
     data = hs.prepare([str(a), str(b)], ["王牧師"], None, None, path)
     code = next(iter(data["raters"]))
     assert hs.prepare([str(a), str(b)], ["王牧師"], None, None, path)["raters"].keys() == {code}  # same link again
-    store = hs.Store(path)
+    store = hs.Store(path, rubric=hs.ROOT / "config" / "human_rubric.yaml")  # the five-dimension rubric
     st = store.state(code)
     assert st["rater"] == "王牧師" and len(st["order"]) == 6 and st["done"] == []
     it = store.item(code, st["order"][0])
@@ -44,8 +44,26 @@ def test_blind_items_full_tools_and_ratings_on_disk(tmp_path):
     rec = [json.loads(x) for p in (a, b) if (p / "human" / "王牧師.jsonl").exists()
            for x in (p / "human" / "王牧師.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(rec) == 1 and rec[0]["problems"] == ["shallow"] and rec[0]["blind"] and rec[0]["verdict"] is False
-    assert hs.Store(path).state(code)["done"] == [it["id"]]  # survives a restart
+    assert hs.Store(path).state(code)["done"] == [it["id"]]  # survives a restart (any rubric)
     assert store.item(code, it["id"])["previous"]["verdict"] is False
+
+
+def test_default_rubric_is_one_score_0_to_10(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    code = next(iter(hs.prepare([str(a)], ["信徒1"], None, None, path)["raters"]))
+    store = hs.Store(path)
+    st = store.state(code)
+    assert [d["key"] for d in st["rubric"]["dimensions"]] == ["overall"] and st["rubric"]["scale"] == {"min": 0, "max": 10}
+    assert not st["rubric"]["allow_na"] and len(st["rubric"]["anchors"]) == 4
+    item = st["order"][0]
+    assert "需要打分" in store.rate(code, {"id": item, "scores": {"overall": None}})
+    assert "無效" in store.rate(code, {"id": item, "scores": {"overall": 11}})
+    assert "無效" in store.rate(code, {"id": item, "scores": {"overall": True}})
+    assert store.rate(code, {"id": item, "scores": {"overall": 6}}) is None  # verdict from the score, none sent
+    assert store.rate(code, {"id": item, "scores": {"overall": 7}, "verdict": False}) is None  # client verdict ignored
+    rec = [json.loads(x) for x in (a / "human" / "信徒1.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [(r["scores"]["overall"], r["verdict"]) for r in rec] == [(6, False), (7, True)]
 
 
 def test_http_requires_code(tmp_path):

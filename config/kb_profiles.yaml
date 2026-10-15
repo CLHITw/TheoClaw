@@ -43,6 +43,11 @@ profiles:
       - {file: 08_John_Wesley_The_General_Rules_1743_text.pdf, name: general-rules-1743-en.pdf}
       - {file: 09_United_Methodist_Articles_of_Religion_text.pdf, name: articles-of-religion.pdf}
 
+  plain-account:
+    description: 只有《基督徒完全論》（約 3.5 萬詞），用來比較 OpenKB 編譯與傳統 RAG（預算小，轉成純文字再編）
+    sources:
+      - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, to_text: true, name: plain-account-of-christian-perfection.pdf}
+
   wesley-sermons:
     description: 衛斯理標準講道（1,281 頁，費用最高，最後再編）
     sources:

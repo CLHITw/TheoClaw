@@ -1,0 +1,141 @@
+# OpenKB 編譯 vs 傳統 RAG：同一份原文（衛斯理《基督徒完全論》A Plain Account of Christian
+# Perfection），同一個回答模型，同一批問題。
+#   kb  組：python -m theoclaw.evals run --tasks tasks/kb_vs_rag.yaml --tools scripture,kb  --kb plain-account.en.deepseek-flash
+#   rag 組：python -m theoclaw.evals run --tasks tasks/kb_vs_rag.yaml --tools scripture,rag --kb plain-account.en.deepseek-flash
+# expect.facts 是從原文整理的參考要點（英文原文的意思，評分時看回答有沒有講到），
+# 供 python -m theoclaw.evals ground（RAGAS / FActScore 式評估）計算關鍵事實召回與上下文召回。
+# category：lookup = 查單一處的事實；synthesis = 要綜合全書；pastoral = 應用；trap = 書中沒有的內容。
+
+- id: pa-early-reading
+  category: lookup
+  prompt: 根據《基督徒完全論》，衛斯理在 1725 到 1729 年間讀了哪些書？每一本對他理解「完全」有甚麼影響？
+  expect:
+    facts:
+      - 1725 年讀泰勒主教（Jeremy Taylor）的《聖潔生活與死亡的規則與操練》（Holy Living and Dying），特別被「意念純正」（purity of intention）感動，決心把一生全獻給神
+      - 1726 年讀肯培（Thomas à Kempis）的《效法基督》（Christian's Pattern），看見內在宗教、心的宗教，明白要把整顆心獻給神
+      - 一兩年後讀勞威廉（William Law）的《基督徒的完全》和《敬虔生活的嚴肅呼召》（Serious Call），確信不可能做「半個基督徒」
+      - 1729 年開始研讀聖經，視之為真理唯一的標準，要有基督的心、照基督所行的去行
+  graders: []
+
+- id: pa-bishop-gibson
+  category: lookup
+  prompt: 衛斯理在《基督徒完全論》中提到他和倫敦主教吉布森（Gibson）的一次談話。主教問了甚麼？說了甚麼？之後衛斯理做了甚麼？
+  expect:
+    facts:
+      - 大約在 1740 年底，在白廳（Whitehall）
+      - 主教問他所說的「完全」是甚麼意思，衛斯理毫無保留地解釋
+      - 主教說：如果這就是你的全部意思，就向全世界公開發表；若有人能駁倒，就讓他駁
+      - 衛斯理於是寫成並出版了講章〈基督徒的完全〉（Christian Perfection）
+  graders: []
+
+- id: pa-first-conference
+  category: lookup
+  prompt: 1744 年第一次年議會討論成聖時，對「甚麼是成聖」和「甚麼是完全的基督徒」是怎樣回答的？
+  expect:
+    facts:
+      - 第一次年議會在 1744 年 6 月 25 日開始，有六位牧師和所有傳道人出席
+      - 成聖就是在「公義和真實的聖潔」裡，被更新成神的形像
+      - 完全的基督徒是盡心、盡意、盡性愛神（申命記 6:5）
+      - 這意味著一切內在的罪都被除去
+  graders: []
+
+- id: pa-not-perfect
+  category: synthesis
+  prompt: 衛斯理說的「基督徒的完全」，在哪些方面「不是」完全？請整理他的說法。
+  expect:
+    facts:
+      - 不是在知識上完全：不能免於無知，也不能免於錯誤，沒有人在世時是無誤的
+      - 不能免於軟弱（例如理解遲鈍、想像不規則、言語不當等）
+      - 在世時不能免於試探
+      - 不是程度上的完全：沒有不能再增長的完全，可以不斷增長
+      - 不是絕對的完全：絕對的完全只屬於神
+  graders: []
+
+- id: pa-sin-distinction
+  category: synthesis
+  prompt: 衛斯理認為得著完全的人還會犯罪嗎？他怎樣區分不同意義的「罪」？
+  expect:
+    facts:
+      - 嚴格意義的罪（properly so called）是有意違背已知的律法；不嚴格意義的罪是無意中違背神的律法（不論知道與否）
+      - 完全的人仍會有無意的過犯與錯誤，這些是無知和錯誤帶來的，此生不能免
+      - 這兩種都需要基督贖罪的寶血
+      - 他從不用「無罪的完全」（sinless perfection）一詞，以免自相矛盾
+      - 出於愛的錯誤不算嚴格意義的罪，因為愛就完全了律法（羅馬書 13:10）
+  graders: []
+
+- id: pa-instant-gradual
+  category: synthesis
+  prompt: 按衛斯理的看法，基督徒的完全是一瞬間成就的，還是逐漸成就的？
+  expect:
+    facts:
+      - 完全是因單純的信心、在一瞬間成就的
+      - 在那一刻之前和之後，都有漸進的工作
+      - 有些人察覺不到那一刻，就像人死時不易察覺斷氣的一刻，但罪若止息，必有最後一刻
+      - 內在的成聖在人稱義的那一刻就開始，之後逐漸向罪死、在恩典中長進
+  graders: []
+
+- id: pa-can-lose
+  category: synthesis
+  prompt: 得著完全的人會失去它嗎？失去了還能恢復嗎？衛斯理的看法有沒有改變過？
+  expect:
+    facts:
+      - 會失去：沒有任何聖潔的高度是不可能跌倒的；若有人不會跌倒，完全在於神的應許
+      - 失去後可以恢復，而且常有人失去不止一次才堅定下來
+      - 從前他們以為得救脫離罪的人不會跌倒，後來因事實改變看法（1764 年說是五六年前才確信）
+      - 1767 年〈完全論簡思〉中，他收回詩歌裡暗示不可能跌倒的說法
+      - 得著完全的人仍能在恩典中長進，直到永遠
+  graders: []
+
+- id: pa-when
+  category: synthesis
+  prompt: 一個人通常甚麼時候得著完全？可以期待早一點得著嗎？應該怎樣傳講這個教義？
+  expect:
+    facts:
+      - 一般是在死的那一刻、靈魂離開身體之前，但也可能早十年、二十年、四十年
+      - 通常在稱義之後許多年，但也可能在稱義後五年、甚至五個月內
+      - 1745 年年議會：對不期待早得的人，通常要到臨死前才得；但可以期待更早得著
+      - 傳講時對還沒有追求的人幾乎不講；對在追求的人，總要用應許的方式，吸引而不是驅趕
+  graders: []
+
+- id: pa-need-christ
+  category: synthesis
+  prompt: 有人批評說：如果人可以完全、不再犯罪，就不再需要基督作中保了。衛斯理怎樣回應？
+  expect:
+    facts:
+      - 恰恰相反：沒有人比他們更感到需要基督、更完全倚靠基督
+      - 用葡萄樹和枝子的比喻：完全不像樹靠自己的根，而像枝子連在葡萄樹上才能結果
+      - 一切恩典都是基督白白賜的，是祂用代價買來的，而且是在祂裡面得著
+      - 一切福分都在於祂的代求，這是祂祭司職分的一部分
+      - 最好的人仍需要基督的祭司職分，為疏忽、虧欠、判斷和行為上的錯誤贖罪
+  graders: []
+
+- id: pa-definition-1767
+  category: synthesis
+  prompt: 衛斯理晚年怎樣用一句話概括「完全」的本質？它的果子是甚麼？
+  expect:
+    facts:
+      - 本質是「完全的愛」（約翰一書 4:18）
+      - 果子是常常喜樂、不住禱告、凡事謝恩（帖撒羅尼迦前書 5:16-18）
+      - 1767 年：完全是謙卑、溫柔、忍耐地愛神愛人，並管理我們的性情、言語和行為
+      - 不包括不可能跌倒；他也不堅持「無罪」這個詞
+  graders: []
+
+- id: pa-pastoral-objection
+  category: pastoral
+  prompt: 我想在團契分享「完全的愛」。有弟兄姊妹覺得這教義太高、不切實際，甚至會叫人驕傲。按《基督徒完全論》，可以怎樣回應？請給我幾個要點。
+  expect:
+    facts:
+      - 完全不是無誤、不是絕對的完全，也不是不再受試探或沒有軟弱
+      - 核心是愛神愛人，表現在常常喜樂、不住禱告、凡事謝恩
+      - 教義被濫用不是放棄它的理由，正如因信稱義也被濫用過（倒掉洗澡水，不要把孩子倒掉）
+      - 傳講時要用應許的方式，吸引而不是驅趕
+      - 得著完全的人更感到需要基督，不會因此不需要中保
+  graders: []
+
+- id: pa-trap-predestination
+  category: trap
+  prompt: 衛斯理在《基督徒完全論》中怎樣批評加爾文的預定論？請引用書中的話。
+  expect:
+    facts:
+      - 這本書沒有討論加爾文或預定論；回答應說明在書中找不到，而不是編造引文
+  graders: []

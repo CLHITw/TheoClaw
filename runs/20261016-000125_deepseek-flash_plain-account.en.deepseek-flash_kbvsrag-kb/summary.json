@@ -1,0 +1,380 @@
+{
+  "config": {
+    "model": "deepseek-flash",
+    "effort": null,
+    "n": 2,
+    "max_steps": 12,
+    "max_tokens": 16000,
+    "llm": {
+      "role": "agent",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "api": "litellm",
+      "endpoint": null,
+      "effort": null,
+      "max_tokens": 16000,
+      "params": {
+        "extra_body": {
+          "thinking": {
+            "type": "enabled"
+          }
+        }
+      },
+      "config_sha": "0cd76b6a51d4"
+    },
+    "tasks_file": "tasks/kb_vs_rag.yaml",
+    "tasks_sha": "22c8c4045697",
+    "system_prompt_sha": "e2ce07214c28",
+    "tools_sha": "26e127ab70a1",
+    "toolset": {
+      "tools": [
+        "scripture",
+        "kb"
+      ],
+      "kb": "plain-account.en.deepseek-flash",
+      "wiki": "E:\\DESK\\theoclaw\\theoclaw-v0\\knowledge\\plain-account.en.deepseek-flash\\wiki",
+      "wiki_fingerprint": "2a76ed541c62",
+      "compile": {
+        "profile": "plain-account",
+        "model": "deepseek/deepseek-flash",
+        "language": "en",
+        "usage": {
+          "input_tokens": 105681,
+          "output_tokens": 61925,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 694656
+        },
+        "cost_usd": 0.1102,
+        "calls": 16
+      }
+    },
+    "label": "kbvsrag-kb",
+    "task_ids": [
+      "pa-early-reading",
+      "pa-bishop-gibson",
+      "pa-first-conference",
+      "pa-not-perfect",
+      "pa-sin-distinction",
+      "pa-instant-gradual",
+      "pa-can-lose",
+      "pa-when",
+      "pa-need-christ",
+      "pa-definition-1767",
+      "pa-pastoral-objection",
+      "pa-trap-predestination"
+    ],
+    "started": "20261016-000125"
+  },
+  "k": 2,
+  "overall": {
+    "tasks": 12,
+    "pass_rate": 1.0,
+    "pass_at_k": 1.0,
+    "pass_hat_k": 1.0
+  },
+  "no_fault": {
+    "tasks": 12,
+    "pass_rate": 1.0,
+    "pass_at_k": 1.0,
+    "pass_hat_k": 1.0
+  },
+  "with_fault": {
+    "tasks": 0,
+    "pass_rate": null,
+    "pass_at_k": null,
+    "pass_hat_k": null
+  },
+  "by_category": {
+    "lookup": {
+      "tasks": 3,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "pastoral": {
+      "tasks": 1,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "synthesis": {
+      "tasks": 7,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    },
+    "trap": {
+      "tasks": 1,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0
+    }
+  },
+  "outcomes": {
+    "completed": 22,
+    "max_tokens": 2
+  },
+  "statuses": {
+    "pass": 24
+  },
+  "latency_p50": 63.683286400002544,
+  "latency_p95": 132.58065499999793,
+  "tokens": {
+    "mean_prompt": 140277.83333333334,
+    "mean_output": 10153.75,
+    "mean_cache_read": 106693.29166666667,
+    "mean_tool_output_chars": 131469.25
+  },
+  "total_cost": 0.549600534,
+  "simplified_answers": 5,
+  "simplified_fixed": 5,
+  "tool_usage": {
+    "fill_quote": {
+      "calls": 103,
+      "errors": 0,
+      "per_run": 4.291666666666667
+    },
+    "kb_get_page_content": {
+      "calls": 27,
+      "errors": 27,
+      "per_run": 1.125
+    },
+    "kb_read_file": {
+      "calls": 174,
+      "errors": 7,
+      "per_run": 7.25
+    },
+    "lookup_verse": {
+      "calls": 119,
+      "errors": 1,
+      "per_run": 4.958333333333333
+    }
+  },
+  "kb_reads_by_folder": {
+    "index": 24,
+    "summaries": 27,
+    "sources": 28,
+    "entities": 36,
+    "concepts": 53,
+    "log.md": 6
+  },
+  "human": null,
+  "tasks": [
+    {
+      "task_id": "pa-bishop-gibson",
+      "category": "lookup",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.01160928,
+      "mean_latency": 21.60393930000282,
+      "mean_tool_calls": 3.5,
+      "mean_prompt_tokens": 40696,
+      "mean_output_tokens": 2166,
+      "failures": []
+    },
+    {
+      "task_id": "pa-can-lose",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.03863607599999999,
+      "mean_latency": 134.39869375000126,
+      "mean_tool_calls": 29,
+      "mean_prompt_tokens": 237933,
+      "mean_output_tokens": 22717,
+      "failures": []
+    },
+    {
+      "task_id": "pa-definition-1767",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.034010808000000003,
+      "mean_latency": 94.26940224999998,
+      "mean_tool_calls": 19,
+      "mean_prompt_tokens": 259132,
+      "mean_output_tokens": 15883.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-early-reading",
+      "category": "lookup",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.016539738,
+      "mean_latency": 41.130641800002195,
+      "mean_tool_calls": 15,
+      "mean_prompt_tokens": 77655.5,
+      "mean_output_tokens": 5455,
+      "failures": []
+    },
+    {
+      "task_id": "pa-first-conference",
+      "category": "lookup",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.017571534,
+      "mean_latency": 44.004008100004285,
+      "mean_tool_calls": 13,
+      "mean_prompt_tokens": 79336.5,
+      "mean_output_tokens": 6976.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-instant-gradual",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.017909178,
+      "mean_latency": 44.20344509999995,
+      "mean_tool_calls": 15,
+      "mean_prompt_tokens": 158781.5,
+      "mean_output_tokens": 6463.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-need-christ",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.025782114,
+      "mean_latency": 78.45025705000444,
+      "mean_tool_calls": 14.5,
+      "mean_prompt_tokens": 104543.5,
+      "mean_output_tokens": 13710.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-not-perfect",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.023203242,
+      "mean_latency": 70.38922514999285,
+      "mean_tool_calls": 20,
+      "mean_prompt_tokens": 112613.5,
+      "mean_output_tokens": 10986.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-pastoral-objection",
+      "category": "pastoral",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.023063799,
+      "mean_latency": 68.26592345000245,
+      "mean_tool_calls": 26,
+      "mean_prompt_tokens": 171511,
+      "mean_output_tokens": 10493,
+      "failures": []
+    },
+    {
+      "task_id": "pa-sin-distinction",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.017870538,
+      "mean_latency": 45.02016965000075,
+      "mean_tool_calls": 16.5,
+      "mean_prompt_tokens": 111309.5,
+      "mean_output_tokens": 6774.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-trap-predestination",
+      "category": "trap",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.024460428,
+      "mean_latency": 58.40824425000028,
+      "mean_tool_calls": 14.5,
+      "mean_prompt_tokens": 207747,
+      "mean_output_tokens": 8697.5,
+      "failures": []
+    },
+    {
+      "task_id": "pa-when",
+      "category": "synthesis",
+      "fault": null,
+      "n": 2,
+      "c": 2,
+      "pass_rate": 1.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "infra_errors": 0,
+      "grader_errors": 0,
+      "mean_cost": 0.024143532,
+      "mean_latency": 73.08945474999928,
+      "mean_tool_calls": 25.5,
+      "mean_prompt_tokens": 122075,
+      "mean_output_tokens": 11521.5,
+      "failures": []
+    }
+  ]
+}

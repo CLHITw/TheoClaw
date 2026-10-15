@@ -55,6 +55,11 @@ in this repository and what is still missing.
   - The longer answer wins 65%. qwen's answers win 67% when they are longer and 42% when they are shorter.
   - What first looked like self-preference is mostly length.
   - The kappa against the reference is uninformative here, because the reference judged 98–100% of answers usable. Telling good from bad needs the domain experts' ratings, which include their flagged problems.
+- **Compiling a knowledge base did not beat plain RAG on one book** ([`runs/calibration/kb_vs_rag.md`](runs/calibration/kb_vs_rag.md)).
+  - Wesley's *Plain Account* was asked 12 questions × 2 runs: once through an OpenKB wiki compiled by deepseek-flash, and once through BM25 search over the same text.
+  - RAG recalled more reference facts (92% vs 81%; 93% vs 72% on synthesis questions), was as faithful (88% vs 87%), and cost half as much per answer. My blind 0–10 scores were 8.75 vs 8.08.
+  - The cause is specific: the wiki read tool capped the 190k-character source at 100k characters, so the compiled arm never saw the second half of the book.
+  - Groundedness was scored with a RAGAS / FActScore-style evaluator (`evals ground`). It checks each statement against what the agent retrieved, so raters do not have to look anything up.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
   - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.
@@ -156,6 +161,7 @@ Tools come in groups, switched on with `--tools`:
 | `scripture` | `lookup_verse` (和合本 / KJV), `cross_references` | `data/` |
 | `wesley` | `wesley_note`: Wesley's NT note on one verse, exact lookup | `data/wesley_nt.json` |
 | `kb` | `kb_read_file`, `kb_get_page_content` over a compiled wiki | `knowledge/<name>/` |
+| `rag` | `rag_search`: BM25 over the same wiki's source text, nothing compiled (the baseline for the compile) | `knowledge/<name>/wiki/sources/` |
 
 The system prompt (`theoclaw/agent/prompt.py`) is assembled from the groups that are on,
 so it never names a tool the agent does not have. Its rules, in short: 繁體 only (occasional
@@ -304,6 +310,8 @@ grading are separate, so a changed grader re-grades old traces without API calls
 | `compare base new` | per-task pass-rate change between two runs |
 | `cost base arm …` | tokens and cost per answer against the baseline, with intervals (below) |
 | `experiment file.yaml [--dry-run]` | runs every arm of an experiment, then `cost` over them |
+| `judge score / pair / analyze` | LLM judge with the rubric, pairwise in both orders, and its agreement and biases against a person |
+| `ground score / report` | groundedness against the retrieved text, RAGAS / FActScore style: faithfulness, fact recall, context recall, relevance |
 | `human …` | human scoring (below) |
 
 Answers are shown in 繁體: Simplified characters the model writes are converted (OpenCC,

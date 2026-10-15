@@ -32,7 +32,7 @@ TRADITION = "遇到宗派之間有爭議的問題，以衛斯理宗（循道衛�
 def system_prompt(groups: list[str]) -> str:
     tool = "scripture" in groups
     rules = [LANGUAGE, SCRIPTURE_TOOL if tool else SCRIPTURE_KB, NO_MEMORY_TOOL if tool else NO_MEMORY]
-    if "wesley" in groups or "kb" in groups:
+    if "wesley" in groups or "kb" in groups or "rag" in groups:
         rules.append(WESLEY)
     rules += [LAYERS, TRADITION]
     return INTRO + "".join(f"{i}. {r}\n" for i, r in enumerate(rules, 1))

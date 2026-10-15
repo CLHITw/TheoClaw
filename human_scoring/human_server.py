@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT))
 from theoclaw.evals.human import (Item, calibration_sample, load_items, load_ratings,  # noqa: E402
                                   load_rubric, save_rating)
 
+RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
 CHAT_DIR = ROOT / "runs" / "pastor-chat"
 CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗（背景的回答若之後完成仍會存檔）
@@ -101,10 +102,11 @@ def prepare(run_dirs: list[str], raters: list[str], sample: int | None, flagged_
 class Store:
     """The assignment plus the items it names, loaded once; ratings go straight to disk."""
 
-    def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path = CHAT_DIR):
+    def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path = CHAT_DIR,
+                 rubric: Path = RUBRIC_10):
         data = json.loads(path.read_text(encoding="utf-8"))
         self.raters = data["raters"]
-        self.rubric = load_rubric()
+        self.rubric = load_rubric(rubric)
         self.items: dict[str, Item] = {}
         # Items are keyed by the id written in the assignment, not recomputed: Item.item_id hashes
         # the folder's absolute path, which differs on the server the assignment is copied to.
@@ -151,6 +153,7 @@ class Store:
         return {"rater": r["name"], "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
                 "problems": PROBLEMS, "chat": chat,
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
+                           "allow_na": self.rubric.get("allow_na", True), "anchors": self.rubric.get("anchors", []),
                            "dimensions": [{k: d[k] for k in ("key", "name", "question")} for d in self.rubric["dimensions"]]}}
 
     def item(self, code: str, item_id: str) -> dict | None:
@@ -180,10 +183,13 @@ class Store:
             v = (body.get("scores") or {}).get(d["key"], "missing")
             if v == "missing":
                 return f"「{d['name']}」還沒有評分"
-            if v is not None and not (isinstance(v, int) and lo <= v <= hi):
+            if v is None and not self.rubric.get("allow_na", True):
+                return f"「{d['name']}」需要打分"
+            if v is not None and not (isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi):
                 return f"「{d['name']}」的分數無效"
             scores[d["key"]] = v
-        verdict = body.get("verdict")
+        auto = self.rubric["verdict"].get("auto_min")
+        verdict = (scores[self.rubric["dimensions"][0]["key"]] >= auto) if auto is not None else body.get("verdict")
         if verdict not in (True, False):
             return "請選擇總評"
         keys = {p["key"] for p in PROBLEMS}
@@ -376,6 +382,8 @@ def main(argv=None):
     p.add_argument("--chat-model", default=CHAT_MODEL, help=f"提問模式的模型（預設 {CHAT_MODEL}）")
     p.add_argument("--daily-limit", type=int, default=30, help="每人每天最多問幾題")
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
+    p.add_argument("--rubric", default=str(RUBRIC_10),
+                   help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
     a = ap.parse_args(argv)
     if a.cmd == "prepare":
         data = prepare(a.run_dirs, [r.strip() for r in a.raters.split(",") if r.strip()], a.sample, a.flagged_by)
@@ -384,7 +392,7 @@ def main(argv=None):
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
     else:
         chat = {"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget} if a.chat else None
-        store = Store(chat=chat)
+        store = Store(chat=chat, rubric=Path(a.rubric))
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
         print(f"{len(store.items)} 個回答、{len(store.raters)} 位評分人{note}。"

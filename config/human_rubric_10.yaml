@@ -1,0 +1,22 @@
+# 簡化評分：每個回答只打一個 0–10 分（線上評分頁的預設），憑使用感受打，不需要查資料。
+# 經文文字由程式逐字核對，回答有沒有資料依據由自動評估（RAGAS / FActScore 式）檢查，評分人不用查證。
+# Simplified rubric: one 0-10 score per answer. 7 or more counts as "usable" (verdict), so the
+# existing reports keep working. The full five-dimension rubric is config/human_rubric.yaml.
+
+scale: {min: 0, max: 10}
+allow_na: false
+
+dimensions:
+  - key: overall
+    name: 整體分數
+    question: 如果你要帶團契查經或預備講道，這個回答對你有多大用處？
+
+anchors:
+  - {range: "0–3", meaning: 不能用：有明顯錯誤、答非所問，或讓人誤解}
+  - {range: "4–6", meaning: 有可用的部分，但要大改才能用}
+  - {range: "7–8", meaning: 小改就能用}
+  - {range: "9–10", meaning: 可以直接拿到團契或講道預備用}
+
+verdict:
+  auto_min: 7
+  question: 這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）
