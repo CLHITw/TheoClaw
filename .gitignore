@@ -14,6 +14,8 @@ runs/*
 !runs/calibration/
 !runs/20261016-000125_deepseek-flash_plain-account.en.deepseek-flash_kbvsrag-kb/
 !runs/20261016-000341_deepseek-flash_plain-account.en.deepseek-flash_kbvsrag-rag/
+!runs/20261016-005426_deepseek-flash_plain-account-pdf.en.deepseek-flash_kbvsrag-kbpdf/
+!runs/20261016-005426_deepseek-flash_plain-account-pdf.en.deepseek-flash_kbvsrag-hybrid/
 runs/*/*.bak
 runs/calibration/*.key.json
 # 牧者與其他真人評分不公開，只留 claude 和 LLM 評審

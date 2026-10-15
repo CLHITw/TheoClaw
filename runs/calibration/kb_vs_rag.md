@@ -90,3 +90,68 @@ What the result does **not** show:
 
 **Spent:** about ¥5.4 on DeepSeek in total (compile, 48 answers, groundedness checks),
 all from the account's granted balance.
+
+---
+
+# Re-run: the compile done the way OpenKB intends it (2026-10-16)
+
+**What changed.** The first run's loss traced back to my own setup, so I ran the
+comparison again with that fixed.
+
+- **Before:** the PDF was turned into plain text (`to_text: true`) before compiling, so
+  OpenKB treated the book as a short document. Our read tool's 100k-character cap then
+  hid the second half of the book.
+- **This time:** the PDF itself was compiled (profile `plain-account-pdf`). Because it is
+  longer than 20 pages, OpenKB built a PageIndex page tree, and the agent reads the pages
+  it needs with `kb_get_page_content`.
+- **Compile cost:** 62 calls, $0.09.
+- **New fourth arm, a hybrid:** the same page-indexed wiki plus `rag_search` (BM25 over
+  the wiki's page text). This asks whether the compiled pages add anything on top of
+  retrieval.
+
+Same 12 tasks, 2 runs each, same answering model and evaluator.
+
+| | kb, text-converted (first run) | rag | kb, PageIndex | hybrid (PageIndex + rag) |
+|---|---|---|---|---|
+| faithfulness | 87% | 88% | 89% | **92%** |
+| fact recall | 81% | 92% | 93% | **96%** |
+| context recall | 85% | 94% | 96% | **98%** |
+| synthesis questions: fact recall | 72% | 93% | 91% | **94%** |
+| unsupported statements (24 answers) | 31 | 30 | 28 | **17** |
+| blind score on the 4 hardest tasks (8 answers each, 0–10) | 6.50 | 8.38 | 8.88 | 8.88 |
+| cost per answer | $0.023 | $0.011 | $0.015 | $0.012 |
+| median time per answer | 64 s | 38 s | 41 s | 40 s |
+| compile (one-off) | $0.11 | none | $0.09 | $0.09 |
+
+The 4 hardest tasks are the ones that separated the arms in the first run:
+`pa-can-lose`, `pa-definition-1767`, `pa-when` and `pa-pastoral-objection`. The blind
+scores for the two new arms were given without knowing which arm wrote which answer, but
+only between those two arms, since I had already seen the first two.
+
+**Paired over tasks, against rag (95% bootstrap interval):**
+
+| | kb (PageIndex) − rag | hybrid − rag |
+|---|---|---|
+| faithfulness | +1.2 pp [−1.9, +4.4] | **+4.0 pp [+0.9, +6.9]** |
+| fact recall | +1.2 pp [−5.1, +8.1] | +3.5 pp [−2.2, +11.0] |
+| context recall | +2.7 pp [−3.3, +9.4] | +3.8 pp [−3.3, +12.1] |
+
+## Conclusion, revised
+
+1. **Done properly, the compiled wiki is as good as RAG.** Its interval overlaps rag on
+   every metric, and it costs a little more per answer. The first run's loss was a
+   setup error (text conversion plus the read cap), not a property of compiling.
+2. **Compiled pages plus retrieval is the best of the four.** It is the only arm whose
+   faithfulness gain over rag excludes zero. It has the fewest unsupported statements
+   (17 against 28–31), and its cost and speed are about the same as rag.
+   - Mechanism: the agent reads the summary and concept pages to see the book as a whole,
+     then searches for the passage that backs each statement. Fewer statements end up
+     resting on the compiled paraphrase alone.
+3. **How long documents enter the knowledge base matters more than whether they are
+   compiled.** A long book handled as one text file cost more and answered worse.
+   Recommended default for TheoClaw: compile PDFs as PDFs (PageIndex) and give the agent
+   search as well.
+
+Limits are unchanged: one book, 12 tasks, model evaluator and model rater.
+**Spent on this re-run:** ¥4.3 on DeepSeek, which used up the account's granted balance.
+The topped-up ¥20 is untouched.

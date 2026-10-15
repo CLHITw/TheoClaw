@@ -107,10 +107,17 @@ class BM25:
 
 
 def index_wiki_sources(wiki_dir: Path | str) -> BM25:
+    """Short documents are sources/*.md; long PDFs compiled with PageIndex are
+    sources/*.json, one entry per page, chunked page by page (chunk label = page)."""
+    import json
     root = Path(wiki_dir) / "sources"
     chunks: list[Chunk] = []
     for p in sorted(root.glob("*.md")):
         chunks += chunk(p.stem, p.read_text(encoding="utf-8"))
+    for p in sorted(root.glob("*.json")):
+        for e in json.loads(p.read_text(encoding="utf-8")):
+            for c in chunk(p.stem, e.get("content", "")):
+                chunks.append(Chunk(f"{p.stem} 第 {e.get('page')} 頁", len(chunks) + 1, c.text))
     if not chunks:
         raise FileNotFoundError(f"no source text in {root}")
     return BM25(chunks)

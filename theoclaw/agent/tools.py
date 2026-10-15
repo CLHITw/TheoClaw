@@ -193,8 +193,6 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
     defs, handlers = [by_name[n] for n in names], {n: base[n] for n in names}
     meta: dict = {"tools": groups}
     addendum = ""
-    if "kb" in groups and "rag" in groups:
-        raise ValueError("choose kb (the compiled wiki) or rag (search over its source text), not both")
     if "kb" in groups or "rag" in groups:
         if not kb:
             raise ValueError("the kb and rag tool groups need --kb (a folder in knowledge/ or a wiki/ folder)")
@@ -204,10 +202,10 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
             defs += kb_tools.TOOL_DEFS
             handlers.update(kb_tools.make_handlers(base_kb.wiki))
             addendum = kb_tools.system_addendum(base_kb.wiki)
-        else:  # the same source text, chunked and searched; nothing compiled is shown
+        if "rag" in groups:  # the wiki's source text, chunked and searched; with kb too, a hybrid
             defs += rag.TOOL_DEFS
             handlers.update(rag.make_handlers(base_kb.wiki))
-            addendum = rag.SYSTEM_ADDENDUM
+            addendum += rag.SYSTEM_ADDENDUM
         meta.update(base_kb.meta())
     elif kb:
         raise ValueError("--kb given but neither the kb nor the rag tool group is switched on")

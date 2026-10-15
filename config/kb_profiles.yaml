@@ -48,6 +48,11 @@ profiles:
     sources:
       - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, to_text: true, name: plain-account-of-christian-perfection.pdf}
 
+  plain-account-pdf:
+    description: 同一本《基督徒完全論》，直接用 PDF 編譯（75 頁，超過 20 頁走 PageIndex 分頁目錄）；補測編譯本身，對照 plain-account（轉成純文字、被當作短文件）
+    sources:
+      - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, name: plain-account-of-christian-perfection.pdf}
+
   wesley-sermons:
     description: 衛斯理標準講道（1,281 頁，費用最高，最後再編）
     sources:

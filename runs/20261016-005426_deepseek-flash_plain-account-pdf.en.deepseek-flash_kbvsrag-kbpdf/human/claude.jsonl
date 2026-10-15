@@ -1,0 +1,8 @@
+{"task_id": "pa-can-lose", "run_index": 1, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-can-lose", "run_index": 0, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-definition-1767", "run_index": 0, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-definition-1767", "run_index": 1, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-pastoral-objection", "run_index": 0, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-pastoral-objection", "run_index": 1, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-when", "run_index": 0, "rater": "claude", "scores": {"overall": 9}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}
+{"task_id": "pa-when", "run_index": 1, "rater": "claude", "scores": {"overall": 8}, "verdict": true, "comment": "", "blind": true, "rubric_sha": "e6aa3dac5115", "rated_at": "2026-10-16 01:07:33"}

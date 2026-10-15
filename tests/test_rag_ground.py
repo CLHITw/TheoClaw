@@ -47,3 +47,24 @@ def test_context_skips_errors_duplicates_and_cross_references():
                                        call("lookup_verse", {"reference": "y"}, "ERR", True)]}]}
     ctx, cut = ground._context(trace)
     assert ctx.count("TEXT") == 1 and "REFS" not in ctx and "ERR" not in ctx and not cut
+
+
+def test_index_reads_pageindex_json_and_md(tmp_path):
+    src = tmp_path / "sources"
+    src.mkdir()
+    (src / "short.md").write_text("Bishop Gibson at Whitehall", encoding="utf-8")
+    (src / "long.json").write_text(json.dumps([{"page": 7, "content": "perfect love casteth out fear"}]), encoding="utf-8")
+    idx = rag.index_wiki_sources(tmp_path)
+    assert "long 第 7 頁" in rag.search({"query": "perfect love"}, idx)
+    assert "short" in rag.search({"query": "Gibson"}, idx)
+
+
+def test_kb_and_rag_together_make_a_hybrid_tool_set():
+    from theoclaw.agent.tools import build_tool_set
+    import pathlib
+    kb = pathlib.Path("knowledge/plain-account.en.deepseek-flash")
+    if not (kb / "wiki" / "index.md").exists():
+        pytest.skip("needs the compiled plain-account wiki")
+    ts = build_tool_set("scripture,kb,rag", kb=str(kb))
+    names = [d["name"] for d in ts.defs]
+    assert "kb_read_file" in names and "rag_search" in names and "rag_search" in ts.system
