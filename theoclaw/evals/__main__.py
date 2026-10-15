@@ -96,7 +96,7 @@ def main(argv=None) -> None:
     p.add_argument("--human", default="claude")
     p.add_argument("--out")
 
-    gr = sub.add_parser("ground", help="groundedness against the retrieved text (RAGAS / FActScore style)").add_subparsers(dest="gcmd", required=True)
+    gr = sub.add_parser("ground", help="groundedness against the retrieved text (simplified, modelled on RAGAS faithfulness and FActScore)").add_subparsers(dest="gcmd", required=True)
     p = gr.add_parser("score", help="faithfulness, fact recall, context recall, relevance per answer")
     p.add_argument("run_dirs", nargs="+")
     p.add_argument("--model", help="default: the judge role in config/llm.yaml")

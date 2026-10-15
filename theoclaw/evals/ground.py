@@ -1,6 +1,12 @@
-"""Groundedness evaluation in the style of RAGAS and FActScore: check an answer against
-what the agent actually retrieved, statement by statement, instead of asking a rater
-to look things up.
+"""Groundedness evaluation modelled on RAGAS faithfulness and FActScore: check an answer
+against what the agent actually retrieved, statement by statement, instead of asking a
+rater to look things up.
+
+A simplified implementation, not the ragas library: one model call per answer extracts
+the statements and judges them together (RAGAS uses two steps), "partly supported"
+scores 0.5, and statements are checked against the retrieved text rather than the whole
+source (FActScore checks against the full knowledge source). Not covered: TruLens'
+context relevance, and ALCE-style checks that a cited passage supports its sentence.
 
     python -m theoclaw.evals ground score runs/<a> runs/<b> [--model deepseek-flash]
     python -m theoclaw.evals ground report runs/<a> runs/<b> [--out file.md]
@@ -208,7 +214,7 @@ def report(run_dirs, model: str | None = None) -> str:
             by_task.setdefault(r["task_id"], []).append(r)
         arms.append((d.name, recs, by_task, cats))
     fmt = lambda v, pct=True: "–" if v is None else (f"{v:.0%}" if pct else f"{v:.1f}")
-    lines = [f"# Groundedness (RAGAS / FActScore style), evaluator `{name}`", "",
+    lines = [f"# Groundedness (simplified, modelled on RAGAS faithfulness and FActScore), evaluator `{name}`", "",
              "| arm | answers | faithfulness | fact recall | context recall | relevance (0–10) | unsupported statements |",
              "|---|---|---|---|---|---|---|"]
     for n, recs, _, _ in arms:

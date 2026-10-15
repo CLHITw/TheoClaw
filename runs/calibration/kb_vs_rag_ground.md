@@ -1,4 +1,4 @@
-# Groundedness (RAGAS / FActScore style), evaluator `deepseek-flash`
+# Groundedness (simplified, modelled on RAGAS faithfulness and FActScore), evaluator `deepseek-flash`
 
 | arm | answers | faithfulness | fact recall | context recall | relevance (0–10) | unsupported statements |
 |---|---|---|---|---|---|---|

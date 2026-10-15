@@ -56,7 +56,7 @@ in this repository and what is still missing.
   - What first looked like self-preference is mostly length.
   - The kappa against the reference is uninformative here, because the reference judged 98–100% of answers usable. Telling good from bad needs the domain experts' ratings, which include their flagged problems.
 - **Compiled wiki vs plain RAG: the way a long document is ingested mattered more than compiling** ([`runs/calibration/kb_vs_rag.md`](runs/calibration/kb_vs_rag.md)).
-  - Setup: Wesley's *Plain Account*, 12 questions × 2 runs per arm, scored with a RAGAS / FActScore-style groundedness evaluator (`evals ground`) and blind 0–10 scores.
+  - Setup: Wesley's *Plain Account*, 12 questions × 2 runs per arm, scored with a groundedness evaluator (`evals ground`: a simplified, single-call implementation modelled on RAGAS faithfulness and FActScore's atomic-fact decomposition (not the ragas library; statements are checked against what the agent retrieved, not the whole source; no TruLens context relevance and no ALCE citation check yet)) and blind 0–10 scores.
   - First run: the compiled wiki lost to BM25 RAG (fact recall 81% vs 92%, twice the cost). The cause was my setup: the PDF was converted to text, so OpenKB treated it as a short document, and a 100k-character read cap hid the second half of the book.
   - Re-run, compiled with PageIndex as OpenKB intends: the wiki matched RAG (93% vs 92%).
   - Wiki plus search was best of all: faithfulness 92% vs 88% (the only interval that excludes zero), fact recall 96%, 17 unsupported statements vs 30, at about RAG's cost.
@@ -312,7 +312,7 @@ grading are separate, so a changed grader re-grades old traces without API calls
 | `cost base arm …` | tokens and cost per answer against the baseline, with intervals (below) |
 | `experiment file.yaml [--dry-run]` | runs every arm of an experiment, then `cost` over them |
 | `judge score / pair / analyze` | LLM judge with the rubric, pairwise in both orders, and its agreement and biases against a person |
-| `ground score / report` | groundedness against the retrieved text, RAGAS / FActScore style: faithfulness, fact recall, context recall, relevance |
+| `ground score / report` | groundedness against the retrieved text, a simplified implementation modelled on RAGAS faithfulness and FActScore: faithfulness, fact recall, context recall, relevance |
 | `human …` | human scoring (below) |
 
 Answers are shown in 繁體: Simplified characters the model writes are converted (OpenCC,

@@ -20,7 +20,7 @@ would mean a large download; BM25 with agent-written queries is the baseline.
 
 ## Evaluation
 
-- **Groundedness** (`evals ground`, RAGAS / FActScore style, judge deepseek-flash): faithfulness (share of the answer's statements supported by what the agent retrieved), fact recall (reference facts the answer states), context recall (reference facts present in what was retrieved), relevance.
+- **Groundedness** (`evals ground`, judge deepseek-flash; a simplified, single-call implementation modelled on RAGAS faithfulness and FActScore's atomic-fact decomposition (not the ragas library; statements are checked against what the agent retrieved, not the whole source; no TruLens context relevance and no ALCE citation check yet). The judge is the same model that answered, and it has not yet been checked against human judgments): faithfulness (share of the answer's statements supported by what the agent retrieved), fact recall (reference facts the answer states), context recall (reference facts present in what was retrieved), relevance.
 - **Blind 0–10 score** by rater `claude` on all 48 answers, shuffled, arm hidden. Not fully blind: kb answers often cite wiki paths, rag answers cite "段落 N".
 
 ## Results
