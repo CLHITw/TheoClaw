@@ -344,7 +344,7 @@ def spotcheck_score(sheet: str | Path) -> str:
     lines = [f"judged by the person: {len(pairs)} of {len(rows)}",
              f"same verdict (supported / partial / not): {exact}/{len(pairs)} ({exact / len(pairs):.0%})",
              f"same on 'not supported' vs the rest: {binary}/{len(pairs)} ({binary / len(pairs):.0%})", "",
-             "person \ checker | supported | partial | not", "---|---|---|---"]
+             "person vs checker | supported | partial | not", "---|---|---|---"]
     for h in ("supported", "partial", "not"):
         lines.append(f"{h} | " + " | ".join(str(sum(1 for a, b in pairs if a == h and b == m)) for m in ("supported", "partial", "not")))
     return "\n".join(lines)
