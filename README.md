@@ -61,6 +61,8 @@ in this repository and what is still missing.
   - Re-run, compiled with PageIndex as OpenKB intends: the wiki matched RAG (93% vs 92%).
   - Wiki plus search was best of all: faithfulness 92% vs 88% (the only interval that excludes zero), fact recall 96%, 17 unsupported statements vs 30, at about RAG's cost.
   - Default from now on: compile PDFs as PDFs and give the agent search too.
+  - Citation precision (ALCE-style: does the cited passage or page support the sentence?) separated the arms most sharply: hybrid 91%, RAG 85%, wiki with PageIndex 70%, text-converted wiki 47%. Wiki-only answers tend to attach page numbers to paraphrases.
+  - Statements the evaluator found unsupported, rechecked against the whole book: almost none contradict Wesley. Most are the comparisons with other traditions that the system prompt asks for, written from general knowledge.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
   - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.

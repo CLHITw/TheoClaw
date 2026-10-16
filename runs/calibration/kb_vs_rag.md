@@ -155,3 +155,64 @@ only between those two arms, since I had already seen the first two.
 Limits are unchanged: one book, 12 tasks, model evaluator and model rater.
 **Spent on this re-run:** ¥4.3 on DeepSeek, which used up the account's granted balance.
 The topped-up ¥20 is untouched.
+
+---
+
+# Citations and unsupported statements (2026-10-16)
+
+Two follow-ups to the groundedness check, from `evals ground cite` and `evals ground
+recheck`. Tables: [`kb_vs_rag_citations.md`](kb_vs_rag_citations.md).
+
+## Citation check (ALCE-style citation precision)
+
+Every sentence that cites 「段落 N」 or 「第 N 頁」 is checked against the passage it cites:
+the run's own search chunk, or that page of the PDF.
+
+- **Coverage:** at most the first 8 citations per answer. The $0.30 budget covered a
+  random 59 of the 96 answers, 12–18 per arm.
+
+| arm | citations judged | precision | citations not supported |
+|---|---|---|---|
+| rag | 89 | 85% | 3 |
+| kb, text-converted | 73 | **47%** | 33 |
+| kb, PageIndex | 81 | 70% | 17 |
+| hybrid | 69 | **91%** | 2 |
+
+Citation precision separates the arms more sharply than faithfulness did. The wiki-only
+arms often cite a page that does not say what the sentence claims.
+
+- **Likely cause:** the agent reads a compiled page that mentions a topic, then attaches
+  a page number to its own paraphrase.
+- **Search arms:** they cite the passage they just retrieved, so their citations hold.
+- **Why it matters here:** a wrong citation is exactly what a pastor would catch and
+  hold against the tool. For this domain, citation precision belongs among the release
+  graders.
+
+## Unsupported statements, rechecked against the whole book (FActScore-style)
+
+The statements `ground score` marked unsupported by the retrieved text (98 of 106) were
+checked again against the whole book. The full book was cached as the prompt prefix:
+97% of input tokens were cache reads.
+
+| arm | statements | in the book (right, but not retrieved) | contradicted by the book | not in the book |
+|---|---|---|---|---|
+| rag | 30 | 1 | 1 | 28 |
+| kb, text-converted | 31 | 4 | 0 | 27 |
+| kb, PageIndex | 20 | 6 | 1 | 13 |
+| hybrid | 17 | 0 | 0 | 17 |
+
+What the "not in the book" statements are:
+
+- **Mostly not fabrications about Wesley.** They are what the system prompt asks for:
+  rule 6 says to note how other traditions (Reformed, Catholic, Orthodox) differ, and
+  the agent does this from general knowledge.
+  - Implication for the prompt: either allow such comparisons to be marked as general
+    knowledge, or have the graders exclude them.
+- **Few outright contradictions.** One example: dating *Brief Thoughts* to 1764 instead
+  of 1767.
+- **Some false alarms from the retrieval-only check.** For the PageIndex arm, 30% of the
+  flagged statements turn out to be in the book, just not on the pages the agent read.
+
+## Spent
+
+About $0.50 on DeepSeek for both checks ($0.33 + $0.17).

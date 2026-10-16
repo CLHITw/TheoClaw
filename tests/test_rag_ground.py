@@ -68,3 +68,12 @@ def test_kb_and_rag_together_make_a_hybrid_tool_set():
     ts = build_tool_set("scripture,kb,rag", kb=str(kb))
     names = [d["name"] for d in ts.defs]
     assert "kb_read_file" in names and "rag_search" in names and "rag_search" in ts.system
+
+
+def test_citation_extraction():
+    from theoclaw.evals import cite
+    cites, sections = cite.extract("完全是愛（段落 12）。他在第 5–6 頁說過。見第 19 節。沒有出處。")
+    assert cites[0]["paras"] == [12] and cites[1]["pages"] == [5, 6] and sections == 1 and len(cites) == 2
+    chunks = [rag.Chunk("d", 1, "one"), rag.Chunk("d", 2, "two")]
+    assert "two" in cite.resolve({"paras": [2], "pages": []}, chunks, {})
+    assert cite.resolve({"paras": [9], "pages": [99]}, chunks, {5: "p"}) is None

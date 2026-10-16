@@ -103,6 +103,21 @@ def main(argv=None) -> None:
     p.add_argument("--limit", type=int)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--budget", type=float, help="stop starting new calls once this many USD are spent")
+    p = gr.add_parser("cite", help="ALCE-style: does the cited passage or page support the sentence?")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--model")
+    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--budget", type=float)
+    p = gr.add_parser("recheck", help="statements unsupported by the retrieved text, checked against the whole book")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--source", required=True, help="knowledge base whose sources/ hold the whole book")
+    p.add_argument("--model")
+    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--budget", type=float)
+    p = gr.add_parser("cite-report", help="citation precision and recheck results per arm")
+    p.add_argument("run_dirs", nargs="+")
+    p.add_argument("--model")
+    p.add_argument("--out")
     p = gr.add_parser("report", help="per-arm means, by category, and the paired difference of two arms")
     p.add_argument("run_dirs", nargs="+")
     p.add_argument("--model")
@@ -185,6 +200,17 @@ def main(argv=None) -> None:
         from . import ground
         if args.gcmd == "score":
             print(ground.score(args.run_dirs, args.model, workers=args.workers, limit=args.limit, budget_usd=args.budget))
+        elif args.gcmd in ("cite", "recheck", "cite-report"):
+            from . import cite
+            if args.gcmd == "cite":
+                print(cite.cite(args.run_dirs, args.model, workers=args.workers, budget_usd=args.budget))
+            elif args.gcmd == "recheck":
+                print(cite.recheck(args.run_dirs, args.source, args.model, workers=args.workers, budget_usd=args.budget))
+            else:
+                text = cite.report(args.run_dirs, args.model)
+                if args.out:
+                    Path(args.out).write_text(text, encoding="utf-8")
+                print(text)
         else:
             text = ground.report(args.run_dirs, args.model)
             if args.out:
