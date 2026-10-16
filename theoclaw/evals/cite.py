@@ -285,3 +285,66 @@ def report(run_dirs, model: str | None = None) -> str:
         lines.append(f"| {d.name.split('_')[-1]} | {len(items)} | {cnt['supported']} ({cnt['supported'] / n:.0%}) | "
                      f"{cnt['contradicted']} ({cnt['contradicted'] / n:.0%}) | {cnt['not_in_book']} ({cnt['not_in_book'] / n:.0%}) |")
     return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------ checking the checker
+
+SPOT_COLS = ["編號", "句子（助手的回答）", "被引用的原文（英文）", "你的判斷：支持 / 部分 / 不支持", "備註"]
+_HUMAN = {"支持": "supported", "部分": "partial", "不支持": "not"}
+
+
+def spotcheck_make(run_dirs, out: str | Path, model: str | None = None, n: int = 20, seed: int = 0) -> Path:
+    """A blind sheet of the citation checker's verdicts for a person to judge; the
+    checker's verdicts go to a key file next to it."""
+    import csv
+    import random
+    from ..kb.query import rag
+    from ..llm import role
+    name = role("judge", model=model).model
+    pool = []
+    for d in map(Path, run_dirs):
+        wiki = _wiki(d)
+        pages = book_pages(wiki)
+        uses_rag = "rag" in (json.loads((d / "config.json").read_text(encoding="utf-8")).get("toolset") or {}).get("tools", [])
+        chunks = rag.index_wiki_sources(wiki).chunks if uses_rag else None
+        for r in _loaded(d, "cite", name):
+            for it in r["items"]:
+                pool.append({**it, "passage": resolve(it, chunks, pages)})
+    rng = random.Random(seed)
+    want = {"not": n * 2 // 5, "partial": n // 5}
+    want["supported"] = n - sum(want.values())
+    picked = []
+    for v, k in want.items():
+        cand = [p for p in pool if p["verdict"] == v and p["passage"]]
+        picked += rng.sample(cand, min(k, len(cand)))
+    rng.shuffle(picked)
+    out = Path(out)
+    with open(out, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(SPOT_COLS)
+        for i, p in enumerate(picked, 1):
+            w.writerow([i, p["sentence"], p["passage"][:PASSAGE_CHARS], "", ""])
+    out.with_suffix(".key.json").write_text(json.dumps({str(i): p["verdict"] for i, p in enumerate(picked, 1)}),
+                                            encoding="utf-8")
+    return out
+
+
+def spotcheck_score(sheet: str | Path) -> str:
+    """Agreement of the checker with the person who filled in the sheet."""
+    import csv
+    sheet = Path(sheet)
+    key = json.loads(sheet.with_suffix(".key.json").read_text(encoding="utf-8"))
+    with open(sheet, encoding="utf-8-sig") as f:
+        rows = [r for r in csv.reader(f)][1:]
+    pairs = [(_HUMAN[r[3].strip()], key[r[0]]) for r in rows if r and r[3].strip() in _HUMAN]
+    if not pairs:
+        return "no judgments filled in yet"
+    exact = sum(h == m for h, m in pairs)
+    binary = sum((h == "not") == (m == "not") for h, m in pairs)
+    lines = [f"judged by the person: {len(pairs)} of {len(rows)}",
+             f"same verdict (supported / partial / not): {exact}/{len(pairs)} ({exact / len(pairs):.0%})",
+             f"same on 'not supported' vs the rest: {binary}/{len(pairs)} ({binary / len(pairs):.0%})", "",
+             "person \ checker | supported | partial | not", "---|---|---|---"]
+    for h in ("supported", "partial", "not"):
+        lines.append(f"{h} | " + " | ".join(str(sum(1 for a, b in pairs if a == h and b == m)) for m in ("supported", "partial", "not")))
+    return "\n".join(lines)

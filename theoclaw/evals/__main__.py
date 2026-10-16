@@ -114,6 +114,12 @@ def main(argv=None) -> None:
     p.add_argument("--model")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--budget", type=float)
+    p = gr.add_parser("spotcheck", help="a blind sheet of the citation checker's verdicts for a person; --score to compare")
+    p.add_argument("paths", nargs="+", help="run folders (to make the sheet) or the filled-in sheet (with --score)")
+    p.add_argument("--out", help="where to write the sheet (CSV)")
+    p.add_argument("--n", type=int, default=20)
+    p.add_argument("--model")
+    p.add_argument("--score", action="store_true")
     p = gr.add_parser("cite-report", help="citation precision and recheck results per arm")
     p.add_argument("run_dirs", nargs="+")
     p.add_argument("--model")
@@ -122,6 +128,15 @@ def main(argv=None) -> None:
     p.add_argument("run_dirs", nargs="+")
     p.add_argument("--model")
     p.add_argument("--out")
+
+    p = sub.add_parser("monitor", help="real questions: automatic checks vs human scores, rater agreement, coverage")
+    p.add_argument("chat_dir", nargs="?", default="runs/pastor-chat")
+    p.add_argument("--suite", default="tasks/tasks.yaml", help="the regression suite to compare coverage with")
+    p.add_argument("--model", help="default: the judge role in config/llm.yaml")
+    p.add_argument("--no-llm", action="store_true", help="free: no groundedness check, no categories")
+    p.add_argument("--budget", type=float, help="stop starting groundedness calls once this many USD are spent")
+    p.add_argument("--out", help="also write the report to this file")
+    p.add_argument("--export-tasks", help="write low-scored or flagged answers as draft regression tasks (YAML)")
 
     h = sub.add_parser("human", help="human scoring of answers").add_subparsers(dest="hcmd", required=True)
     p = h.add_parser("rate", help="score answers in the terminal")
@@ -200,6 +215,12 @@ def main(argv=None) -> None:
         from . import ground
         if args.gcmd == "score":
             print(ground.score(args.run_dirs, args.model, workers=args.workers, limit=args.limit, budget_usd=args.budget))
+        elif args.gcmd == "spotcheck":
+            from . import cite
+            if args.score:
+                print(cite.spotcheck_score(args.paths[0]))
+            else:
+                print(f"wrote {cite.spotcheck_make(args.paths, args.out, args.model, args.n)} (and a .key.json next to it)")
         elif args.gcmd in ("cite", "recheck", "cite-report"):
             from . import cite
             if args.gcmd == "cite":
@@ -216,6 +237,14 @@ def main(argv=None) -> None:
             if args.out:
                 Path(args.out).write_text(text, encoding="utf-8")
             print(text)
+    elif args.cmd == "monitor":
+        from .monitor import export_tasks, monitor
+        text, rows = monitor(args.chat_dir, suite=args.suite, model=args.model, llm=not args.no_llm, budget_usd=args.budget)
+        if args.out:
+            Path(args.out).write_text(text, encoding="utf-8")
+        if args.export_tasks:
+            print(f"wrote {export_tasks(rows, Path(args.export_tasks))} draft tasks to {args.export_tasks}")
+        print(text)
     elif args.cmd == "human":
         from . import human
         if args.hcmd == "rate":

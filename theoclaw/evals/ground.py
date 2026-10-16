@@ -122,7 +122,10 @@ def _load(run_dir: Path, model: str) -> list[dict]:
 
 def _facts(run_dir: Path) -> dict[str, list[str]]:
     import yaml
-    tasks = yaml.safe_load((Path(run_dir) / "tasks.yaml").read_text(encoding="utf-8"))
+    path = Path(run_dir) / "tasks.yaml"
+    if not path.exists():  # real questions (runs/pastor-chat) have no reference facts
+        return {}
+    tasks = yaml.safe_load(path.read_text(encoding="utf-8"))
     return {t["id"]: list((t.get("expect") or {}).get("facts") or []) for t in tasks}
 
 
