@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import random
 import secrets
@@ -46,6 +47,9 @@ CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗�
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
+GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
+GROUP_DAYS = 2             # a group member also sees (and may score) the group's questions of the last two days
+_NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·]{1,20}$")
 
 # 「主要問題」：評分人勾選答案的毛病，日後可直接變成回歸測試題
 PROBLEMS = [
@@ -88,7 +92,7 @@ def prepare(run_dirs: list[str], raters: list[str], sample: int | None, flagged_
     entries = [{"id": it.item_id, "run_dir": _rel(it.run_dir), "task_id": it.key[0],
                 "run_index": it.key[1]} for it in items]
     old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"raters": {}}
-    rater_codes = {}
+    rater_codes = {c: r for c, r in old.get("raters", {}).items() if r.get("group")}  # group links survive
     for name in raters:
         code = next((c for c, r in old.get("raters", {}).items() if r["name"] == name), None) or secrets.token_urlsafe(9)
         order = [e["id"] for e in entries]
@@ -97,6 +101,18 @@ def prepare(run_dirs: list[str], raters: list[str], sample: int | None, flagged_
     data = {"items": entries, "raters": rater_codes}
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return data
+
+
+def add_group(name: str, path: Path = ASSIGNMENT) -> str:
+    """Add (or find) a shared group link in the assignment; returns its code."""
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
+    for code, r in data["raters"].items():
+        if r.get("group") and r["name"] == name:
+            return code
+    code = secrets.token_urlsafe(9)
+    data["raters"][code] = {"name": name, "order": [], "group": True}
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return code
 
 
 class Store:
@@ -130,6 +146,24 @@ class Store:
     def rater(self, code: str) -> dict | None:
         return self.raters.get(code or "")
 
+    def who(self, code: str, nick: str | None = None) -> dict | None:
+        """The rater behind a request. A personal link is the rater; a group link plus a
+        nickname is one member of the group, recorded as 「群組·暱稱」. None: group link
+        without a valid nickname yet."""
+        r = self.raters[code]
+        if not r.get("group"):
+            return r
+        nick = (nick or "").strip()
+        if not _NICK.match(nick):
+            return None
+        return {"name": f"{r['name']}{GROUP_SEP}{nick}", "order": [], "group": r["name"]}
+
+    def _group_items(self, group: str) -> list[str]:
+        since = time.strftime("%Y%m%d", time.localtime(time.time() - GROUP_DAYS * 86400))
+        return sorted((i for i, n in self.owner.items()
+                       if n.startswith(group + GROUP_SEP) and str(self.items[i].trace.get("asked_at", "")) >= since),
+                      key=lambda i: self.items[i].trace.get("asked_at", ""))
+
     def done(self, name: str) -> dict[str, dict]:
         """item id -> latest rating by this rater."""
         out = {}
@@ -139,8 +173,10 @@ class Store:
                     out[item_id] = r
         return out
 
-    def state(self, code: str) -> dict:
-        r = self.raters[code]
+    def state(self, code: str, nick: str | None = None) -> dict:
+        r = self.who(code, nick)
+        if r is None:
+            return {"need_name": True, "group": self.raters[code]["name"]}
         done = self.done(r["name"])
         chat = None
         if self.chat:
@@ -150,15 +186,18 @@ class Store:
                     "open": self._spent() < self.chat["budget_usd"],
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
                                   for i in mine]}
+            if r.get("group"):  # the others' questions, so answers get more than one rater
+                chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
+                                  for i in self._group_items(r["group"]) if self.owner[i] != r["name"]]
         return {"rater": r["name"], "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
                 "problems": PROBLEMS, "chat": chat,
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
                            "allow_na": self.rubric.get("allow_na", True), "anchors": self.rubric.get("anchors", []),
                            "dimensions": [{k: d[k] for k in ("key", "name", "question")} for d in self.rubric["dimensions"]]}}
 
-    def item(self, code: str, item_id: str) -> dict | None:
-        r = self.raters[code]
-        if not self._allowed(r, item_id):
+    def item(self, code: str, item_id: str, nick: str | None = None) -> dict | None:
+        r = self.who(code, nick)
+        if r is None or not self._allowed(r, item_id):
             return None
         t = self.items[item_id].trace
         calls = [{"name": c["name"], "input": c["input"], "output": c["output"], "is_error": c["is_error"]}
@@ -170,9 +209,11 @@ class Store:
                 "prompt": t["prompt"], "tools": calls, "answer": t.get("final_text") or "（沒有回答）",
                 "previous": None if prev is None else {k: prev.get(k) for k in ("scores", "verdict", "comment", "problems")}}
 
-    def rate(self, code: str, body: dict) -> str | None:
+    def rate(self, code: str, body: dict, nick: str | None = None) -> str | None:
         """Validate and save one rating; returns an error message or None."""
-        r = self.raters[code]
+        r = self.who(code, nick)
+        if r is None:
+            return "請先輸入您的稱呼"
         item = self.items.get(body.get("id"))
         if item is None or not self._allowed(r, body.get("id")):
             return "找不到這一題"
@@ -195,9 +236,10 @@ class Store:
         keys = {p["key"] for p in PROBLEMS}
         problems = [p for p in body.get("problems") or [] if p in keys]
         comment = str(body.get("comment") or "")[:2000]
+        mode = "blind" if not chat else ("own" if self.owner.get(body.get("id")) == r["name"] else "group")
         with self.lock:
             save_rating(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric,
-                        extra={"problems": problems, "via": "human_server", "mode": "chat" if chat else "blind"})
+                        extra={"problems": problems, "via": "human_server", "mode": mode})
         return None
 
     # ------------------------------------------------------------ chat mode
@@ -205,7 +247,9 @@ class Store:
     def _allowed(self, r: dict, item_id: str) -> bool:
         if item_id not in self.items:
             return False
-        return item_id in r["order"] or self.owner.get(item_id) == r["name"]
+        if item_id in r["order"] or self.owner.get(item_id) == r["name"]:
+            return True
+        return bool(r.get("group")) and item_id in self._group_items(r["group"])
 
     def _chat_traces(self) -> list[dict]:
         return [self.items[i].trace for i in self.owner]
@@ -220,11 +264,19 @@ class Store:
         running = sum(1 for j in self.jobs.values() if j["name"] == name and j["status"] == "running")
         return asked + running
 
-    def ask(self, code: str, question: str, runner=None) -> dict:
+    def _today_group(self, group: str) -> int:
+        today = time.strftime("%Y%m%d")
+        asked = sum(1 for t in self._chat_traces()
+                    if str(t.get("asked_by", "")).startswith(group + GROUP_SEP) and str(t.get("asked_at", "")).startswith(today))
+        return asked + sum(1 for j in self.jobs.values() if j["name"].startswith(group + GROUP_SEP) and j["status"] == "running")
+
+    def ask(self, code: str, question: str, runner=None, nick: str | None = None) -> dict:
         """Start answering in the background; returns {"job": id} or {"error": ...}."""
         if not self.chat:
             return {"error": "提問模式沒有開啟"}
-        r = self.raters[code]
+        r = self.who(code, nick)
+        if r is None:
+            return {"error": "請先輸入您的稱呼"}
         question = (question or "").strip()
         if not 2 <= len(question) <= 1000:
             return {"error": "問題請在 2 到 1000 字之間"}
@@ -233,15 +285,19 @@ class Store:
                 return {"error": "本次測試的提問額度已用完，謝謝您的參與"}
             if self._today(r["name"]) >= self.chat["daily_limit"]:
                 return {"error": f"今天已問了 {self.chat['daily_limit']} 題，請明天再來"}
+            group_limit = self.chat.get("group_daily_limit")
+            if r.get("group") and group_limit and self._today_group(r["group"]) >= group_limit:
+                return {"error": "今天團契的提問額度已用完，請明天再來"}
             job = secrets.token_hex(6)
             self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None,
                               "started": time.time()}
         threading.Thread(target=self._answer, args=(job, r["name"], question, runner), daemon=True).start()
         return {"job": job}
 
-    def job(self, code: str, job_id: str) -> dict | None:
+    def job(self, code: str, job_id: str, nick: str | None = None) -> dict | None:
         j = self.jobs.get(job_id)
-        if j is None or j["name"] != self.raters[code]["name"]:
+        r = self.who(code, nick)
+        if j is None or r is None or j["name"] != r["name"]:
             return None
         if j["status"] == "running" and time.time() - j["started"] > CHAT_TIMEOUT:
             j.update(status="error", error="回答超時，請稍後再試，或把問題問得具體一點")
@@ -331,21 +387,24 @@ def make_handler(store: Store):
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效，請向負責人索取您的專屬連結"}, HTTPStatus.FORBIDDEN)
+            nick = (q.get("u") or [""])[0]
             if u.path == "/api/state":
-                return self._json(store.state(code))
+                return self._json(store.state(code, nick))
             if u.path == "/api/item":
-                item = store.item(code, (q.get("id") or [""])[0])
+                item = store.item(code, (q.get("id") or [""])[0], nick)
                 return self._json(item) if item else self._json({"error": "找不到這一題"}, HTTPStatus.NOT_FOUND)
             if u.path == "/api/job":
-                j = store.job(code, (q.get("id") or [""])[0])
+                j = store.job(code, (q.get("id") or [""])[0], nick)
                 return self._json(j) if j else self._json({"error": "找不到"}, HTTPStatus.NOT_FOUND)
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
             u = urlparse(self.path)
-            code = self._code(parse_qs(u.query))
+            q = parse_qs(u.query)
+            code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
+            nick = (q.get("u") or [""])[0]
             if u.path not in ("/api/rate", "/api/ask"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
@@ -356,9 +415,9 @@ def make_handler(store: Store):
             except json.JSONDecodeError:
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
-                out = store.ask(code, body.get("question", ""))
+                out = store.ask(code, body.get("question", ""), nick=nick)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
-            err = store.rate(code, body)
+            err = store.rate(code, body, nick)
             self._json({"error": err} if err else {"ok": True}, HTTPStatus.BAD_REQUEST if err else HTTPStatus.OK)
 
     return Handler
@@ -375,6 +434,9 @@ def main(argv=None):
     p.add_argument("--sample", type=int, help="只抽 n 個回答（各 run 平均、分散到各題）")
     p.add_argument("--flagged-by", help="抽樣時約四分之一取自這位評分人判有問題的回答")
     p.add_argument("--base-url", default="http://localhost:8765", help="印出連結時用的網址")
+    p = sub.add_parser("group", help="加一條團體連結：大家共用一條連結，第一次打開時輸入稱呼，資料按稱呼分開記錄")
+    p.add_argument("name", help="團體名稱，例如 查經班")
+    p.add_argument("--base-url", default="http://localhost:8765")
     p = sub.add_parser("serve", help="啟動評分伺服器")
     p.add_argument("--host", default="127.0.0.1", help="預設只聽本機；經通道對外，不要直接開 0.0.0.0")
     p.add_argument("--port", type=int, default=8765)
@@ -382,6 +444,7 @@ def main(argv=None):
     p.add_argument("--chat-model", default=CHAT_MODEL, help=f"提問模式的模型（預設 {CHAT_MODEL}）")
     p.add_argument("--daily-limit", type=int, default=30, help="每人每天最多問幾題")
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
+    p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
     a = ap.parse_args(argv)
@@ -390,8 +453,12 @@ def main(argv=None):
         print(f"已選 {len(data['items'])} 個回答，寫入 {ASSIGNMENT}（含連結代碼，不要外流）")
         for code, r in data["raters"].items():
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
+    elif a.cmd == "group":
+        code = add_group(a.name)
+        print(f"團體連結（{a.name}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
     else:
-        chat = {"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget} if a.chat else None
+        chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
+                 "group_daily_limit": a.group_daily_limit} if a.chat else None)
         store = Store(chat=chat, rubric=Path(a.rubric))
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""

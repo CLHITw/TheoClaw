@@ -379,6 +379,13 @@
 <div class="container">
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
 
+  <div id="nameCard" class="card hidden">
+    <div class="card-title">請先輸入您的稱呼</div>
+    <div class="help">用暱稱或名字的一個字即可，不必用全名；之後在這部裝置上會自動記住。同一個人請每次用同一個稱呼，方便分開統計。</div>
+    <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如：小明">
+    <div class="actions"><button class="btn" onclick="setName()">開始</button></div>
+  </div>
+
   <div id="introBox" class="card hidden">
     <div class="card-title">說明</div>
     <div class="card-content help" id="introText">每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。
@@ -406,6 +413,10 @@
     <div class="card">
       <div class="card-title">我問過的問題（點選可查看或修改評分）</div>
       <ul class="q-list" id="qList"></ul>
+    </div>
+    <div class="card hidden" id="othersCard">
+      <div class="card-title">團契其他人這兩天的問題（也請幫忙看看、評個分）</div>
+      <ul class="q-list" id="otherList"></ul>
     </div>
   </div>
 
@@ -449,10 +460,29 @@
 <script>
 const code = new URLSearchParams(location.search).get('t') || '';
 let state = null, pos = 0, item = null, scores = {}, verdict = null, problems = new Set();
+const NICK_KEY = 'theoclaw_nick_' + code;
+let nick = '';
+try { nick = localStorage.getItem(NICK_KEY) || ''; } catch (e) { nick = ''; }
 
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
-  return fetch(path + sep + 't=' + encodeURIComponent(code), opts).then(r => r.json());
+  return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : ''), opts)
+    .then(r => r.json());
+}
+
+function setName() {
+  const v = document.getElementById('nameInput').value.trim();
+  if (!v || v.length > 20 || /[<>&"'\/·]/.test(v)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
+  nick = v;
+  try { localStorage.setItem(NICK_KEY, v); } catch (e) { /* the name then lasts until the page closes */ }
+  document.getElementById('nameCard').classList.add('hidden');
+  init();
+}
+
+function changeName() {
+  try { localStorage.removeItem(NICK_KEY); } catch (e) {}
+  nick = '';
+  location.reload();
 }
 
 function fail(msg) {
@@ -465,6 +495,11 @@ function init() {
   if (!code) { fail('請使用負責人寄給您的專屬連結開啟本頁。'); return; }
   api('/api/state').then(s => {
     if (s.error) { fail(s.error); return; }
+    if (s.need_name) {
+      document.querySelector('.header h1').textContent = 'TheoClaw · ' + s.group;
+      document.getElementById('nameCard').classList.remove('hidden');
+      return;
+    }
     state = s;
     document.querySelector('.header h1').textContent = 'TheoClaw 人工評分 · ' + s.rater;
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
@@ -480,6 +515,12 @@ function init() {
     document.getElementById('problemsCard').classList.toggle('hidden', simple);
     document.getElementById('introBox').classList.remove('hidden');
     if (s.chat) document.getElementById('tabs').classList.remove('hidden');
+    if (!s.order.length && s.chat) {  // a group link: only asking and scoring the group's answers
+      document.getElementById('tabBlind').classList.add('hidden');
+      document.getElementById('progressInfo').textContent = '';
+      mode('ask');
+      return;
+    }
     const firstOpen = s.order.findIndex(id => !s.done.includes(id));
     if (firstOpen < 0) { progress(); done(); } else { show(firstOpen); }
   }).catch(() => fail('無法連線到評分伺服器，請稍後再試。'));
@@ -487,6 +528,7 @@ function init() {
 
 function progress() {
   const n = state.done.length, total = state.order.length;
+  if (!total) { document.getElementById('progressInfo').textContent = ''; return; }
   document.getElementById('progressInfo').textContent = '已評 ' + n + ' / ' + total;
   document.getElementById('progressFill').style.width = (n / total * 100) + '%';
 }
@@ -518,8 +560,25 @@ function refreshAsk() {
   api('/api/state').then(s => {
     state.chat = s.chat;
     const c = s.chat;
-    document.getElementById('askInfo').textContent = c.open
+    const info = document.getElementById('askInfo');
+    info.textContent = c.open
       ? '今天還可以問 ' + c.remaining_today + ' 題。' : '本次測試的提問額度已用完，謝謝您的參與。';
+    if (nick) {
+      const a = document.createElement('a');
+      a.href = '#'; a.textContent = '（以「' + nick + '」記錄；不是你？按這裡更換）';
+      a.onclick = (e) => { e.preventDefault(); changeName(); };
+      info.appendChild(a);
+    }
+    const others = c.others || [];
+    document.getElementById('othersCard').classList.toggle('hidden', !c.others);
+    const ol = document.getElementById('otherList');
+    ol.innerHTML = others.length ? '' : '<li class="help">暫時還沒有</li>';
+    others.slice().reverse().forEach(q => {
+      const li = document.createElement('li');
+      li.textContent = (q.rated ? '✓ ' : '○ ') + q.prompt;
+      li.onclick = () => showId(q.id);
+      ol.appendChild(li);
+    });
     document.getElementById('askBtn').disabled = !c.open || c.remaining_today <= 0;
     const ul = document.getElementById('qList');
     ul.innerHTML = '';

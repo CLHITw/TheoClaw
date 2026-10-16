@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import threading
+import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -108,7 +109,7 @@ def test_chat_mode_limits_and_saving(tmp_path):
     dims = {d["key"]: 5 for d in store.rubric["dimensions"]}
     assert store.rate(codes[0], {"id": j["item"], "scores": dims, "verdict": True}) is None
     rec = json.loads((chat_dir / "human" / "牧者1.jsonl").read_text(encoding="utf-8"))
-    assert rec["mode"] == "chat" and rec["blind"] is False
+    assert rec["mode"] == "own" and rec["blind"] is False
     again = hs.Store(path, chat={"model": "deepseek-flash", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=chat_dir)
     assert [q["rated"] for q in again.state(codes[0])["chat"]["questions"]] == [True]
     assert hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 0.01}, chat_dir=chat_dir).ask(
@@ -133,3 +134,38 @@ def test_assignment_ids_survive_a_move_to_another_machine(tmp_path):
     dims = {d["key"]: 5 for d in store.rubric["dimensions"]}
     assert store.rate(code, {"id": first, "scores": dims, "verdict": True}) is None
     assert store.state(code)["done"] == [first]
+
+
+def test_group_link_nicknames_and_cross_rating(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    assert hs.add_group("查經班", path) == code  # same link again
+    chat_dir = tmp_path / "pastor-chat"
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "group_daily_limit": 2},
+                     chat_dir=chat_dir)
+    assert store.state(code)["need_name"] and store.state(code, "<b>")["need_name"]
+    assert "稱呼" in store.ask(code, "問題", nick="")["error"]
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答案", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    j = store.ask(code, "羅馬書 8 章講甚麼？", runner=fake, nick="小明")
+    for _ in range(50):
+        if store.job(code, j["job"], "小明")["status"] != "running":
+            break
+        time.sleep(0.05)
+    item = store.job(code, j["job"], "小明")["item"]
+    assert store.job(code, j["job"], "小華") is None  # someone else's job
+    st = store.state(code, "小華")
+    assert st["rater"] == "查經班·小華" and [q["id"] for q in st["chat"]["others"]] == [item]
+    assert store.item(code, item, "小華")["answer"] == "答案"  # the group may score each other's answers
+    assert store.rate(code, {"id": item, "scores": {"overall": 8}}, "小華") is None
+    assert store.rate(code, {"id": item, "scores": {"overall": 6}}, "小明") is None
+    recs = [json.loads(x) for x in (chat_dir / "human").glob("*.jsonl") for x in x.read_text(encoding="utf-8").splitlines()]
+    assert sorted((r["rater"], r["mode"]) for r in recs) == [("查經班·小明", "own"), ("查經班·小華", "group")]
+    personal = next(c for c, r in store.raters.items() if not r.get("group"))
+    assert store.item(personal, item) is None  # a personal link is outside the group
+    assert code in hs.prepare([str(a)], ["牧者1"], None, None, path)["raters"]  # re-preparing keeps the group link
+    store.ask(code, "第二題", runner=fake, nick="小華")
+    time.sleep(0.2)
+    assert "團契" in store.ask(code, "第三題", runner=fake, nick="小李")["error"]  # group daily limit 2
