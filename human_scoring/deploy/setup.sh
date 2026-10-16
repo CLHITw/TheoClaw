@@ -43,7 +43,4 @@ systemctl restart theoclaw-scoring
 sleep 8
 echo "評分伺服器狀態："; systemctl --no-pager --lines=3 status theoclaw-scoring || true
 echo
-echo "對外網址（每次重啟 theoclaw-tunnel 會換新的）："
-journalctl -u theoclaw-tunnel --no-pager | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || \
-  echo "還沒出現，稍等再執行：journalctl -u theoclaw-tunnel | grep trycloudflare"
-echo "牧者連結 = 上面的網址 + /?t=代碼（代碼在 $APP/human_scoring/assignment.json）"
+bash "$APP/human_scoring/deploy/links.sh"
