@@ -413,6 +413,29 @@ python human_scoring/human_server.py prepare runs/<a> runs/<b> --raters 牧者1,
 python human_scoring/human_server.py serve --chat
 ```
 
+## Users and traditions (from the first real users)
+
+The first lay testers, an English-speaking Bible-study group, gave three pieces of feedback:
+
+- The test questions were too academic: Wesley's biography and conference minutes were
+  written to catch invented sources, which is a pastor's concern, not a lay reader's.
+- It was unclear who the assistant is for.
+- Not everyone is Methodist.
+
+What changed:
+
+- **Language.** The agent answers in the language of the question. English answers use
+  the KJV and plain English, with no Chinese at all; many in that group use Bible study
+  to practise English.
+- **Tradition, recorded.** The online page asks each person once for their church
+  tradition (dropdown, including "non-denominational"). It is stored with every question
+  and rating. Answers still take a Methodist perspective.
+- **Tradition, planned.** One compiled wiki per tradition. The agent answers from the
+  wiki of the asker's tradition, or compares several. "Non-denominational" would draw on
+  every tradition that confesses the Trinity. The groundedness, citation and monitoring
+  tools above are what would tell whether a tradition-specific answer stays faithful to
+  that tradition's sources.
+
 ## Design decisions
 
 - **Hand-written loop.** `messages.create(tools=...)`, run every `tool_use` block, return

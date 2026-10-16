@@ -169,3 +169,24 @@ def test_group_link_nicknames_and_cross_rating(tmp_path):
     store.ask(code, "第二題", runner=fake, nick="小華")
     time.sleep(0.2)
     assert "團契" in store.ask(code, "第三題", runner=fake, nick="小李")["error"]  # group daily limit 2
+
+
+def test_denomination_recorded_with_question_and_rating(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    chat_dir = tmp_path / "pastor-chat"
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=chat_dir)
+    assert "無宗派 Non-denominational" in store.state(code)["denominations"]
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    j = store.ask(code, "What is grace?", runner=fake, nick="Tom", denomination="聖公會 Anglican")
+    store.ask(code, "Another?", runner=fake, nick="Tom", denomination="made up")
+    time.sleep(0.3)
+    traces = [json.loads(x) for x in (chat_dir / "traces.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert sorted(str(t["denomination"]) for t in traces) == ["None", "聖公會 Anglican"]
+    item = store.job(code, j["job"], "Tom")["item"]
+    assert store.rate(code, {"id": item, "scores": {"overall": 7}, "denomination": "聖公會 Anglican"}, "Tom") is None
+    rec = json.loads(next((chat_dir / "human").glob("*.jsonl")).read_text(encoding="utf-8"))
+    assert rec["denomination"] == "聖公會 Anglican"

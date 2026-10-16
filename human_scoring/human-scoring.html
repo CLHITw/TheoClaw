@@ -380,10 +380,13 @@
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
 
   <div id="nameCard" class="card hidden">
-    <div class="card-title">請先輸入您的稱呼</div>
-    <div class="help">用暱稱或名字的一個字即可，不必用全名；之後在這部裝置上會自動記住。同一個人請每次用同一個稱呼，方便分開統計。</div>
-    <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如：小明">
-    <div class="actions"><button class="btn" onclick="setName()">開始</button></div>
+    <div class="card-title">請先輸入您的稱呼 · Please enter your name</div>
+    <div class="help">用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。<br>
+    A nickname is fine (no full name needed); this device will remember it. Please use the same name each time.</div>
+    <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom">
+    <div class="help" style="margin-top:10px">您所屬的宗派（只作統計，回答目前以循道衛理立場為主）· Your church tradition (for statistics only; answers currently take a Methodist perspective)</div>
+    <select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select>
+    <div class="actions"><button class="btn" onclick="setName()">開始 · Start</button></div>
   </div>
 
   <div id="introBox" class="card hidden">
@@ -399,11 +402,11 @@
 
   <div id="askSection" class="hidden">
     <div class="card">
-      <div class="card-title">提問</div>
-      <div class="help">請像平常預備查經或講道一樣提問，助手會查經文和衛斯理註釋後回答（約 20 秒到一分鐘）。
-回答出來後，請用下面同一套標準評分。請不要輸入會友的姓名或私人資料。</div>
-      <textarea class="ask-input" id="askInput" placeholder="例如：我下主日要講路加福音 15 章，請給我講題和三段大綱。"></textarea>
-      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出問題</button></div>
+      <div class="card-title">提問 · Ask a question</div>
+      <div class="help">像平常查經時那樣提問，中文或英文都可以；助手會查經文和衛斯理註釋後回答（約 20 秒到一分鐘）。回答出來後請打個分。請不要輸入真實姓名或私人資料。<br>
+Ask as you would in Bible study, in English or Chinese. The assistant looks up the Bible text and Wesley's notes, then answers (20 seconds to a minute). Then please give it a score. Please don't type real names or anything private.</div>
+      <textarea class="ask-input" id="askInput" placeholder="例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15) in our group?"></textarea>
+      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出問題 · Ask</button></div>
       <div class="help" id="askInfo" style="margin-top:8px"></div>
     </div>
     <div class="card hidden" id="waitCard">
@@ -411,11 +414,11 @@
       <div class="card-content help" id="waitText">助手正在查經文並撰寫回答，通常 20 秒到一分鐘，請不要關閉頁面…</div>
     </div>
     <div class="card">
-      <div class="card-title">我問過的問題（點選可查看或修改評分）</div>
+      <div class="card-title">我問過的問題 · My questions（點選可查看或修改評分 · tap to view or change your score）</div>
       <ul class="q-list" id="qList"></ul>
     </div>
     <div class="card hidden" id="othersCard">
-      <div class="card-title">團契其他人這兩天的問題（也請幫忙看看、評個分）</div>
+      <div class="card-title">團契其他人這兩天的問題 · Others' questions from the last two days（也請幫忙評分 · please score them too）</div>
       <ul class="q-list" id="otherList"></ul>
     </div>
   </div>
@@ -426,9 +429,9 @@
       <span id="posInfo" class="help"></span>
       <button class="btn btn-secondary btn-sm" onclick="go(1)">下一題 →</button>
     </div>
-    <div class="card"><div class="card-title">題目</div><div class="card-content" id="questionText"></div></div>
-    <div class="card"><div class="card-title">工具查到的資料（點開看全文）</div><div id="toolCalls"></div></div>
-    <div class="card"><div class="card-title">回答</div><div class="card-content" id="answerText"></div></div>
+    <div class="card"><div class="card-title">題目 · Question</div><div class="card-content" id="questionText"></div></div>
+    <div class="card"><div class="card-title">工具查到的資料 · What the assistant looked up（點開看全文 · tap to open）</div><div id="toolCalls"></div></div>
+    <div class="card"><div class="card-title">回答 · Answer</div><div class="card-content" id="answerText"></div></div>
     <div class="card"><div class="card-title" id="scoreTitle">評分</div><div class="help" id="anchors"></div><div class="dimensions" id="dimensions"></div></div>
     <div class="card" id="problemsCard"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
     <div class="card verdict-section" id="verdictCard">
@@ -440,10 +443,10 @@
       </div>
     </div>
     <div class="card comment-section">
-      <div class="card-title">備註（選填：哪一句讓你覺得怪？貼上來就好，不用查證）</div>
+      <div class="card-title">備註（選填）· Comment (optional)：哪一句讓你覺得怪？貼上來就好 · Paste any sentence that seems wrong or odd</div>
       <textarea class="comment-input" id="commentInput"></textarea>
     </div>
-    <div class="actions"><button class="btn" id="saveBtn" onclick="save()">儲存並到下一題</button></div>
+    <div class="actions"><button class="btn" id="saveBtn" onclick="save()">儲存 · Save</button></div>
   </div>
 
   <div id="doneSection" class="hidden">
@@ -461,8 +464,8 @@
 const code = new URLSearchParams(location.search).get('t') || '';
 let state = null, pos = 0, item = null, scores = {}, verdict = null, problems = new Set();
 const NICK_KEY = 'theoclaw_nick_' + code;
-let nick = '';
-try { nick = localStorage.getItem(NICK_KEY) || ''; } catch (e) { nick = ''; }
+let nick = '', denom = '';
+try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
@@ -474,7 +477,8 @@ function setName() {
   const v = document.getElementById('nameInput').value.trim();
   if (!v || v.length > 20 || /[<>&"'\/·]/.test(v)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
   nick = v;
-  try { localStorage.setItem(NICK_KEY, v); } catch (e) { /* the name then lasts until the page closes */ }
+  denom = document.getElementById('denomSelect').value;
+  try { localStorage.setItem(NICK_KEY, v); localStorage.setItem(NICK_KEY + '_denom', denom); } catch (e) { /* lasts until the page closes */ }
   document.getElementById('nameCard').classList.add('hidden');
   init();
 }
@@ -497,6 +501,10 @@ function init() {
     if (s.error) { fail(s.error); return; }
     if (s.need_name) {
       document.querySelector('.header h1').textContent = 'TheoClaw · ' + s.group;
+      const sel = document.getElementById('denomSelect');
+      sel.innerHTML = '';
+      s.denominations.forEach(d => { const o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
+      sel.value = s.denominations.find(d => d.startsWith('無宗派')) || s.denominations[0];
       document.getElementById('nameCard').classList.remove('hidden');
       return;
     }
@@ -504,11 +512,11 @@ function init() {
     document.querySelector('.header h1').textContent = 'TheoClaw 人工評分 · ' + s.rater;
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
     const r = s.rubric, simple = r.verdict.auto_min !== undefined;
-    document.getElementById('scoreTitle').textContent = '評分（' + r.scale.min + '–' + r.scale.max + ' 分，' + r.scale.max + ' 最好' +
+    document.getElementById('scoreTitle').textContent = '評分 · Score（' + r.scale.min + '–' + r.scale.max + '，' + r.scale.max + ' 最好 · best' +
       (r.allow_na ? '；N = 不適用' : '') + '）';
     document.getElementById('anchors').innerHTML = '';
     r.anchors.forEach(a => {
-      const d = document.createElement('div'); d.textContent = a.range + ' 分：' + a.meaning;
+      const d = document.createElement('div'); d.textContent = a.range + ' 分 · pts：' + a.meaning;
       document.getElementById('anchors').appendChild(d);
     });
     document.getElementById('verdictCard').classList.toggle('hidden', simple);
@@ -597,7 +605,7 @@ function ask() {
   if (q.length < 2) { showToast('請輸入問題'); return; }
   const btn = document.getElementById('askBtn');
   btn.disabled = true;
-  api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question: q})})
+  api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question: q, denomination: denom})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       const wait = document.getElementById('waitCard'), text = document.getElementById('waitText');
@@ -726,7 +734,7 @@ function save() {
   if (verdict === null && state.rubric.verdict.auto_min === undefined) { showToast('請選擇總評'); return; }
   const btn = document.getElementById('saveBtn'); btn.disabled = true;
   api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems],
+    body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems], denomination: denom,
                           comment: document.getElementById('commentInput').value.trim()})})
     .then(r => {
       btn.disabled = false;

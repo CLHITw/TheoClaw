@@ -33,7 +33,7 @@ def _verse_lines(output: str) -> list[str]:
 def _render(output: str, version: str, label: str) -> str:
     verses = _verse_lines(output)
     if version == "kjv":
-        return f"“{' '.join(verses)}”（{label}, KJV）"
+        return f"“{' '.join(verses)}” ({label}, KJV)"  # English answers: ASCII brackets
     text = "".join(verses).replace("「", "『").replace("」", "』")  # keep the outer 「」 unambiguous
     return f"「{text}」（{label}，和合本）"
 

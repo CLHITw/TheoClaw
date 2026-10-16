@@ -47,6 +47,11 @@ CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗�
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
+# 宗派：在輸入稱呼時選一次，記在提問與評分裡。現在只作記錄，回答仍以循道衛理立場為主；
+# 之後可按宗派選用對應的 wiki，「無宗派」則用所有承認三位一體信仰的傳統。
+DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
+                 "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
+                 "無宗派 Non-denominational", "其他 Other"]
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 GROUP_DAYS = 2             # a group member also sees (and may score) the group's questions of the last two days
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·]{1,20}$")
@@ -176,7 +181,7 @@ class Store:
     def state(self, code: str, nick: str | None = None) -> dict:
         r = self.who(code, nick)
         if r is None:
-            return {"need_name": True, "group": self.raters[code]["name"]}
+            return {"need_name": True, "group": self.raters[code]["name"], "denominations": DENOMINATIONS}
         done = self.done(r["name"])
         chat = None
         if self.chat:
@@ -190,7 +195,7 @@ class Store:
                 chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
                                   for i in self._group_items(r["group"]) if self.owner[i] != r["name"]]
         return {"rater": r["name"], "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
-                "problems": PROBLEMS, "chat": chat,
+                "problems": PROBLEMS, "chat": chat, "denominations": DENOMINATIONS,
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
                            "allow_na": self.rubric.get("allow_na", True), "anchors": self.rubric.get("anchors", []),
                            "dimensions": [{k: d[k] for k in ("key", "name", "question")} for d in self.rubric["dimensions"]]}}
@@ -237,9 +242,11 @@ class Store:
         problems = [p for p in body.get("problems") or [] if p in keys]
         comment = str(body.get("comment") or "")[:2000]
         mode = "blind" if not chat else ("own" if self.owner.get(body.get("id")) == r["name"] else "group")
+        extra = {"problems": problems, "via": "human_server", "mode": mode}
+        if body.get("denomination") in DENOMINATIONS:
+            extra["denomination"] = body["denomination"]
         with self.lock:
-            save_rating(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric,
-                        extra={"problems": problems, "via": "human_server", "mode": mode})
+            save_rating(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric, extra=extra)
         return None
 
     # ------------------------------------------------------------ chat mode
@@ -270,7 +277,8 @@ class Store:
                     if str(t.get("asked_by", "")).startswith(group + GROUP_SEP) and str(t.get("asked_at", "")).startswith(today))
         return asked + sum(1 for j in self.jobs.values() if j["name"].startswith(group + GROUP_SEP) and j["status"] == "running")
 
-    def ask(self, code: str, question: str, runner=None, nick: str | None = None) -> dict:
+    def ask(self, code: str, question: str, runner=None, nick: str | None = None,
+            denomination: str | None = None) -> dict:
         """Start answering in the background; returns {"job": id} or {"error": ...}."""
         if not self.chat:
             return {"error": "提問模式沒有開啟"}
@@ -291,7 +299,8 @@ class Store:
             job = secrets.token_hex(6)
             self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None,
                               "started": time.time()}
-        threading.Thread(target=self._answer, args=(job, r["name"], question, runner), daemon=True).start()
+        denom = denomination if denomination in DENOMINATIONS else None
+        threading.Thread(target=self._answer, args=(job, r["name"], question, runner, denom), daemon=True).start()
         return {"job": job}
 
     def job(self, code: str, job_id: str, nick: str | None = None) -> dict | None:
@@ -318,7 +327,7 @@ class Store:
         rec["cost_usd"] = cost(rec["usage_total"], rl.model)
         return rec
 
-    def _answer(self, job: str, name: str, question: str, runner=None) -> None:
+    def _answer(self, job: str, name: str, question: str, runner=None, denomination: str | None = None) -> None:
         t0 = time.time()
         sys.stderr.write(f"chat start {job} {name}\n")
         try:
@@ -326,7 +335,8 @@ class Store:
             sys.stderr.write(f"chat done {job} {rec.get('outcome')} {time.time() - t0:.0f}s "
                              f"cost={rec.get('cost_usd')} error={rec.get('error')}\n")
             stamp = time.strftime("%Y%m%d-%H%M%S")
-            rec = {"task_id": f"chat-{stamp}-{job}", "run_index": 0, "asked_by": name, "asked_at": stamp, **rec}
+            rec = {"task_id": f"chat-{stamp}-{job}", "run_index": 0, "asked_by": name, "asked_at": stamp,
+                   "denomination": denomination, **rec}
             with self.lock:
                 self.chat_dir.mkdir(parents=True, exist_ok=True)
                 cfg = self.chat_dir / "config.json"
@@ -415,7 +425,7 @@ def make_handler(store: Store):
             except json.JSONDecodeError:
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
-                out = store.ask(code, body.get("question", ""), nick=nick)
+                out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"))
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             err = store.rate(code, body, nick)
             self._json({"error": err} if err else {"ok": True}, HTTPStatus.BAD_REQUEST if err else HTTPStatus.OK)
