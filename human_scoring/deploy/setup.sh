@@ -4,9 +4,8 @@
 # 第一次安裝後，請建立 /opt/theoclaw/.env，內容一行：DEEPSEEK_API_KEY=你的金鑰（提問模式需要），
 # 然後 sudo systemctl restart theoclaw-scoring。
 # 再次執行本腳本是更新程式：已有的評分（runs/*/human/、runs/pastor-chat/）與 .env 都會保留。
-# 正式服務（theoclaw-scoring，8765 埠）資料存成檔案。另有資料庫測試版（theoclaw-scoring-db，8766 埠，
-# 自己的通道網址）：.env 有 THEOCLAW_DB=mysql+pymysql://theoclaw:密碼@localhost/theoclaw?charset=utf8mb4
-# 這一行才會啟動；它啟動時會把檔案裡還沒進資料庫的資料匯入（不重複），原檔保留不刪。
+# 資料存在 MySQL：.env 有一行 THEOCLAW_DB=mysql+pymysql://theoclaw:密碼@localhost/theoclaw?charset=utf8mb4
+# （沒有就用 runs/pastor-chat/theoclaw.db 這個 SQLite 檔）。啟動時會把舊檔案裡還沒進資料庫的資料匯入（不重複）。
 set -euo pipefail
 
 TARBALL="${1:?用法：sudo bash setup.sh theoclaw-scoring.tar.gz}"
@@ -50,24 +49,13 @@ fi
 
 install -m 644 "$APP/human_scoring/deploy/theoclaw-scoring.service" /etc/systemd/system/
 install -m 644 "$APP/human_scoring/deploy/theoclaw-tunnel.service" /etc/systemd/system/
-install -m 644 "$APP/human_scoring/deploy/theoclaw-scoring-db.service" /etc/systemd/system/
-install -m 644 "$APP/human_scoring/deploy/theoclaw-tunnel-db.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now theoclaw-scoring theoclaw-tunnel
 systemctl restart theoclaw-scoring
-if grep -q '^THEOCLAW_DB=' "$APP/.env"; then   # the database version, for testing, beside the file version
-  systemctl enable --now theoclaw-scoring-db theoclaw-tunnel-db
-  systemctl restart theoclaw-scoring-db
-else
-  systemctl disable --now theoclaw-scoring-db theoclaw-tunnel-db 2>/dev/null || true
-fi
+systemctl disable --now theoclaw-scoring-db theoclaw-tunnel-db 2>/dev/null || true   # the short-lived test pair
 
 sleep 8
 echo "評分伺服器狀態："; systemctl --no-pager --lines=3 status theoclaw-scoring || true
 echo
 bash "$APP/human_scoring/deploy/links.sh"
-if systemctl is-enabled --quiet theoclaw-scoring-db 2>/dev/null; then
-  echo
-  echo "資料庫測試版狀態："; systemctl --no-pager --lines=3 status theoclaw-scoring-db || true
-  bash "$APP/human_scoring/deploy/links.sh" db
-fi
+

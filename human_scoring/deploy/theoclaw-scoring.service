@@ -1,13 +1,14 @@
 [Unit]
 Description=TheoClaw 線上人工評分（含提問模式，預設 deepseek-flash）
-After=network-online.target
+After=network-online.target mysql.service
 
 [Service]
 User=theoclaw
 WorkingDirectory=/opt/theoclaw
 # 平信徒每人每天 20 題（團體連結全團合計 200 題）；牧者每人每天 15 篇講章；總花費上限 5 美元。
 # 要改上限就改下面這一行，再 systemctl restart theoclaw-scoring
-ExecStart=/opt/theoclaw/.venv/bin/python human_scoring/human_server.py serve --chat --host 127.0.0.1 --port 8765 --daily-limit 20 --group-daily-limit 200 --sermon-daily-limit 15 --budget 5
+# 資料存 MySQL（.env 的 THEOCLAW_DB；沒有這一行就用 runs/pastor-chat/theoclaw.db 這個 SQLite 檔）
+ExecStart=/opt/theoclaw/.venv/bin/python human_scoring/human_server.py serve --chat --host 127.0.0.1 --port 8765 --daily-limit 20 --group-daily-limit 200 --sermon-daily-limit 15 --budget 5 --storage db
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

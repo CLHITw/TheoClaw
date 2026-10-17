@@ -416,8 +416,7 @@ storage) for raters who will not use a terminal:
   layout the eval tools read (`files_store.py`). With `--storage db` (`db.py`) links, users,
   questions and answers (with every tool call), ratings, sermon projects and research costs
   live in one database: MySQL on the server (`THEOCLAW_DB=mysql+pymysql://…` in `.env`), a
-  SQLite file anywhere else. On the VPS the database version runs as a second service on its
-  own port and tunnel, for testing beside the file version in use. Each row
+  SQLite file anywhere else. The VPS service runs with `--storage db`. Each row
   keeps the full record as JSON plus the columns one queries by (asker, time, conversation,
   score). On start the server imports the earlier file-based data once (safe to repeat);
   `db.py export <folder>` writes the file layout the eval tools read, and `deploy/export.sh`

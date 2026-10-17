@@ -51,7 +51,7 @@ from human_scoring.files_store import FileStore  # noqa: E402
 RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
 CHAT_DIR = ROOT / "runs" / "pastor-chat"
-STORAGE = "files"   # serve --storage: "files" (the layout evals read) or "db" (MySQL / SQLite, human_scoring/db.py)
+STORAGE = "files"   # serve --storage: "files" (the layout evals read) or "db" (MySQL / SQLite; what the VPS runs)
 SERMON_TIMEOUT = 600
 WS_TIMEOUT = {"sermon_start": 360, "sermon_turn": 300, "sermon_draft": 420}   # 講章工作區各步驟的等候上限（秒）
 WS_TURN_LIMIT = 20       # 每位牧者每天在講章工作區最多問幾次（開講章另計，每天 --sermon-daily-limit 篇）
