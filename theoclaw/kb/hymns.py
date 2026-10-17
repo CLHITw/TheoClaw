@@ -1,29 +1,35 @@
 """Hymn books as search passages, split by program instead of compiled.
 
-A hymn book is hundreds of short numbered pieces with no prose to summarise, and the
-scans available are image PDFs with an OCR text layer and no outline. Compiling one with
-PageIndex spent 961 model calls guessing a table of contents for the 1780 Collection. Here
-the OCR text is cut at the "HYMN n." headings instead (no model calls, no cost), lightly
-repaired, and written to ``wiki/hymns/<name>.json``; ``rag_search`` then finds a hymn by
-its words or theme, one hymn per passage, labelled with its number.
+A hymn book is hundreds of short numbered pieces with no prose to summarise. Compiling the
+1780 Collection (a scanned PDF with no outline) with PageIndex spent 961 model calls guessing
+a table of contents. Here the hymns are cut by program (no model calls, no cost) and
+written to ``wiki/hymns/<name>.json``; ``rag_search`` finds a hymn by its words or theme,
+one hymn per passage, labelled with its number.
 
-The OCR is good enough for search (about 95% of words are dictionary words) but not
-perfect: the large first letter of each hymn is usually lost ("ET everlasting" for "LET"),
-and lines broken at punctuation are joined back here. The search tool says so, so the
-agent quotes hymns briefly and by number.
+Two sources, best first:
 
+- ``build-ccel``: the CCEL e-text of the Collection (John Harris's public-domain edition of
+  the 1876 hymn book; its first 539 hymns are substantially Wesley's 1780 text), one page
+  per hymn, with the contents page giving each hymn's part and section. Clean text.
+- ``build``: an OCR'd PDF, cut at the "HYMN n." headings. Good enough for search (about 95%
+  dictionary words) but the large first letter of each hymn is usually lost ("ET
+  everlasting" for "LET"); lines broken at punctuation are joined back.
+
+    python -m theoclaw.kb.hymns build-ccel E:/DESK/theoclaw/Methodist/ccel_wesley_hymns_1876 --kb methodist.en.deepseek-flash
     python -m theoclaw.kb.hymns build E:/DESK/theoclaw/Methodist/Global_base/05_...pdf --kb methodist.en.deepseek-flash
 """
 
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 from pathlib import Path
 
 HYMN_DIR = "hymns"   # under the wiki folder; rag.index_wiki_sources reads it
-NAME = "wesley-hymns-1780"
+NAME = "wesley-hymns-1780"      # from the OCR'd PDF
+CCEL_NAME = "wesley-hymns"      # from the CCEL e-text; replaces the OCR file when built
 
 _HEADING = re.compile(r"(?<![Ss]ee )\bHYMN\s+([0-9IlOo]{1,4})\s*\.")
 _PUNCT_ONLY = re.compile(r"^[;:!?,.\-–—'\"’”)\]]+$")
@@ -80,18 +86,63 @@ def split_hymns(pages: list[str]) -> list[dict]:
     return hymns
 
 
-def build(pdf: str | Path, kb: str | Path, name: str = NAME) -> dict:
-    import pymupdf
+# The contents page names Part V only through its sections ("For the Society Meeting",
+# "Giving Thanks", ...); Part III's sections name themselves.
+_UNNAMED_PARTS = {"PART V.": "For the Society"}
 
+
+def ccel_sections(contents_html: str) -> list[tuple[int, str]]:
+    """(first hymn number, "part · section") from the e-text's contents page, in order."""
+    out, part, group = [], "", ""
+    body = contents_html[contents_html.find('NAME="contents"'):]
+    for para in re.split(r"(?i)<P>", body):
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", para))).strip()
+        m = re.search(r'(?i)HREF="#h(\d+)"\s*>([^<]+)</A>', para)
+        if m:
+            if text.startswith("SECTION"):  # a new section that is itself a heading: leave the last group
+                group = ""
+            title = re.sub(r"\s+", " ", html.unescape(m.group(2))).strip()
+            out.append((int(m.group(1)), " · ".join(x for x in (part, group, title) if x)))
+        elif text.startswith("SECTION"):  # a section heading with subsections under it
+            group = re.sub(r"^SECTION [IVX]+\.\s*", "", text).rstrip(".").title()
+        elif re.match(r"PART [IVX]+\.|SUPPLEMENT", text):
+            part, group = re.sub(r"^PART [IVX]+\.\s*(CONTAINING\s+)?", "", text).rstrip(".").title(), ""
+            part = part or _UNNAMED_PARTS.get(text, "")
+        if text.upper().startswith("INDEX"):
+            break
+    return sorted(out)
+
+
+def ccel_hymn(page_html: str) -> str:
+    """One hymn page as plain text: the metre and any heading lines, then the verses."""
+    body = page_html[page_html.upper().find("<BODY"):]
+    body = re.sub(r"(?i)<BR\s*/?>", "\n", body)
+    body = re.sub(r"(?i)</?(P|H\d)[^>]*>", "\n", body)
+    text = html.unescape(re.sub(r"<[^>]+>", "", body))
+    return "\n".join(ln.strip() for ln in text.split("\n") if ln.strip())
+
+
+def split_ccel(folder: str | Path) -> list[dict]:
+    folder = Path(folder)
+    sections = ccel_sections((folder / "hymn.html").read_text(encoding="cp1252", errors="replace"))
+    hymns = []
+    for f in sorted(folder.glob("jwg[0-9][0-9]_jwg*.html")):
+        number = int(re.search(r"jwg(\d+)\.html$", f.name).group(1))
+        section = next((t for start, t in reversed(sections) if start <= number), "")
+        hymns.append({"number": number, "section": section, "text": ccel_hymn(f.read_text(encoding="cp1252", errors="replace"))})
+    return sorted(hymns, key=lambda h: h["number"])
+
+
+def _wiki(kb: str | Path) -> Path:
     root = Path(kb)
     if not root.is_dir():
         root = Path(__file__).resolve().parents[2] / "knowledge" / str(kb)
-    wiki = root / "wiki"
-    if not wiki.is_dir():
+    if not (root / "wiki").is_dir():
         raise SystemExit(f"no wiki folder in {root}")
-    with pymupdf.open(str(pdf)) as d:
-        pages = [p.get_text() for p in d]
-    hymns = split_hymns(pages)
+    return root / "wiki"
+
+
+def _write(wiki: Path, name: str, hymns: list[dict]) -> dict:
     out = wiki / HYMN_DIR / f"{name}.json"
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(hymns, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -101,6 +152,25 @@ def build(pdf: str | Path, kb: str | Path, name: str = NAME) -> dict:
             "chars": sum(len(h["text"]) for h in hymns)}
 
 
+def build(pdf: str | Path, kb: str | Path, name: str = NAME) -> dict:
+    import pymupdf
+
+    with pymupdf.open(str(pdf)) as d:
+        pages = [p.get_text() for p in d]
+    return _write(_wiki(kb), name, split_hymns(pages))
+
+
+def build_ccel(folder: str | Path, kb: str | Path, name: str = CCEL_NAME) -> dict:
+    """The clean e-text replaces the OCR version, so the same hymn is not found twice."""
+    wiki = _wiki(kb)
+    r = _write(wiki, name, split_ccel(folder))
+    ocr = wiki / HYMN_DIR / f"{NAME}.json"
+    if name != NAME and ocr.exists():
+        ocr.unlink()
+        r["replaced"] = str(ocr)
+    return r
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="theoclaw.kb.hymns", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -108,8 +178,12 @@ def main(argv=None) -> None:
     b.add_argument("pdf")
     b.add_argument("--kb", required=True, help="knowledge base (a folder in knowledge/ or a path)")
     b.add_argument("--name", default=NAME)
+    c = sub.add_parser("build-ccel", help="the CCEL e-text, downloaded one page per hymn (clean; preferred)")
+    c.add_argument("folder", help="folder with hymn.html and jwgNN_jwgNNNN.html")
+    c.add_argument("--kb", required=True)
+    c.add_argument("--name", default=CCEL_NAME)
     a = ap.parse_args(argv)
-    r = build(a.pdf, a.kb, a.name)
+    r = build(a.pdf, a.kb, a.name) if a.cmd == "build" else build_ccel(a.folder, a.kb, a.name)
     print(f"{r['hymns']} hymns (highest number {r['highest']}, {r['chars']:,} characters) → {r['file']}")
     if r["missing"]:
         print(f"numbers not found ({len(r['missing'])}), usually an OCR-garbled heading; "

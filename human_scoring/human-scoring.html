@@ -738,7 +738,7 @@ function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // Citations as readers know them: the knowledge base's file names become book titles, and the
 // search-passage numbers (段落 N, which only the citation check uses) are not shown.
 const BOOKS = [
-  [/standard-sermons/, '《衛斯理講道集》'], [/wesley-journal/, '《衛斯理日記》'], [/wesley-hymns-1780/, '《衛斯理聖詩集》'],
+  [/standard-sermons/, '《衛斯理講道集》'], [/wesley-journal/, '《衛斯理日記》'], [/wesley-hymns(?:-1780)?/, '《衛斯理聖詩集》'],
   [/plain-account(?:-of-christian-perfection)?/, '《基督徒完全論》'], [/articles-of-religion/, '《循道衛理信條》'],
   [/general-rules-1743-en|總規-中文/, '《總規》'], [/課程0\d-[^\s*`.，。、；：）)]+/, null], [/屬靈恩賜(?=\*|`)/, '《屬靈恩賜》'],
 ];

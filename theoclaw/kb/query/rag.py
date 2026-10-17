@@ -47,8 +47,9 @@ SYSTEM_ADDENDUM = """
 2. 每個段落標有文件名稱與段落編號。引用衛斯理的原話時，只能用檢索回傳的段落，並註明文件名稱與段落編號。
 """
 
-HYMNS_ADDENDUM = """3. 檢索結果也包括聖詩集（標為「第 N 首」），可用英文詩句、主題或經文用語查詢，例如 "love divine all loves excelling"。
-   聖詩是掃描辨識的文字，每首第一個字母常被漏掉、個別字母可能有誤：引用詩句要短，並註明第幾首。
+HYMNS_ADDENDUM = """3. 檢索結果也包括聖詩集（標為「第 N 首」，並註明所屬的分類），可用英文詩句、主題或經文用語查詢，例如 "love divine all loves excelling"。引用詩句時註明第幾首。
+"""
+HYMNS_OCR_NOTE = """   這本聖詩是掃描辨識的文字，每首第一個字母常被漏掉、個別字母可能有誤：引用詩句要短。
 """
 
 _WORD = re.compile(r"[a-z0-9]+")
@@ -151,8 +152,13 @@ def search(inp: dict, index: BM25) -> str:
 
 
 def system_addendum(wiki_dir: Path | str) -> str:
-    has_hymns = any((Path(wiki_dir) / "hymns").glob("*.json"))
-    return SYSTEM_ADDENDUM + (HYMNS_ADDENDUM if has_hymns else "")
+    import json
+    files = sorted((Path(wiki_dir) / "hymns").glob("*.json"))
+    if not files:
+        return SYSTEM_ADDENDUM
+    # hymns cut from an OCR'd PDF carry the page they were found on; the clean e-text does not
+    ocr = any("page" in (json.loads(f.read_text(encoding="utf-8")) or [{}])[0] for f in files)
+    return SYSTEM_ADDENDUM + HYMNS_ADDENDUM + (HYMNS_OCR_NOTE if ocr else "")
 
 
 def make_handlers(wiki_dir: Path | str) -> dict[str, Handler]:
