@@ -210,7 +210,8 @@ def report(run_dirs, model: str | None = None) -> str:
         recs = _load(d, name)
         cats = {}
         import yaml
-        for t in yaml.safe_load((d / "tasks.yaml").read_text(encoding="utf-8")):
+        tasks_file = d / "tasks.yaml"  # real questions and ad-hoc runs have none
+        for t in (yaml.safe_load(tasks_file.read_text(encoding="utf-8")) if tasks_file.exists() else []):
             cats[t["id"]] = t.get("category", "")
         by_task: dict[str, list[dict]] = {}
         for r in recs:
