@@ -210,6 +210,17 @@ class Store:
                     "open": self._spent() < self.chat["budget_usd"],
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
+            convs: dict[str, dict] = {}
+            for i in mine:
+                t = self.items[i].trace
+                if t.get("kind", "question") != "question":
+                    continue
+                c = convs.setdefault(t.get("conv") or i, {"id": t.get("conv") or i, "title": t["prompt"][:60],
+                                                          "turns": 0, "unrated": 0, "updated": ""})
+                c["turns"] += 1
+                c["unrated"] += i not in done
+                c["updated"] = max(c["updated"], str(t.get("asked_at", "")))
+            chat["conversations"] = sorted(convs.values(), key=lambda c: c["updated"], reverse=True)
             if self.is_pastor(r) and self.chat.get("sermon_daily_limit"):
                 chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
         return {"rater": r.get("nick", r["name"]), "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
@@ -302,9 +313,29 @@ class Store:
                     if str(t.get("asked_by", "")).startswith(group + GROUP_SEP) and str(t.get("asked_at", "")).startswith(today))
         return asked + sum(1 for j in self.jobs.values() if j["name"].startswith(group + GROUP_SEP) and j["status"] == "running")
 
+    def _conv_turns(self, r: dict, conv: str) -> list[str]:
+        """This person's items in one conversation, oldest first (an item without a conversation is its own)."""
+        return sorted((i for i, n in self.owner.items()
+                       if n == r["name"] and self.items[i].trace.get("kind", "question") == "question"
+                       and (self.items[i].trace.get("conv") or i) == conv),
+                      key=lambda i: self.items[i].trace.get("asked_at", ""))
+
+    def conversation(self, code: str, conv: str, nick=None) -> dict | None:
+        r = self.who(code, nick)
+        if r is None:
+            return None
+        ids = self._conv_turns(r, conv)
+        if not ids:
+            return None
+        done = self.done(r["name"])
+        return {"id": conv, "turns": [{"id": i, "ask": self.items[i].trace.get("prompt", ""),
+                                       "reply": self.items[i].trace.get("final_text") or "", "rated": i in done}
+                                      for i in ids]}
+
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
-            denomination: str | None = None) -> dict:
-        """Start answering in the background; returns {"job": id} or {"error": ...}."""
+            denomination: str | None = None, conv: str | None = None) -> dict:
+        """Start answering in the background; returns {"job": id} or {"error": ...}. With conv, the
+        question continues that conversation and is answered with its earlier turns."""
         if not self.chat:
             return {"error": "提問模式沒有開啟"}
         r = self.who(code, nick)
@@ -321,12 +352,28 @@ class Store:
             group_limit = self.chat.get("group_daily_limit")
             if r.get("group") and group_limit and self._today_group(r["group"]) >= group_limit:
                 return {"error": "今天團契的提問額度已用完，請明天再來"}
+            history = []
+            if conv:
+                ids = self._conv_turns(r, str(conv))
+                if not ids:
+                    return {"error": "找不到這個對話"}
+                history = [(self.items[i].trace.get("prompt", ""), self.items[i].trace.get("final_text") or "")
+                           for i in ids]
+            conv = str(conv) if conv else secrets.token_hex(6)
             job = secrets.token_hex(6)
             self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None,
-                              "started": time.time()}
+                              "started": time.time(), "conv": conv}
         denom = denomination if denomination in DENOMINATIONS else None
-        threading.Thread(target=self._answer, args=(job, r["name"], question, runner, denom), daemon=True).start()
-        return {"job": job}
+        from theoclaw.agent.conversation import follow_up_prompt
+        prompt = follow_up_prompt(history, question)
+
+        def run(_q):
+            rec = (runner or self._run_agent)(prompt)
+            rec.update(prompt=question, conv=conv, turn=len(history) + 1)  # shown and graded as the person asked it
+            return rec
+
+        threading.Thread(target=self._answer, args=(job, r["name"], question, run, denom), daemon=True).start()
+        return {"job": job, "conv": conv}
 
     def sermon(self, code: str, body: dict, runner=None, nick: str | None = None) -> dict:
         """Start a sermon preparation (pastors' personal links only)."""
@@ -564,6 +611,7 @@ class Store:
         if j["status"] == "running" and time.time() - j["started"] > j.get("timeout", CHAT_TIMEOUT):
             j.update(status="error", error="回答超時，請稍後再試，或把問題問得具體一點")
         return {"status": j["status"], "item": j["item"], "error": j["error"], "project": j.get("project"),
+                "conv": j.get("conv"),
                 "elapsed": int(time.time() - j["started"])}
 
     def _run_agent(self, question: str) -> dict:
@@ -683,6 +731,9 @@ def make_handler(store: Store):
             if u.path == "/api/item":
                 item = store.item(code, (q.get("id") or [""])[0], nick)
                 return self._json(item) if item else self._json({"error": "找不到這一題"}, HTTPStatus.NOT_FOUND)
+            if u.path == "/api/conversation":
+                c = store.conversation(code, (q.get("id") or [""])[0], nick)
+                return self._json(c) if c else self._json({"error": "找不到這個對話"}, HTTPStatus.NOT_FOUND)
             if u.path == "/api/sermon/list":
                 return self._json(store.ws_list(code, nick))
             if u.path == "/api/sermon/project":
@@ -711,7 +762,8 @@ def make_handler(store: Store):
             except json.JSONDecodeError:
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
-                out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"))
+                out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"),
+                                conv=body.get("conv") or None)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             ws = {"/api/sermon/start": store.ws_start, "/api/sermon/turn": store.ws_turn,
                   "/api/sermon/assemble": store.ws_assemble, "/api/sermon/board": store.ws_board}

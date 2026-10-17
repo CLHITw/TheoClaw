@@ -268,3 +268,31 @@ def test_sermon_workspace_start_turns_board_and_assemble(tmp_path):
     store.ws_start(pastors, {"passage": "約翰福音 4"}, "王牧師", start)
     time.sleep(0.2)
     assert "2 篇" in store.ws_start(pastors, {"passage": "約翰福音 5"}, "王牧師", start)["error"]  # daily limit
+
+
+def test_follow_up_questions_carry_the_conversation(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me, other = ("小明", "k" * 20), ("小華", "m" * 20)
+    seen = []
+
+    def fake(prompt):
+        seen.append(prompt)
+        return {"model": "m", "prompt": prompt, "final_text": f"答{len(seen)}", "outcome": "completed",
+                "steps": [], "usage_total": {}, "cost_usd": 0.001}
+
+    first = store.ask(code, "羅馬書 8 章的重點？", runner=fake, nick=me)
+    _wait(store, code, first["job"], me)
+    second = store.ask(code, "那第 28 節呢？", runner=fake, nick=me, conv=first["conv"])
+    _wait(store, code, second["job"], me)
+    assert second["conv"] == first["conv"] and seen[0] == "羅馬書 8 章的重點？"
+    assert "羅馬書 8 章的重點？" in seen[1] and "答1" in seen[1] and seen[1].endswith("那第 28 節呢？")
+    conv = store.conversation(code, first["conv"], me)
+    assert [t["ask"] for t in conv["turns"]] == ["羅馬書 8 章的重點？", "那第 28 節呢？"]  # shown as asked
+    state = store.state(code, me)["chat"]["conversations"]
+    assert len(state) == 1 and state[0]["turns"] == 2 and state[0]["title"] == "羅馬書 8 章的重點？"
+    assert store.conversation(code, first["conv"], other) is None  # private
+    assert "找不到" in store.ask(code, "插話", runner=fake, nick=other, conv=first["conv"])["error"]

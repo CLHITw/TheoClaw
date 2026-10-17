@@ -431,20 +431,19 @@
 
   <div id="askSection" class="hidden">
     <div class="card">
-      <div class="card-title">提問 · Ask a question</div>
-      <div class="help">像平常查經時那樣提問，中文或英文都可以；助手會查經文和衛斯理註釋後回答（約 20 秒到一分鐘）。回答出來後請打個分。請不要輸入真實姓名或私人資料。<br>
-Ask as you would in Bible study, in English or Chinese. The assistant looks up the Bible text and Wesley's notes, then answers (20 seconds to a minute). Then please give it a score. Please don't type real names or anything private.</div>
-      <textarea class="ask-input" id="askInput" placeholder="例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15) in our group?"></textarea>
-      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出問題 · Ask</button></div>
+      <div class="card-title">我的對話 · My conversations</div>
+      <div class="help">像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
+Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers.</div>
+      <div class="actions" style="justify-content:flex-start"><button class="btn btn-secondary btn-sm" onclick="convNew()">＋ 開始新對話 · New conversation</button></div>
+      <ul class="q-list" id="convList"></ul>
       <div class="help" id="askInfo" style="margin-top:8px"></div>
     </div>
-    <div class="card hidden" id="waitCard">
-      <div class="card-title">回答</div>
-      <div class="card-content help" id="waitText">助手正在查經文並撰寫回答，通常 20 秒到一分鐘，請不要關閉頁面…</div>
-    </div>
-    <div class="card">
-      <div class="card-title">我問過的問題 · My questions（點選可查看或修改評分 · tap to view or change your score）</div>
-      <ul class="q-list" id="qList"></ul>
+    <div class="card" id="convCard">
+      <div class="card-title" id="convTitle">新對話 · New conversation</div>
+      <div id="convTurns"></div>
+      <textarea class="ask-input" id="askInput" placeholder="例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?"></textarea>
+      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出 · Send</button></div>
+      <div class="help" id="waitText" style="margin-top:8px"></div>
     </div>
   </div>
 
@@ -658,6 +657,8 @@ function mode(m) {
   }
 }
 
+let convId = null;
+
 function refreshAsk() {
   api('/api/state').then(s => {
     state.chat = s.chat;
@@ -672,43 +673,59 @@ function refreshAsk() {
       info.appendChild(a);
     }
     document.getElementById('askBtn').disabled = !c.open || c.remaining_today <= 0;
-    const ul = document.getElementById('qList');
+    const ul = document.getElementById('convList');
     ul.innerHTML = '';
-    if (!c.questions.length) ul.innerHTML = '<li class="help">還沒有問過問題</li>';
-    c.questions.slice().reverse().forEach(q => {
+    const convs = c.conversations || [];
+    if (!convs.length) ul.innerHTML = '<li class="help">還沒有對話</li>';
+    convs.forEach(cv => {
       const li = document.createElement('li');
-      li.textContent = (q.rated ? '✓ ' : '○ ') + (q.kind === 'sermon' ? '【講章】' : '') + q.prompt.split('\n').join(' ');
-      li.onclick = () => showId(q.id);
+      li.textContent = (cv.id === convId ? '▸ ' : '') + cv.title.split('\n').join(' ') + '（' + cv.turns + ' 問' +
+        (cv.unrated ? '，' + cv.unrated + ' 個未評分' : '') + '）';
+      if (cv.id === convId) li.style.fontWeight = '600';
+      li.onclick = () => convOpen(cv.id);
       ul.appendChild(li);
     });
+  });
+}
+
+function convNew() {
+  convId = null;
+  document.getElementById('convTitle').textContent = '新對話 · New conversation';
+  document.getElementById('convTurns').innerHTML = '';
+  document.getElementById('askInput').placeholder = document.getElementById('askInput').dataset.ph ||
+    document.getElementById('askInput').placeholder;
+  refreshAsk();
+  document.getElementById('convCard').scrollIntoView({behavior: 'smooth'});
+  document.getElementById('askInput').focus();
+}
+
+function convOpen(id, openNewest) {
+  api('/api/conversation?id=' + encodeURIComponent(id)).then(cv => {
+    if (cv.error) { showToast(cv.error); return; }
+    convId = id;
+    document.getElementById('convTitle').textContent = '對話：' + cv.turns[0].ask.split('\n').join(' ').slice(0, 40);
+    const box = document.getElementById('convTurns');
+    const newest = openNewest ? cv.turns[cv.turns.length - 1].id : null;
+    keepScroll(() => renderTurns(box, cv.turns, newest, null));
+    document.getElementById('askInput').placeholder = '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）';
+    refreshAsk();
+    if (!openNewest) document.getElementById('convCard').scrollIntoView({behavior: 'smooth'});
   });
 }
 
 function ask() {
   const q = document.getElementById('askInput').value.trim();
   if (q.length < 2) { showToast('請輸入問題'); return; }
-  const btn = document.getElementById('askBtn');
+  const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
-  api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({question: q, denomination: denom})})
+  api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({question: q, denomination: denom, conv: convId})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
-      const wait = document.getElementById('waitCard'), text = document.getElementById('waitText');
-      wait.classList.remove('hidden');
-      text.textContent = '助手正在查經文並撰寫回答，通常 20 秒到一分鐘，請不要關閉頁面…';
-      const stop = (msg) => { clearInterval(polling); btn.disabled = false; if (msg) text.textContent = msg; };
-      polling = setInterval(() => {
-        api('/api/job?id=' + r.job).then(j => {
-          if (j.error && !j.status) { stop('找不到這次提問（伺服器可能剛重新啟動），請再送出一次。'); return; }
-          if (j.status === 'running') {
-            text.textContent = '助手正在查經文並撰寫回答……已等 ' + j.elapsed + ' 秒，請不要關閉頁面。';
-            return;
-          }
-          if (j.status === 'error') { stop(j.error); refreshAsk(); return; }
-          stop(); wait.classList.add('hidden');
-          document.getElementById('askInput').value = '';
-          showId(j.item);
-        }).catch(() => { text.textContent = '連線不穩，正在重試…'; });
-      }, 3000);
+      pollJob(r.job,
+        t => { text.textContent = t >= 0 ? '助手正在查經文並撰寫回答……已等 ' + t + ' 秒（通常 20 秒到一分鐘），請不要關閉頁面。' : '連線不穩，正在重試…'; },
+        j => { text.textContent = ''; btn.disabled = false; document.getElementById('askInput').value = ''; convOpen(j.conv, true); },
+        msg => { text.textContent = msg; btn.disabled = false; refreshAsk(); });
     })
     .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
 }
@@ -817,10 +834,11 @@ function wsCheckText(c) {
   return parts.join('。');
 }
 
-function wsRenderTurns(turns, openId) {
-  const box = document.getElementById('wsTurns');
+// Collapsible turns: the newest (or the one asked for) open, each scored in place.
+// onAdd: the sermon workspace's "add to the draft" action; null elsewhere.
+function renderTurns(box, turns, openId, onAdd) {
   const wasOpen = new Set([...box.querySelectorAll('details.turn[open]')].map(d => d.dataset.id));
-  box.innerHTML = turns.length ? '' : '<div class="help">還沒有對話。可以從問一個字、要一段引言開始。</div>';
+  box.innerHTML = turns.length ? '' : '<div class="help">還沒有對話。</div>';
   const last = turns.length ? turns[turns.length - 1].id : null;
   turns.forEach(t => {
     const d = document.createElement('details');
@@ -834,22 +852,30 @@ function wsRenderTurns(turns, openId) {
     tag.textContent = (t.rated ? '✓ 已評分' : '未評分') + (c.unsupported ? '｜未能核實 ' + c.unsupported : '');
     sm.appendChild(ask); sm.appendChild(tag); d.appendChild(sm);
     const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply);
-    const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '6px'; chk.textContent = wsCheckText(t.check);
+    d.appendChild(rep);
+    const chkText = wsCheckText(t.check);
+    if (chkText) { const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '6px'; chk.textContent = chkText; d.appendChild(chk); }
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
-    const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = '加入講稿';
-    add.onclick = () => {
-      const label = prompt('這一段的標題（例如：引言、第一點、例證、結語）', '段落');
-      if (label === null) return;
-      wsBoardAction({action: 'add', item: t.id, label: label});
-    };
+    if (onAdd && t.kind !== 'sermon_draft') {
+      const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = '加入講稿';
+      add.onclick = () => onAdd(t);
+      act.appendChild(add);
+    }
     const rate = document.createElement('button'); rate.className = 'btn btn-secondary btn-sm';
     rate.textContent = t.rated ? '✓ 已評分（修改）' : '評分';
     const panel = document.createElement('div'); panel.className = 'rate-panel hidden';
     rate.onclick = () => wsRatePanel(t, panel, rate, tag);
-    if (t.kind !== 'sermon_draft') act.appendChild(add);
     act.appendChild(rate);
-    d.appendChild(rep); if (chk.textContent) d.appendChild(chk); d.appendChild(act); d.appendChild(panel);
+    d.appendChild(act); d.appendChild(panel);
     box.appendChild(d);
+  });
+}
+
+function wsRenderTurns(turns, openId) {
+  renderTurns(document.getElementById('wsTurns'), turns, openId, t => {
+    const label = prompt('這一段的標題（例如：引言、第一點、例證、結語）', '段落');
+    if (label === null) return;
+    wsBoardAction({action: 'add', item: t.id, label: label});
   });
 }
 

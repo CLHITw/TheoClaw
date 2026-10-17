@@ -27,8 +27,6 @@ from .loop import run_agent
 from .sermon import WRITER, _usage_cost, deterministic_checks, model_check
 from .tools import build_tool_set
 
-HISTORY_TURNS = 4        # the state document carries the last few turns, shortened
-HISTORY_CHARS = 300
 BOARD_CHARS = 6000       # the board as shown to the assistant (the assembler sees all of it)
 CHECK_MIN_CHARS = 300    # a reply this long with sermon prose gets the model check too
 
@@ -80,12 +78,13 @@ def state_text(project: dict) -> str:
             continue
         shown.append(piece)
         used += len(piece)
-    history = [f"牧者：{t['ask'][:HISTORY_CHARS]}\n助手：{t['reply'][:HISTORY_CHARS]}"
-               for t in project.get("turns", [])[-HISTORY_TURNS:]]
+    from .conversation import history_text
+    history = history_text([(t["ask"], t["reply"]) for t in project.get("turns", [])])
     return "\n\n".join([
         "【講章】\n" + project["request"],
         "【講稿板】（牧者已選定的段落）\n" + ("\n".join(shown) if shown else "（還沒有）"),
-        "【最近的對話】\n" + ("\n\n".join(history) if history else "（這是第一個問題）"),
+        "【先前的對話】（牧者的要求可能接著前面說的，例如「再短一點」「第二點也這樣寫」）\n"
+        + (history.replace("使用者：", "牧者：") if history else "（這是第一個問題）"),
         "【研究摘要】\n" + project["briefs"],
     ])
 

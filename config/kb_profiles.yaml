@@ -57,6 +57,20 @@ profiles:
     description: 正式的循道衛理知識庫（牧者模式）。分階段編：第一階段只有標準講道集；之後在這裡加來源再執行同一個 build，只會編新加的檔案。
     sources:
       - {file: 01_John_Wesley_Standard_Sermons.pdf, name: standard-sermons.pdf}
+      # 第二階段
+      - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, name: plain-account-of-christian-perfection.pdf}
+      - {file: 04_John_Wesley_The_Journal_of_John_Wesley.pdf, name: wesley-journal.pdf}
+      - {file: 05_Charles_Wesley_Collection_of_Hymns_for_the_Use_of_the_People_Called_Methodists.pdf, name: wesley-hymns-1780.pdf}
+      - {file: 08_John_Wesley_The_General_Rules_1743_text.pdf, name: general-rules-1743-en.pdf}
+      - {file: 09_United_Methodist_Articles_of_Religion_text.pdf, name: articles-of-religion.pdf}
+      - {file: 06_The_General_Rules_Bilingual_Wesley_1743.md, s2t: true, name: 總規-中文.md}
+      - {file: 01 我為何要信？.pdf, name: 課程01-我為何要信.pdf}
+      - {file: 02 我信上帝（學員版）.pdf, name: 課程02-我信上帝.pdf}
+      - {file: 03 我信主耶穌基督（一）.pdf, name: 課程03-我信主耶穌基督一.pdf}
+      - {file: 04 我信主耶穌基督（2）十架與復活.pdf, name: 課程04-十架與復活.pdf}
+      - {file: 05 我信聖靈（1） 聖靈位格  成聖生活.pdf, name: 課程05-聖靈位格與成聖生活.pdf}
+      - {file: 06 我信聖靈（2）.pdf, name: 課程06-我信聖靈二.pdf}
+      - {file: 屬靈恩賜.pdf}
 
   wesley-sermons:
     description: 衛斯理標準講道（1,281 頁，費用最高，最後再編）
