@@ -408,7 +408,8 @@ class Store:
 
         def run(_q):
             rec = (runner or self._run_agent)(prompt)
-            rec.update(prompt=question, conv=conv, turn=len(history) + 1)  # shown and graded as the person asked it
+            rec.update(prompt=question, conv=conv, turn=len(history) + 1,  # shown and graded as the person asked it
+                       lang="en" if lang == "en" else "zh")
             return rec
 
         threading.Thread(target=self._answer, args=(job, r["name"], question, run, denom), daemon=True).start()
@@ -574,6 +575,7 @@ class Store:
             else:
                 rec = (runner or workspace.assemble)(project, model=self.chat["model"])
                 rec["ask"] = "組成完整講稿"
+            rec["lang"] = project.get("lang") or "zh"
             with self.lock:
                 self._save_project(project)
             return rec
@@ -687,7 +689,7 @@ class Store:
                    "denomination": denomination, "kind": rec.get("kind", "question"), **rec}
             with self.lock:
                 self.db.add_answer(rec)
-                self.db.touch_user(self._user(name), denomination, stamp)
+                self.db.touch_user(self._user(name), denomination, stamp, rec.get("lang"))
                 it = Item(self.chat_dir, rec)
                 self.items[it.item_id] = it
                 self.owner[it.item_id] = name

@@ -352,3 +352,28 @@ def test_database_import_is_idempotent_and_export_round_trips(tmp_path):
     assert len((back / "human" / "查經班·小明#ab.jsonl").read_text(encoding="utf-8").splitlines()) == 2  # both kept
     assert json.loads((back / "projects" / "abc.json").read_text(encoding="utf-8"))["passage"] == "羅 8"
     assert out["answers"] == 3 and db.stats()["users"] == 1
+
+
+def test_language_recorded_and_old_databases_get_the_column(tmp_path, storage):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("International", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
+    seen = []
+    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
+                                        "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    store.ask(code, "什麼是恩典？", runner=fake, nick=("Eden", "e" * 20), lang="en")
+    time.sleep(0.3)
+    assert seen[0].endswith("(Please answer in English.)")
+    [rec] = store.db.answers()
+    assert rec["lang"] == "en" and rec["prompt"] == "什麼是恩典？"  # recorded as asked
+    if storage == "db":
+        from sqlalchemy import text
+        with store.db.engine.begin() as c:
+            assert c.execute(text("select lang from users")).scalar() == "en"
+            c.execute(text("DROP INDEX ix_answers_lang"))
+            c.execute(text("ALTER TABLE answers DROP COLUMN lang"))  # a database made before the column existed
+        again = hs.DB()
+        with again.engine.connect() as c:
+            assert c.execute(text("select lang from answers")).scalar() == "zh"  # added, earlier rows Chinese

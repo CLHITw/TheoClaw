@@ -32,6 +32,8 @@ _SPLIT = r"[，,。；;、\s與和及跟同或的之在對於]+"
 COMMON = 1500   # Strong's numbers more frequent than this (articles, 和, 他 ...) are left out
 MAX_ROWS = 30
 CREDIT = "原文資料：STEPBible.org（Tyndale House，CC BY 4.0）；和合本 Strong's 編號：信望愛 FHL"
+CREDIT_EN = ("Original-language data: STEPBible.org (Tyndale House, CC BY 4.0); Strong's numbers from the "
+             "Strong's-tagged Chinese Union Version (FHL).")
 
 
 def to_hant(text: str) -> str:
@@ -175,10 +177,21 @@ def theme_words(text: str, max_rows: int = 14) -> list[dict]:
     return rows[:max_rows]
 
 
-def render(rows: list[dict], def_chars: int = 140) -> str:
-    """A compact table for a model to read."""
+def render(rows: list[dict], def_chars: int = 140, lang: str = "zh") -> str:
+    """A compact table for a model (and the pastor) to read; lang="en" for an English-speaking
+    pastor: the original word, transliteration, part of speech and English meaning, without the
+    Chinese renderings (there is no Strong's-tagged English Bible here to give the KJV's words)."""
     if not rows:
         return ""
+    if lang == "en":
+        lines = ["| Original | Transliteration | Part of speech | Meaning | In this passage | Times in the Bible |",
+                 "|---|---|---|---|---|---|"]
+        for r in rows:
+            gloss = r["gloss"] + (": " + r["def"][:def_chars] if r["def"] and r["def"] != r["gloss"] else "")
+            where = ", ".join(r["where"]) or "theme"
+            lines.append(f"| {r['lemma']} ({r['strong']}) | {r['translit']} | {r['pos']} | {gloss.replace('|', '/')} | "
+                         f"{where} | {r['count']} |")
+        return "\n".join(lines) + f"\n\n{CREDIT_EN}"
     lines = ["| 和合本 | 原文 | 音譯 | 詞性 | 字義（英文） | 和合本常見譯法 | 本段出現 | 全本次數 |",
              "|---|---|---|---|---|---|---|---|"]
     for r in rows:

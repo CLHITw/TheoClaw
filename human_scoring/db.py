@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 
 from sqlalchemy import (JSON, Boolean, Column, Float, Integer, MetaData, String, Table, Text, create_engine,
-                        delete, func, insert, select, update)
+                        delete, func, insert, inspect, select, text, update)
 from sqlalchemy.dialects import mysql
 
 HERE = Path(__file__).resolve().parent
@@ -59,6 +59,7 @@ users = Table(
     Column("nick", String(64)),
     Column("role", String(16)),
     Column("denomination", String(64)),
+    Column("lang", String(8)),                        # zh / en: the page language they last used
     Column("first_seen", String(20)),
     Column("last_seen", String(20)),
     **_opts)
@@ -74,6 +75,7 @@ answers = Table(
     Column("turn", Integer),
     Column("project", String(ID), index=True),        # sermon project (workspace turns)
     Column("denomination", String(64)),
+    Column("lang", String(8), index=True),            # zh / en: the page language (en: answered in English)
     Column("prompt", LongText),
     Column("final_text", LongText),
     Column("model", String(64)),
@@ -156,7 +158,24 @@ class DB:
             kw = {"connect_args": {"check_same_thread": False}}
         self.engine = create_engine(url, **kw)
         meta.create_all(self.engine)
+        self._add_new_columns()
         self.url = self.engine.url.render_as_string(hide_password=True)
+
+    def _add_new_columns(self) -> None:
+        """Columns added after a table was first made (create_all leaves existing tables alone)."""
+        insp = inspect(self.engine)
+        with self.engine.begin() as c:
+            for table in meta.sorted_tables:
+                have = {col["name"] for col in insp.get_columns(table.name)}
+                for col in table.columns:
+                    if col.name not in have:
+                        ddl = col.type.compile(dialect=self.engine.dialect)
+                        c.execute(text(f"ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl}"))
+                        if col.name == "lang":  # everything before the English page was Chinese
+                            c.execute(text(f"UPDATE {table.name} SET lang = 'zh' WHERE lang IS NULL"))
+                        for ix in table.indexes:
+                            if col.name in ix.columns:
+                                ix.create(c, checkfirst=True)
 
     # ---- links
     def links(self) -> dict[str, dict]:
@@ -172,18 +191,20 @@ class DB:
                 c.execute(insert(links).values(code=code, **row))
 
     # ---- users
-    def touch_user(self, r: dict, denomination: str | None = None, at: str | None = None) -> None:
+    def touch_user(self, r: dict, denomination: str | None = None, at: str | None = None, lang: str | None = None) -> None:
         at = at or _stamp()
         with self.engine.begin() as c:
             old = c.execute(select(users).where(users.c.name == r["name"])).first()
             if old is None:
                 c.execute(insert(users).values(name=r["name"], group_name=r.get("group") or None, nick=r.get("nick"),
                                                role=r.get("role") or ("pastor" if not r.get("group") else "lay"),
-                                               denomination=denomination, first_seen=at, last_seen=at))
+                                               denomination=denomination, lang=lang, first_seen=at, last_seen=at))
             else:
                 vals = {"last_seen": max(old.last_seen or "", at)}
                 if denomination:
                     vals["denomination"] = denomination
+                if lang:
+                    vals["lang"] = lang
                 c.execute(update(users).where(users.c.name == r["name"]).values(**vals))
 
     # ---- answers
@@ -265,6 +286,7 @@ def _answer_row(rec: dict) -> dict:
     return {"task_id": rec["task_id"], "run_index": rec.get("run_index", 0), "kind": rec.get("kind") or "question",
             "asked_by": rec.get("asked_by"), "asked_at": rec.get("asked_at"), "conv": rec.get("conv"),
             "turn": rec.get("turn"), "project": rec.get("project"), "denomination": rec.get("denomination"),
+            "lang": rec.get("lang") or "zh",
             "prompt": rec.get("prompt"), "final_text": rec.get("final_text"), "model": rec.get("model"),
             "outcome": rec.get("outcome"), "cost_usd": rec.get("cost_usd"), "latency_s": rec.get("latency_s"),
             "data": rec}
@@ -307,7 +329,8 @@ def import_files(db: DB, assignment: Path, chat_dir: Path, run_dirs: list[Path])
                 name = rec["asked_by"]
                 group, _, nick = name.partition("·") if "·" in name else ("", "", name)
                 db.touch_user({"name": name, "group": group or None, "nick": nick.split("#")[0] or None,
-                               "role": None if group else "pastor"}, rec.get("denomination"), rec.get("asked_at"))
+                               "role": None if group else "pastor"}, rec.get("denomination"), rec.get("asked_at"),
+                              rec.get("lang") or "zh")
     seen = {(run_dir, r["rater"], r["task_id"], r["run_index"], r.get("rated_at")) for run_dir, r in db.all_ratings()}
     for d in [chat_dir, *run_dirs]:
         for path in sorted((d / "human").glob("*.jsonl")) if (d / "human").is_dir() else []:

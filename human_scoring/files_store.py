@@ -41,7 +41,7 @@ class FileStore:
             data["raters"][code] = entry
             self.assignment.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    def touch_user(self, r: dict, denomination: str | None = None, at: str | None = None) -> None:
+    def touch_user(self, r: dict, denomination: str | None = None, at: str | None = None, lang: str | None = None) -> None:
         pass  # the files have no users table; who asked is in each answer and rating
 
     # ---- answers
