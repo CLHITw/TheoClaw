@@ -144,21 +144,20 @@ def problems_of(det: dict, chk: dict) -> list[str]:
     return out
 
 
-def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
-            model: str = "deepseek-flash", kb: str | None = None, client=None, revise: bool = True) -> dict:
-    """Run the whole pipeline; returns a trace-shaped record."""
+def research(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
+             model: str = "deepseek-flash", kb: str | None = None, client=None) -> dict:
+    """The research stage alone: the program-built word study, then the two research agents in
+    parallel. Used by prepare() and, once per sermon, by the pastor's workspace."""
     from ..llm import make_client, role
     rl = role("agent", model=model)
     client = client or make_client(provider=rl.provider, params=rl.params)
     req = request_text(passage, theme, audience, length, notes)
-    t0 = time.perf_counter()
-    stages: dict = {}
     # The word study is built by the program (no tokens): the passage's content words and the
     # original words the theme's Chinese words translate. Only the scripture researcher reads it.
     from ..common import original
     word_table = original.render(original.word_study(passage) + original.theme_words(theme))
 
-    def research(kind):
+    def one(kind):
         if kind == "A":
             prompt = req + ("\n\n【原文逐詞表】（程式從帶 Strong's 編號的和合本與 STEPBible 辭典整理）\n" + word_table
                             if word_table else "")
@@ -169,9 +168,19 @@ def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = 
         return _agent(client, rl.model, RESEARCH_TRADITION, req, groups, kb, rl.max_tokens, rl.effort)
 
     with ThreadPoolExecutor(max_workers=2) as ex:
-        ra, rb = ex.map(research, ["A", "B"])
-    stages["research_scripture"], stages["research_tradition"] = ra, rb
+        ra, rb = ex.map(one, ["A", "B"])
     briefs = (ra.get("final_text") or "（經文研究沒有結果）") + "\n\n" + (rb.get("final_text") or "（傳統研究沒有結果）")
+    return {"request": req, "word_study": word_table, "briefs": briefs,
+            "research_scripture": ra, "research_tradition": rb, "model": rl.model, "rl": rl, "client": client}
+
+
+def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
+            model: str = "deepseek-flash", kb: str | None = None, client=None, revise: bool = True) -> dict:
+    """Run the whole pipeline; returns a trace-shaped record."""
+    t0 = time.perf_counter()
+    r = research(passage, theme=theme, audience=audience, length=length, notes=notes, model=model, kb=kb, client=client)
+    rl, client, req, word_table, briefs = r["rl"], r["client"], r["request"], r["word_study"], r["briefs"]
+    stages: dict = {"research_scripture": r["research_scripture"], "research_tradition": r["research_tradition"]}
 
     handlers = build_tool_set("scripture").handlers  # only to fill scripture placeholders in the draft
     script = None

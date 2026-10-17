@@ -425,26 +425,48 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
   </div>
 
   <div id="sermonSection" class="hidden">
-    <div class="card">
-      <div class="card-title">講道預備（研究 → 寫作 → 查核）</div>
-      <div class="help">助手會先分頭研究經文和衛斯理／循道傳統，整理成附出處的研究摘要，再依摘要寫出講題、大綱和講章草稿，最後逐句查核有沒有根據。
-約 3 到 5 分鐘。完成後請打 0–10 分，並在備註寫下您會怎樣修改。講章中的 [A2]、[B1] 是所根據的研究要點，方便您核對。</div>
-      <div class="help" style="margin-top:8px">經文（必填）</div>
-      <input class="ask-input" id="sPassage" maxlength="60" style="min-height:auto;height:40px" placeholder="例如：路加福音 15:11-32">
-      <div class="help" style="margin-top:8px">主題（選填）</div>
-      <input class="ask-input" id="sTheme" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：父親的愛與兩個兒子">
-      <div class="help" style="margin-top:8px">對象（選填）</div>
-      <input class="ask-input" id="sAudience" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：主日崇拜、普通話會眾；青年團契">
-      <div class="help" style="margin-top:8px">長度（選填）</div>
-      <input class="ask-input" id="sLength" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：約 20 分鐘">
-      <div class="help" style="margin-top:8px">其他要求（選填）</div>
-      <textarea class="ask-input" id="sNotes" maxlength="300" placeholder="例如：多用生活例子"></textarea>
-      <div class="actions"><button class="btn" id="sermonBtn" onclick="sermon()">開始預備</button></div>
-      <div class="help" id="sermonInfo" style="margin-top:8px"></div>
+    <div id="wsList">
+      <div class="card">
+        <div class="card-title">開一篇新講章</div>
+        <div class="help">填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問：
+某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。</div>
+        <div class="help" style="margin-top:8px">經文（必填）</div>
+        <input class="ask-input" id="sPassage" maxlength="60" style="min-height:auto;height:40px" placeholder="例如：路加福音 15:11-32">
+        <div class="help" style="margin-top:8px">主題（選填）</div>
+        <input class="ask-input" id="sTheme" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：父親的愛">
+        <div class="help" style="margin-top:8px">對象（選填）</div>
+        <input class="ask-input" id="sAudience" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：主日崇拜；青年團契">
+        <div class="help" style="margin-top:8px">長度（選填）</div>
+        <input class="ask-input" id="sLength" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：約 20 分鐘">
+        <div class="actions"><button class="btn" id="wsStartBtn" onclick="wsStart()">開始研究</button></div>
+        <div class="help" id="wsStartInfo" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">我的講章</div>
+        <ul class="q-list" id="wsProjects"></ul>
+      </div>
     </div>
-    <div class="card hidden" id="sermonWait">
-      <div class="card-title">進度</div>
-      <div class="card-content help" id="sermonWaitText"></div>
+
+    <div id="wsProject" class="hidden">
+      <div class="nav"><button class="btn btn-secondary btn-sm" onclick="wsBack()">← 我的講章</button>
+        <span class="help" id="wsTitle"></span></div>
+      <div class="card"><div class="card-title">研究摘要</div>
+        <details><summary class="help">點開查看（助手回答時會用到，[A1]、[B2] 即這些要點）</summary>
+        <div class="card-content" id="wsBriefs"></div></details></div>
+      <div class="card hidden" id="wsWordCard"><div class="card-title">原文逐詞表（程式整理）</div>
+        <details><summary class="help">點開查看</summary><pre class="card-content" id="wsWords" style="white-space:pre-wrap;font-size:13px"></pre></details></div>
+      <div class="card">
+        <div class="card-title">講稿板（已選定的段落，可排序、修改、刪除）</div>
+        <div id="wsBoard"></div>
+        <div class="actions"><button class="btn" id="wsAssembleBtn" onclick="wsAssemble()">組成完整講稿</button></div>
+      </div>
+      <div class="card">
+        <div class="card-title">對話</div>
+        <div id="wsTurns"></div>
+        <textarea class="ask-input" id="wsInput" placeholder="例如：15:20「動了慈心」原文是甚麼字？／幫我寫引言，約 300 字，從「回家」切入。／第二點給一個青年人能明白的例子。"></textarea>
+        <div class="actions"><button class="btn" id="wsSendBtn" onclick="wsSend()">送出</button></div>
+        <div class="help" id="wsWait" style="margin-top:8px"></div>
+      </div>
     </div>
   </div>
 
@@ -557,7 +579,7 @@ function init() {
     if (!s.order.length && s.chat) {  // a group link: only asking and scoring the group's answers
       document.getElementById('tabBlind').classList.add('hidden');
       document.getElementById('progressInfo').textContent = '';
-      mode('ask');
+      mode(s.chat.sermon ? 'sermon' : 'ask');  // the pastors' link opens on the sermon workspace
       return;
     }
     const firstOpen = s.order.findIndex(id => !s.done.includes(id));
@@ -668,43 +690,169 @@ function ask() {
     .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
 }
 
+let wsCurrent = null;
+
+function pollJob(jobId, onWait, onDone, onError) {
+  clearInterval(polling);
+  polling = setInterval(() => {
+    api('/api/job?id=' + jobId).then(j => {
+      if (j.error && !j.status) { clearInterval(polling); onError('找不到這個工作（伺服器可能剛重新啟動），請再送出一次。'); return; }
+      if (j.status === 'running') { onWait(j.elapsed); return; }
+      clearInterval(polling);
+      if (j.status === 'error') onError(j.error); else onDone(j);
+    }).catch(() => onWait(-1));
+  }, 3000);
+}
+
 function refreshSermon() {
-  api('/api/state').then(s => {
-    state.chat = s.chat;
-    const left = s.chat.sermon ? s.chat.sermon.remaining_today : 0;
-    document.getElementById('sermonInfo').textContent = '今天還可以預備 ' + left + ' 篇。預備過的講章列在「自己提問並評分」頁的清單中（標有【講章】）。';
-    document.getElementById('sermonBtn').disabled = left <= 0 || !s.chat.open;
+  document.getElementById('wsProject').classList.add('hidden');
+  document.getElementById('wsList').classList.remove('hidden');
+  api('/api/sermon/list').then(r => {
+    if (r.error) { showToast(r.error); return; }
+    document.getElementById('wsStartInfo').textContent = '今天還可以開 ' + r.starts_left + ' 篇新講章。';
+    document.getElementById('wsStartBtn').disabled = r.starts_left <= 0;
+    const ul = document.getElementById('wsProjects');
+    ul.innerHTML = r.projects.length ? '' : '<li class="help">還沒有講章</li>';
+    r.projects.forEach(p => {
+      const li = document.createElement('li');
+      li.textContent = p.passage + (p.theme ? '｜' + p.theme : '') + '（講稿板 ' + p.board + ' 段）';
+      li.onclick = () => wsOpen(p.id);
+      ul.appendChild(li);
+    });
   });
 }
 
-function sermon() {
+function wsStart() {
   const v = id => document.getElementById(id).value.trim();
   if (v('sPassage').length < 2) { showToast('請填寫經文'); return; }
-  const btn = document.getElementById('sermonBtn');
+  const btn = document.getElementById('wsStartBtn'), info = document.getElementById('wsStartInfo');
   btn.disabled = true;
-  api('/api/sermon', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({passage: v('sPassage'), theme: v('sTheme'), audience: v('sAudience'), length: v('sLength'),
-                          notes: v('sNotes'), denomination: denom})})
+  api('/api/sermon/start', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({passage: v('sPassage'), theme: v('sTheme'), audience: v('sAudience'), length: v('sLength')})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
-      const wait = document.getElementById('sermonWait'), text = document.getElementById('sermonWaitText');
-      wait.classList.remove('hidden');
-      const stages = ['研究經文和衛斯理註釋…', '研究經文和衛斯理註釋…', '整理研究摘要…', '撰寫講章草稿…', '撰寫講章草稿…', '逐句查核…', '依查核意見修改…'];
-      const stop = (msg) => { clearInterval(polling); btn.disabled = false; if (msg) text.textContent = msg; };
-      polling = setInterval(() => {
-        api('/api/job?id=' + r.job).then(j => {
-          if (j.error && !j.status) { stop('找不到這次預備（伺服器可能剛重新啟動），請再送出一次。'); return; }
-          if (j.status === 'running') {
-            text.textContent = stages[Math.min(stages.length - 1, Math.floor(j.elapsed / 40))] + '（已 ' + j.elapsed + ' 秒，約需 3 到 5 分鐘，請不要關閉頁面）';
-            return;
-          }
-          if (j.status === 'error') { stop(j.error); return; }
-          stop(); wait.classList.add('hidden');
-          showId(j.item);
-        }).catch(() => { text.textContent = '連線不穩，正在重試…'; });
-      }, 4000);
-    })
-    .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+      pollJob(r.job,
+        t => { info.textContent = '正在研究經文、原文和衛斯理傳統……' + (t >= 0 ? '（已 ' + t + ' 秒，約需 1 分鐘）' : '（連線不穩，重試中）'); },
+        j => { btn.disabled = false; info.textContent = ''; wsOpen(j.project); },
+        msg => { btn.disabled = false; info.textContent = msg; });
+    }).catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+}
+
+function wsBack() { wsCurrent = null; refreshSermon(); }
+
+function wsOpen(pid) {
+  api('/api/sermon/project?id=' + encodeURIComponent(pid)).then(p => {
+    if (p.error) { showToast(p.error); return; }
+    wsCurrent = p;
+    document.getElementById('scoringSection').classList.add('hidden');
+    document.getElementById('sermonSection').classList.remove('hidden');
+    document.getElementById('wsList').classList.add('hidden');
+    document.getElementById('wsProject').classList.remove('hidden');
+    document.getElementById('wsTitle').textContent = p.passage + (p.theme ? '｜' + p.theme : '') + (p.audience ? '｜' + p.audience : '');
+    document.getElementById('wsBriefs').textContent = p.briefs;
+    document.getElementById('wsWordCard').classList.toggle('hidden', !p.word_study);
+    document.getElementById('wsWords').textContent = p.word_study || '';
+    wsRenderBoard(p.board);
+    wsRenderTurns(p.turns);
+    document.getElementById('wsSendBtn').disabled = p.busy;
+    document.getElementById('wsAssembleBtn').disabled = p.busy;
+  });
+}
+
+function wsCheckText(c) {
+  if (!c) return '';
+  const parts = [];
+  if (c.claims !== null && c.claims !== undefined) parts.push('查核 ' + c.claims + ' 條陳述：未能核實 ' + c.unsupported + '、部分核實 ' + c.partial + '（「未能核實」是研究資料和這次查到的資料裡找不到依據，不一定是錯，請自行查證）');
+  if (c.failed_scripture && c.failed_scripture.length) parts.push('查不到的經文：' + c.failed_scripture.join('、'));
+  if (c.misquotes) parts.push('經文引用不一致：' + c.misquotes);
+  if (c.unknown_points && c.unknown_points.length) parts.push('不存在的要點編號：' + c.unknown_points.join('、'));
+  if (c.unsupported_claims && c.unsupported_claims.length) parts.push('未能核實的句子：' + c.unsupported_claims.join('；'));
+  return parts.join('。');
+}
+
+function wsRenderTurns(turns) {
+  const box = document.getElementById('wsTurns');
+  box.innerHTML = turns.length ? '' : '<div class="help">還沒有對話。可以從問一個字、要一段引言開始。</div>';
+  turns.forEach(t => {
+    const d = document.createElement('div');
+    d.style.cssText = 'border-bottom:1px solid var(--border);padding:10px 0';
+    const ask = document.createElement('div'); ask.className = 'help'; ask.textContent = (t.kind === 'sermon_draft' ? '【完整講稿】' : '牧者：') + t.ask;
+    const rep = document.createElement('div'); rep.className = 'card-content'; rep.style.marginTop = '6px'; rep.textContent = t.reply;
+    const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '4px'; chk.textContent = wsCheckText(t.check);
+    const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
+    const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = '加入講稿';
+    add.onclick = () => {
+      const label = prompt('這一段的標題（例如：引言、第一點、例證、結語）', '段落');
+      if (label === null) return;
+      wsBoardAction({action: 'add', item: t.id, label: label});
+    };
+    const rate = document.createElement('button'); rate.className = 'btn btn-secondary btn-sm';
+    rate.textContent = t.rated ? '✓ 已評分（修改）' : '評分'; rate.onclick = () => showId(t.id);
+    if (t.kind !== 'sermon_draft') act.appendChild(add);
+    act.appendChild(rate);
+    d.appendChild(ask); d.appendChild(rep); if (chk.textContent) d.appendChild(chk); d.appendChild(act);
+    box.appendChild(d);
+  });
+}
+
+function wsRenderBoard(board) {
+  const box = document.getElementById('wsBoard');
+  box.innerHTML = board.length ? '' : '<div class="help">還沒有段落。在下面的對話裡，把滿意的回答按「加入講稿」。</div>';
+  board.forEach((b, i) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'border-bottom:1px solid var(--border);padding:8px 0';
+    const head = document.createElement('div'); head.className = 'dim-name';
+    head.textContent = (i + 1) + '. ' + b.label + (b.edited ? '（已修改）' : '');
+    const body = document.createElement('details');
+    const sm = document.createElement('summary'); sm.className = 'help'; sm.textContent = b.text.slice(0, 60) + (b.text.length > 60 ? '…' : '');
+    const full = document.createElement('div'); full.className = 'card-content'; full.textContent = b.text;
+    body.appendChild(sm); body.appendChild(full);
+    const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
+    [['↑', 'up'], ['↓', 'down'], ['改標題', 'label'], ['修改內容', 'text'], ['刪除', 'delete']].forEach(([t, a]) => {
+      const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = t;
+      btn.onclick = () => {
+        const req = {action: a, index: i};
+        if (a === 'label') { const v = prompt('新標題', b.label); if (v === null) return; req.label = v; }
+        if (a === 'text') { const v = prompt('修改這一段（可直接改寫）', b.text); if (v === null) return; req.text = v; }
+        if (a === 'delete' && !confirm('刪除這一段？')) return;
+        wsBoardAction(req);
+      };
+      act.appendChild(btn);
+    });
+    d.appendChild(head); d.appendChild(body); d.appendChild(act);
+    box.appendChild(d);
+  });
+}
+
+function wsBoardAction(req) {
+  req.project = wsCurrent.id;
+  api('/api/sermon/board', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(req)})
+    .then(r => { if (r.error) { showToast(r.error); return; } wsCurrent.board = r.board; wsRenderBoard(r.board); showToast('已更新講稿板'); });
+}
+
+function wsRun(path, body, waitText) {
+  const send = document.getElementById('wsSendBtn'), asm = document.getElementById('wsAssembleBtn'), wait = document.getElementById('wsWait');
+  send.disabled = asm.disabled = true;
+  body.project = wsCurrent.id;
+  api(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+    .then(r => {
+      if (r.error) { showToast(r.error); send.disabled = asm.disabled = false; return; }
+      pollJob(r.job,
+        t => { wait.textContent = waitText + (t >= 0 ? '（已 ' + t + ' 秒）' : '（連線不穩，重試中）'); },
+        () => { wait.textContent = ''; document.getElementById('wsInput').value = path.endsWith('turn') ? '' : document.getElementById('wsInput').value; wsOpen(wsCurrent.id); },
+        msg => { wait.textContent = msg; send.disabled = asm.disabled = false; });
+    }).catch(() => { send.disabled = asm.disabled = false; showToast('送出失敗，請檢查網路'); });
+}
+
+function wsSend() {
+  const m = document.getElementById('wsInput').value.trim();
+  if (!m) { showToast('請輸入要求'); return; }
+  wsRun('/api/sermon/turn', {message: m}, '助手正在查資料和撰寫，通常 20 秒到 1 分鐘');
+}
+
+function wsAssemble() {
+  if (!confirm('把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）')) return;
+  wsRun('/api/sermon/assemble', {}, '正在組成完整講稿並查核，約 1 到 2 分鐘');
 }
 
 function showId(id) {
@@ -829,6 +977,7 @@ function save() {
       btn.disabled = false;
       if (r.error) { showToast(r.error); return; }
       showToast('已儲存');
+      if (item.project) { mode('sermon'); wsOpen(item.project); return; }
       if (item.chat) { mode('ask'); return; }
       if (!state.done.includes(item.id)) state.done.push(item.id);
       const next = state.order.findIndex((id, k) => k > pos && !state.done.includes(id));

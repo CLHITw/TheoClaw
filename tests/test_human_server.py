@@ -221,3 +221,48 @@ def test_sermon_preparation_for_pastors_only(tmp_path):
                       chat_dir=tmp_path / "chat2")
     assert store2.state(pastors, "王牧師")["chat"]["sermon"]["remaining_today"] == 1  # the shared pastor link
     assert "sermon" not in store2.state(group, "小明")["chat"]                         # the lay link
+
+
+def _wait(store, code, job, nick=None):
+    for _ in range(100):
+        j = store.job(code, job, nick)
+        if j["status"] != "running":
+            return j
+        time.sleep(0.03)
+    raise AssertionError("job did not finish")
+
+
+def test_sermon_workspace_start_turns_board_and_assemble(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    pastors = hs.add_group("牧者", path, role="pastor")
+    lay = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "sermon_daily_limit": 2},
+                     chat_dir=tmp_path / "chat")
+    assert "牧者" in store.ws_start(lay, {"passage": "路加福音 15"}, "小明")["error"]
+    start = lambda f, owner, model, kb: {"id": "a1b2c3d4e5f6", "owner": owner, "created": "20261017-100000",
+                                          "passage": f["passage"], "theme": f["theme"], "request": "經文：" + f["passage"],
+                                          "briefs": "[A1] 要點", "word_study": "| 表 |", "board": [], "turns": [],
+                                          "research_cost_usd": 0.02}
+    j = _wait(store, pastors, store.ws_start(pastors, {"passage": "路加福音 15:11-32", "theme": "父親的愛"}, "王牧師", start)["job"], "王牧師")
+    pid = j["project"]
+    assert pid == "a1b2c3d4e5f6" and store.ws_list(pastors, "王牧師")["projects"][0]["passage"] == "路加福音 15:11-32"
+    assert store.ws_get(pastors, pid, "李牧師") is None  # another pastor cannot open it
+    turn = lambda p, m, model: {"kind": "sermon_turn", "project": p["id"], "model": "m", "prompt": m, "final_text": "引言草稿",
+                                "outcome": "completed", "steps": [], "usage_total": {}, "cost_usd": 0.01, "check_summary": {}}
+    j = _wait(store, pastors, store.ws_turn(pastors, {"project": pid, "message": "寫引言"}, "王牧師", turn)["job"], "王牧師")
+    item = j["item"]
+    got = store.ws_get(pastors, pid, "王牧師")
+    assert [t["ask"] for t in got["turns"]] == ["寫引言"] and got["turns"][0]["reply"] == "引言草稿"
+    assert "還沒有段落" in store.ws_assemble(pastors, {"project": pid}, "王牧師")["error"]
+    assert store.ws_board(pastors, {"project": pid, "action": "add", "item": item, "label": "引言"}, "王牧師")["ok"]
+    assert store.ws_board(pastors, {"project": pid, "action": "text", "index": 0, "text": "改過的引言"}, "王牧師")["board"][0]["text"] == "改過的引言"
+    draft = lambda p, model: {"kind": "sermon_draft", "project": p["id"], "model": "m", "prompt": "組成", "final_text": "全文",
+                              "outcome": "completed", "steps": [], "usage_total": {}, "cost_usd": 0.03, "check_summary": {}}
+    j = _wait(store, pastors, store.ws_assemble(pastors, {"project": pid}, "王牧師", draft)["job"], "王牧師")
+    assert store.item(pastors, j["item"], "王牧師")["kind"] == "sermon_draft"
+    assert abs(store._spent() - 0.06) < 1e-9  # research cost counts too
+    store.ws_start(pastors, {"passage": "約翰福音 4"}, "王牧師", start)
+    time.sleep(0.2)
+    assert "2 篇" in store.ws_start(pastors, {"passage": "約翰福音 5"}, "王牧師", start)["error"]  # daily limit

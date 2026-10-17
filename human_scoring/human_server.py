@@ -43,7 +43,10 @@ from theoclaw.evals.human import (Item, calibration_sample, load_items, load_rat
 RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
 CHAT_DIR = ROOT / "runs" / "pastor-chat"
-SERMON_TIMEOUT = 600                     # 講道預備要跑研究、寫作、查核，約 3 分鐘
+SERMON_TIMEOUT = 600
+WS_TIMEOUT = {"sermon_start": 360, "sermon_turn": 300, "sermon_draft": 420}   # 講章工作區各步驟的等候上限（秒）
+WS_TURN_LIMIT = 60       # 每位牧者每天在講章工作區最多問幾次
+PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")                     # 講道預備要跑研究、寫作、查核，約 3 分鐘
 SERMON_KB = "plain-account-pdf.en.deepseek-flash"   # 衛斯理傳統研究用的知識庫（knowledge/ 底下）
 CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗（背景的回答若之後完成仍會存檔）
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
@@ -204,7 +207,7 @@ class Store:
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
             if self.is_pastor(r) and self.chat.get("sermon_daily_limit"):
-                chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon"))}
+                chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
             if r.get("group"):  # the others' questions, so answers get more than one rater
                 chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
                                   for i in self._group_items(r["group"]) if self.owner[i] != r["name"]]
@@ -223,7 +226,7 @@ class Store:
                  for s in t["steps"] for c in s["tool_calls"]]
         prev = self.done(r["name"]).get(item_id)
         chat = item_id in self.owner
-        extra = {k: t[k] for k in ("kind", "briefs", "word_study", "check_summary", "revised") if k in t}
+        extra = {k: t[k] for k in ("kind", "briefs", "word_study", "check_summary", "revised", "project", "ask") if k in t}
         return {**extra, "id": item_id, "chat": chat,
                 "position": None if chat else r["order"].index(item_id) + 1, "total": len(r["order"]),
                 "prompt": t["prompt"], "tools": calls, "answer": t.get("final_text") or "（沒有回答）",
@@ -276,14 +279,19 @@ class Store:
     def _chat_traces(self) -> list[dict]:
         return [self.items[i].trace for i in self.owner]
 
+    def _costs(self) -> list[dict]:
+        path = self.chat_dir / "costs.jsonl"
+        return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()] if path.exists() else []
+
     def _spent(self) -> float:
-        return sum(t.get("cost_usd") or 0.0 for t in self._chat_traces())
+        return sum(t.get("cost_usd") or 0.0 for t in self._chat_traces()) + sum(c["cost_usd"] for c in self._costs())
 
     def _today(self, name: str, kind: str = "question") -> int:
         today = time.strftime("%Y%m%d")
         asked = sum(1 for t in self._chat_traces()
                     if t.get("asked_by") == name and str(t.get("asked_at", "")).startswith(today)
                     and t.get("kind", "question") == kind)
+        asked += sum(1 for c in self._costs() if c["by"] == name and c["kind"] == kind and c["at"].startswith(today))
         running = sum(1 for j in self.jobs.values()
                       if j["name"] == name and j["status"] == "running" and j.get("kind", "question") == kind)
         return asked + running
@@ -355,6 +363,199 @@ class Store:
         return prepare(f["passage"], theme=f["theme"], audience=f["audience"], length=f["length"], notes=f["notes"],
                        model=self.chat["model"], kb=kb)
 
+    # ------------------------------------------------------------ sermon workspace (pastors)
+
+    def _projects_dir(self) -> Path:
+        return self.chat_dir / "projects"
+
+    def _project(self, r: dict, pid: str) -> dict | None:
+        if not PROJECT_ID.match(pid or ""):
+            return None
+        path = self._projects_dir() / f"{pid}.json"
+        if not path.is_file():
+            return None
+        p = json.loads(path.read_text(encoding="utf-8"))
+        return p if p.get("owner") == r["name"] else None
+
+    def _save_project(self, p: dict) -> None:
+        self._projects_dir().mkdir(parents=True, exist_ok=True)
+        (self._projects_dir() / f"{p['id']}.json").write_text(json.dumps(p, ensure_ascii=False), encoding="utf-8")
+
+    def _ws_rater(self, code: str, nick: str | None) -> tuple[dict | None, str | None]:
+        if not self.chat or not self.chat.get("sermon_daily_limit"):
+            return None, "講道預備沒有開啟"
+        r = self.who(code, nick)
+        if r is None or not self.is_pastor(r):
+            return None, "講道預備只開放給牧者連結"
+        return r, None
+
+    def _busy(self, pid: str) -> bool:
+        return any(j.get("project") == pid and j["status"] == "running" for j in self.jobs.values())
+
+    def _new_job(self, r: dict, kind: str, pid: str | None = None) -> str:
+        job = secrets.token_hex(6)
+        self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None, "started": time.time(),
+                          "kind": kind, "timeout": WS_TIMEOUT[kind], "project": pid}
+        return job
+
+    def ws_list(self, code: str, nick: str | None = None) -> dict:
+        r, err = self._ws_rater(code, nick)
+        if err:
+            return {"error": err}
+        out = []
+        if self._projects_dir().is_dir():
+            for path in self._projects_dir().glob("*.json"):
+                p = json.loads(path.read_text(encoding="utf-8"))
+                if p.get("owner") == r["name"]:
+                    out.append({"id": p["id"], "passage": p["passage"], "theme": p.get("theme", ""),
+                                "created": p["created"], "board": len(p.get("board", []))})
+        return {"projects": sorted(out, key=lambda x: x["created"], reverse=True),
+                "starts_left": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
+
+    def ws_get(self, code: str, pid: str, nick: str | None = None) -> dict | None:
+        r, err = self._ws_rater(code, nick)
+        if err:
+            return None
+        p = self._project(r, pid)
+        if p is None:
+            return None
+        done = self.done(r["name"])
+        turns = sorted((i for i, it in self.items.items() if it.trace.get("project") == pid),
+                       key=lambda i: self.items[i].trace.get("asked_at", ""))
+        return {k: p.get(k) for k in ("id", "passage", "theme", "audience", "length", "briefs", "word_study", "board")} | {
+            "turns": [{"id": i, "kind": self.items[i].trace.get("kind"), "ask": self.items[i].trace.get("ask", ""),
+                       "reply": self.items[i].trace.get("final_text") or "", "check": self.items[i].trace.get("check_summary"),
+                       "rated": i in done} for i in turns],
+            "busy": self._busy(pid)}
+
+    def ws_start(self, code: str, body: dict, nick: str | None = None, runner=None) -> dict:
+        r, err = self._ws_rater(code, nick)
+        if err:
+            return {"error": err}
+        f = {k: str(body.get(k) or "").strip() for k in ("passage", "theme", "audience", "length", "notes")}
+        if not 2 <= len(f["passage"]) <= 60:
+            return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
+        if any(len(v) > 300 for v in f.values()):
+            return {"error": "每一欄請在 300 字以內"}
+        with self.lock:
+            if self._spent() >= self.chat["budget_usd"]:
+                return {"error": "本次測試的額度已用完，謝謝您的參與"}
+            if self._today(r["name"], "sermon_start") >= self.chat["sermon_daily_limit"]:
+                return {"error": f"今天已開了 {self.chat['sermon_daily_limit']} 篇講章，請明天再來"}
+            job = self._new_job(r, "sermon_start")
+
+        def work():
+            try:
+                from theoclaw.agent import workspace
+                kb = self.chat.get("sermon_kb")
+                if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
+                    kb = None
+                p = (runner or workspace.start)(f, owner=r["name"], model=self.chat["model"], kb=kb)
+                with self.lock:
+                    self._save_project(p)
+                    self._log_cost(r["name"], "sermon_start", p.get("research_cost_usd") or 0.0, p["id"])
+                    self.jobs[job].update(status="done", project=p["id"])
+            except Exception as e:
+                with self.lock:
+                    self.jobs[job].update(status="error", error="研究時出錯，請稍後再試")
+                sys.stderr.write(f"sermon start error {job}: {type(e).__name__}: {e}\n")
+
+        threading.Thread(target=work, daemon=True).start()
+        return {"job": job}
+
+    def _log_cost(self, name: str, kind: str, usd: float, pid: str) -> None:
+        """Research has no trace of its own; its cost still counts against the budget and the daily limit."""
+        self.chat_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.chat_dir / "costs.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"by": name, "kind": kind, "cost_usd": usd, "project": pid,
+                                "at": time.strftime("%Y%m%d-%H%M%S")}, ensure_ascii=False) + "\n")
+
+    def _ws_run(self, code: str, body: dict, nick: str | None, kind: str, runner=None) -> dict:
+        r, err = self._ws_rater(code, nick)
+        if err:
+            return {"error": err}
+        pid = str(body.get("project") or "")
+        p = self._project(r, pid)
+        if p is None:
+            return {"error": "找不到這篇講章"}
+        message = str(body.get("message") or "").strip()
+        if kind == "sermon_turn" and not 1 <= len(message) <= 1500:
+            return {"error": "請輸入要求（1500 字以內）"}
+        if kind == "sermon_draft" and not p.get("board"):
+            return {"error": "講稿板上還沒有段落，請先把滿意的回答加入講稿"}
+        with self.lock:
+            if self._spent() >= self.chat["budget_usd"]:
+                return {"error": "本次測試的額度已用完，謝謝您的參與"}
+            if self._busy(pid):
+                return {"error": "上一個要求還在處理中，請稍候"}
+            if self._today(r["name"], "sermon_turn") + self._today(r["name"], "sermon_draft") >= WS_TURN_LIMIT:
+                return {"error": f"今天已問了 {WS_TURN_LIMIT} 次，請明天再來"}
+            job = self._new_job(r, kind, pid)
+
+        def run(_question):
+            from theoclaw.agent import workspace
+            with self.lock:
+                project = self._project(r, pid)
+            if kind == "sermon_turn":
+                rec = (runner or workspace.turn)(project, message, model=self.chat["model"])
+                rec["ask"] = message
+            else:
+                rec = (runner or workspace.assemble)(project, model=self.chat["model"])
+                rec["ask"] = "組成完整講稿"
+            with self.lock:
+                self._save_project(project)
+            return rec
+
+        threading.Thread(target=self._answer, args=(job, r["name"], message or "assemble", run, None), daemon=True).start()
+        return {"job": job}
+
+    def ws_turn(self, code: str, body: dict, nick: str | None = None, runner=None) -> dict:
+        return self._ws_run(code, body, nick, "sermon_turn", runner)
+
+    def ws_assemble(self, code: str, body: dict, nick: str | None = None, runner=None) -> dict:
+        return self._ws_run(code, body, nick, "sermon_draft", runner)
+
+    def ws_board(self, code: str, body: dict, nick: str | None = None) -> dict:
+        """Add a reply to the board, or move, rename or remove a piece."""
+        r, err = self._ws_rater(code, nick)
+        if err:
+            return {"error": err}
+        with self.lock:
+            p = self._project(r, str(body.get("project") or ""))
+            if p is None:
+                return {"error": "找不到這篇講章"}
+            board = p.setdefault("board", [])
+            action = body.get("action")
+            if action == "add":
+                it = self.items.get(str(body.get("item") or ""))
+                if it is None or it.trace.get("project") != p["id"]:
+                    return {"error": "找不到這個回答"}
+                if len(board) >= 30:
+                    return {"error": "講稿板最多 30 段"}
+                board.append({"label": str(body.get("label") or "段落")[:40], "text": it.trace.get("final_text") or "",
+                              "item": body["item"]})
+            else:
+                i = body.get("index")
+                if not isinstance(i, int) or not 0 <= i < len(board):
+                    return {"error": "找不到這一段"}
+                if action == "up" and i > 0:
+                    board[i - 1], board[i] = board[i], board[i - 1]
+                elif action == "down" and i < len(board) - 1:
+                    board[i + 1], board[i] = board[i], board[i + 1]
+                elif action == "delete":
+                    board.pop(i)
+                elif action == "label":
+                    board[i]["label"] = str(body.get("label") or "段落")[:40]
+                elif action == "text":
+                    text = str(body.get("text") or "").strip()
+                    if not text or len(text) > 8000:
+                        return {"error": "段落內容請在 1 到 8000 字之間"}
+                    board[i]["text"], board[i]["edited"] = text, True
+                elif action not in ("up", "down"):
+                    return {"error": "不明的操作"}
+            self._save_project(p)
+        return {"ok": True, "board": board}
+
     def job(self, code: str, job_id: str, nick: str | None = None) -> dict | None:
         j = self.jobs.get(job_id)
         r = self.who(code, nick)
@@ -362,7 +563,7 @@ class Store:
             return None
         if j["status"] == "running" and time.time() - j["started"] > j.get("timeout", CHAT_TIMEOUT):
             j.update(status="error", error="回答超時，請稍後再試，或把問題問得具體一點")
-        return {"status": j["status"], "item": j["item"], "error": j["error"],
+        return {"status": j["status"], "item": j["item"], "error": j["error"], "project": j.get("project"),
                 "elapsed": int(time.time() - j["started"])}
 
     def _run_agent(self, question: str) -> dict:
@@ -455,6 +656,11 @@ def make_handler(store: Store):
             if u.path == "/api/item":
                 item = store.item(code, (q.get("id") or [""])[0], nick)
                 return self._json(item) if item else self._json({"error": "找不到這一題"}, HTTPStatus.NOT_FOUND)
+            if u.path == "/api/sermon/list":
+                return self._json(store.ws_list(code, nick))
+            if u.path == "/api/sermon/project":
+                p = store.ws_get(code, (q.get("id") or [""])[0], nick)
+                return self._json(p) if p else self._json({"error": "找不到這篇講章"}, HTTPStatus.NOT_FOUND)
             if u.path == "/api/job":
                 j = store.job(code, (q.get("id") or [""])[0], nick)
                 return self._json(j) if j else self._json({"error": "找不到"}, HTTPStatus.NOT_FOUND)
@@ -467,7 +673,8 @@ def make_handler(store: Store):
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
             nick = (q.get("u") or [""])[0]
-            if u.path not in ("/api/rate", "/api/ask", "/api/sermon"):
+            if u.path not in ("/api/rate", "/api/ask", "/api/sermon", "/api/sermon/start", "/api/sermon/turn",
+                              "/api/sermon/assemble", "/api/sermon/board"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
@@ -478,6 +685,11 @@ def make_handler(store: Store):
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
                 out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"))
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            ws = {"/api/sermon/start": store.ws_start, "/api/sermon/turn": store.ws_turn,
+                  "/api/sermon/assemble": store.ws_assemble, "/api/sermon/board": store.ws_board}
+            if u.path in ws:
+                out = ws[u.path](code, body, nick)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             if u.path == "/api/sermon":
                 out = store.sermon(code, body, nick=nick)

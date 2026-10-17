@@ -436,42 +436,46 @@ What changed:
   tools above are what would tell whether a tradition-specific answer stays faithful to
   that tradition's sources.
 
-## Sermon preparation for pastors (`theoclaw.agent.sermon`)
+## Sermon workspace for pastors (`theoclaw.agent.workspace`)
 
-Lay members get one agent; pastors preparing a sermon get a fixed pipeline of small agents.
-The pipeline is plain code rather than an orchestrating model, so each stage can be traced
-and evaluated on its own.
+Pastors rarely want a whole sermon at once. They ask step by step: a word, an introduction,
+an illustration, a shorter second point. So the pastor link opens a workspace rather than a
+one-shot generator.
 
-1. **Research, two agents in parallel.** Each reads a lot and hands back at most about ten
-   numbered points, every point with its source.
-   - Scripture: the passage, its context and cross references.
-   - Tradition: Wesley's notes, plus the compiled *Plain Account* wiki with search.
-2. **Writing agent.** It has no tools and sees only the briefs and the pastor's request.
-   It cites brief points as [A2] or [B1] and writes scripture as placeholders that the
-   program fills, as in the lay agent.
-3. **Check.**
-   - Deterministic: scripture word for word, cited points that do not exist, scripture
-     references that cannot be found.
-   - Model: the draft's statements against the briefs.
-   - With problems, the writer revises once.
+1. **Open a sermon:** passage, plus optional theme and audience.
+   - Research runs once, about a minute and about $0.03, and is kept with the sermon.
+   - The program builds the original-language word table: the passage's words and the
+     theme's words, mapped to Strong's numbers through the tagged 和合本, with STEPBible
+     lexicon entries. No tokens.
+   - Two research agents run in parallel:
+     - scripture: the passage, cross references, Bible dictionaries;
+     - Wesley and Methodist sources: his notes, plus the compiled *Plain Account* wiki
+       with search.
+   - Each returns sourced, numbered points.
+2. **Ask, one request at a time:** one assistant agent with every pastor tool answers only
+   that request, in about 20–60 seconds for about $0.005–0.02.
+   - Context is managed by state, not by an ever-growing history. The agent sees the
+     research briefs and a short state document: the sermon, the draft board, and the last
+     four turns shortened.
+   - Written passages get the deterministic checks and a model check against the briefs
+     and that turn's own lookups. Statements it cannot verify are shown to the pastor as
+     "not verified", not as "wrong".
+3. **Draft board:** replies the pastor likes go onto the board, where pieces can be
+   reordered, renamed, edited or deleted.
+4. **Assemble:** the writer joins the board into one manuscript, keeping the pastor's
+   pieces and adding only titles and transitions, then the checks run again.
 
-The record has the shape of an agent trace, so the scoring server, graders and evaluators
-read it unchanged. The online page has a 講道預備 tab on the pastors' personal links (5 a
-day each).
+Every reply and every manuscript is its own scored item (0–10), so evaluation can tell
+which kinds of request work. `theoclaw.agent.sermon.prepare` keeps the one-shot pipeline
+(research, then write, then check, then revise once) for the single-agent vs multi-agent
+comparison.
 
-First runs (Luke 15:11-32, John 4:1-26):
+Pastor-only references, looked up by program and never shown on the lay link:
 
-| | |
-|---|---|
-| time | about 3 minutes |
-| cost | about $0.05 |
-| statements checked | 15 |
-| unsupported | 0 |
-| partly supported | 1–2 |
-
-The planned evaluation compares this pipeline with the single agent on the same sermon
-tasks: cost, time, groundedness, citation precision and pastors' scores. Failures are
-attributed to a stage from the trace.
+- `data/original/`: STEPBible lexicons (CC BY) and the 信望愛 Strong's-tagged 和合本 (FDL).
+- `data/reference/`: ISBE 1915, Easton 1897, Smith 1884 (public domain).
+- Both are git-ignored and packed only for the server. Build them with
+  `scripts/build_original.py` and `scripts/build_reference.py`.
 
 ## Design decisions
 
