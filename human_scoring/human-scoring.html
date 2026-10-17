@@ -383,6 +383,34 @@
   .turn:not([open]) > summary .ask::before { content: "▸ "; }
   .rate-panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; }
   .rate-panel .dim-btn { min-width: 34px; }
+  /* Sidebar: past conversations / sermons. A column on wide screens, a drawer on phones. */
+  .sidebar { position: fixed; left: 0; top: var(--hdr, 60px); bottom: 0; width: 260px; z-index: 90;
+             background: var(--card); border-right: 1px solid var(--border); overflow-y: auto;
+             padding: 12px; display: none; }
+  body.has-sb .sidebar { display: block; }
+  .sb-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .sb-head .btn { flex: 1; }
+  .sb-close, #sbBtn { background: none; border: 1px solid var(--border); border-radius: var(--radius);
+                      cursor: pointer; font-size: 1rem; padding: 4px 10px; color: var(--text); }
+  #sbBtn { display: none; margin-right: 8px; }
+  body.has-sb #sbBtn { display: inline-block; }
+  .sb-title { font-size: 0.8rem; color: var(--text-light); margin: 4px 0 6px; }
+  .sb-list { list-style: none; }
+  .sb-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; line-height: 1.35; }
+  .sb-list li:hover { background: var(--bg); }
+  .sb-list li.active { background: var(--bg); font-weight: 600; color: var(--accent); }
+  .sb-list li .sb-meta { display: block; font-size: 0.75rem; color: var(--text-light); font-weight: 400; margin-top: 2px; }
+  #sbBackdrop { display: none; }
+  @media (min-width: 1000px) {
+    body.has-sb .container { margin-left: max(280px, calc(50% - 450px)); }
+    body.has-sb #sbBtn, .sb-close { display: none !important; }
+  }
+  @media (max-width: 999px) {
+    .sidebar { top: 0; width: 82%; max-width: 320px; z-index: 200; transform: translateX(-100%);
+               transition: transform 0.2s; box-shadow: var(--shadow); }
+    .sidebar.open { transform: none; }
+    #sbBackdrop.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 150; }
+  }
   .q-list { list-style: none; margin-top: 8px; }
   .q-list li { padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.9rem; }
   .q-list li:hover { color: var(--accent); }
@@ -393,7 +421,7 @@
 
 <header class="header">
   <div class="header-inner">
-    <h1>TheoClaw</h1>
+    <div style="display:flex;align-items:center"><button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw</h1></div>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="progress-info" id="progressInfo">載入中…</div>
       <button class="btn btn-secondary btn-sm" id="scriptBtn" onclick="toggleScript()" title="簡體／繁體">&#31616;</button>
@@ -401,6 +429,13 @@
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 </header>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head"><button class="btn btn-sm" id="sbNew">＋ 新對話</button><button class="sb-close" onclick="sbToggle(false)">✕</button></div>
+  <div class="sb-title" id="sbTitle">我的對話</div>
+  <ul class="sb-list" id="sbList"></ul>
+</aside>
+<div id="sbBackdrop" onclick="sbToggle(false)"></div>
 
 <div class="container">
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
@@ -438,7 +473,8 @@
       <div class="help">像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
 Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers.</div>
       <div class="actions" style="justify-content:flex-start"><button class="btn btn-secondary btn-sm" onclick="convNew()">＋ 開始新對話 · New conversation</button></div>
-      <ul class="q-list" id="convList"></ul>
+      <ul class="q-list hidden" id="convList"></ul>
+      <div class="help" style="margin-top:6px">過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。</div>
       <div class="help" id="askInfo" style="margin-top:8px"></div>
     </div>
     <div class="card" id="convCard">
@@ -467,7 +503,7 @@ Ask as you would in Bible study, in English or Chinese, and keep asking follow-u
         <div class="actions"><button class="btn" id="wsStartBtn" onclick="wsStart()">開始研究</button></div>
         <div class="help" id="wsStartInfo" style="margin-top:8px"></div>
       </div>
-      <div class="card">
+      <div class="card hidden">
         <div class="card-title">我的講章</div>
         <ul class="q-list" id="wsProjects"></ul>
       </div>
@@ -636,8 +672,37 @@ function done() {
 
 let current = 'blind', polling = null;
 
+// ---- sidebar
+function sbToggle(open) {
+  document.getElementById('sidebar').classList.toggle('open', open);
+  document.getElementById('sbBackdrop').classList.toggle('open', open);
+}
+
+// items: [{id, title, meta}]; onPick(id); onNew() for the "new" button
+function sbRender(title, newLabel, items, activeId, onPick, onNew) {
+  document.body.classList.add('has-sb');
+  document.documentElement.style.setProperty('--hdr', document.querySelector('.header').offsetHeight + 'px');
+  document.getElementById('sbTitle').textContent = title;
+  const nb = document.getElementById('sbNew');
+  nb.textContent = newLabel;
+  nb.onclick = () => { sbToggle(false); onNew(); };
+  const ul = document.getElementById('sbList');
+  ul.innerHTML = items.length ? '' : '<li class="help" style="cursor:default">還沒有</li>';
+  items.forEach(it => {
+    const li = document.createElement('li');
+    li.textContent = it.title;
+    if (it.meta) { const m = document.createElement('span'); m.className = 'sb-meta'; m.textContent = it.meta; li.appendChild(m); }
+    if (it.id === activeId) li.classList.add('active');
+    li.onclick = () => { sbToggle(false); onPick(it.id); };
+    ul.appendChild(li);
+  });
+}
+
+function sbHide() { document.body.classList.remove('has-sb'); sbToggle(false); }
+
 function mode(m) {
   current = m;
+  if (m !== 'ask' && m !== 'sermon') sbHide();
   document.getElementById('tabBlind').classList.toggle('active', m === 'blind');
   document.getElementById('tabAsk').classList.toggle('active', m === 'ask');
   document.getElementById('tabSermon').classList.toggle('active', m === 'sermon');
@@ -680,6 +745,9 @@ function refreshAsk() {
     ul.innerHTML = '';
     const convs = c.conversations || [];
     if (!convs.length) ul.innerHTML = '<li class="help">還沒有對話</li>';
+    sbRender('我的對話', '＋ 新對話', convs.map(cv => ({id: cv.id, title: cv.title.split('\n').join(' '),
+      meta: cv.turns + ' 問' + (cv.unrated ? '，' + cv.unrated + ' 個未評分' : '') + (cv.updated ? ' · ' + fmtStamp(cv.updated) : '')})),
+      convId, convOpen, convNew);
     convs.forEach(cv => {
       const li = document.createElement('li');
       li.textContent = (cv.id === convId ? '▸ ' : '') + cv.title.split('\n').join(' ') + '（' + cv.turns + ' 問' +
@@ -793,6 +861,8 @@ function refreshSermon() {
     if (r.error) { showToast(r.error); return; }
     document.getElementById('wsStartInfo').textContent = '今天還可以開 ' + r.starts_left + ' 篇新講章。';
     document.getElementById('wsStartBtn').disabled = r.starts_left <= 0;
+    wsProjectsCache = r.projects;
+    wsSidebar();
     const ul = document.getElementById('wsProjects');
     ul.innerHTML = r.projects.length ? '' : '<li class="help">還沒有講章</li>';
     r.projects.forEach(p => {
@@ -822,10 +892,24 @@ function wsStart() {
 
 function wsBack() { wsCurrent = null; refreshSermon(); }
 
+let wsProjectsCache = [];
+function wsSidebar() {
+  sbRender('我的講章', '＋ 新講章', wsProjectsCache.map(p => ({id: p.id, title: p.passage + (p.theme ? '｜' + p.theme : ''),
+    meta: '講稿板 ' + p.board + ' 段' + (p.created ? ' · ' + fmtStamp(p.created) : '')})),
+    wsCurrent ? wsCurrent.id : null, wsOpen, () => { wsBack(); setTimeout(() => document.getElementById('sPassage').focus(), 50); });
+}
+
+// "20261017-145810" -> "10/17 14:58"
+function fmtStamp(t) {
+  const m = String(t).match(/^\d{4}(\d\d)(\d\d)-(\d\d)(\d\d)/);
+  return m ? m[1] + '/' + m[2] + ' ' + m[3] + ':' + m[4] : '';
+}
+
 function wsOpen(pid) {
   api('/api/sermon/project?id=' + encodeURIComponent(pid)).then(p => {
     if (p.error) { showToast(p.error); return; }
     wsCurrent = p;
+    wsSidebar();
     document.getElementById('scoringSection').classList.add('hidden');
     document.getElementById('sermonSection').classList.remove('hidden');
     document.getElementById('wsList').classList.add('hidden');
