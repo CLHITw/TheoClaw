@@ -36,7 +36,7 @@ SQLITE_FILE = ROOT / "runs" / "pastor-chat" / "theoclaw.db"   # git-ignored and 
 
 LongText = Text().with_variant(mysql.LONGTEXT(), "mysql")
 Json = JSON().with_variant(mysql.JSON(), "mysql")
-Number = Float().with_variant(mysql.DOUBLE(), "mysql")   # money: not single precision
+Number = Float().with_variant(mysql.DOUBLE(asdecimal=False), "mysql")   # money: not single precision
 ID = 64      # codes, task ids, project ids
 NAME = 191   # "group·nickname#hash" (191 = the longest indexable utf8mb4 VARCHAR on old MySQL)
 
@@ -249,15 +249,15 @@ class DB:
 
     def costs(self) -> list[dict]:
         with self.engine.connect() as c:
-            return [{"by": r.by_name, "kind": r.kind, "cost_usd": r.cost_usd, "project": r.project, "at": r.at}
+            return [{"by": r.by_name, "kind": r.kind, "cost_usd": float(r.cost_usd or 0), "project": r.project, "at": r.at}
                     for r in c.execute(select(costs).order_by(costs.c.id))]
 
     # ---- summary
     def stats(self) -> dict:
         with self.engine.connect() as c:
             n = {t.name: c.execute(select(func.count()).select_from(t)).scalar() for t in meta.sorted_tables}
-            n["spent_usd"] = round((c.execute(select(func.sum(answers.c.cost_usd))).scalar() or 0)
-                                   + (c.execute(select(func.sum(costs.c.cost_usd))).scalar() or 0), 4)
+            n["spent_usd"] = round(float(c.execute(select(func.sum(answers.c.cost_usd))).scalar() or 0)
+                                   + float(c.execute(select(func.sum(costs.c.cost_usd))).scalar() or 0), 4)
         return n
 
 
