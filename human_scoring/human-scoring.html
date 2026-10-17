@@ -360,6 +360,19 @@
   .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .ask-input { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border);
                border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px; }
+  .rich { white-space: pre-wrap; line-height: 1.75; }
+  .rich .rh { display: inline-block; font-weight: 700; font-size: 1.03em; margin-top: 4px; color: var(--text); }
+  .rich strong { font-weight: 700; }
+  .rich .ref { color: var(--accent); font-weight: 600; }
+  .turn { border-bottom: 1px solid var(--border); }
+  .turn > summary { cursor: pointer; padding: 10px 0; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+  .turn > summary::-webkit-details-marker { display: none; }
+  .turn > summary .ask { flex: 1; font-weight: 600; }
+  .turn > summary .tag { font-size: 0.8rem; color: var(--text-light); white-space: nowrap; }
+  .turn[open] > summary .ask::before { content: "▾ "; }
+  .turn:not([open]) > summary .ask::before { content: "▸ "; }
+  .rate-panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .rate-panel .dim-btn { min-width: 34px; }
   .q-list { list-style: none; margin-top: 8px; }
   .q-list li { padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.9rem; }
   .q-list li:hover { color: var(--accent); }
@@ -692,6 +705,29 @@ function ask() {
 
 let wsCurrent = null;
 
+function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// Headings, **bold** and scripture references stand out; everything else stays plain text.
+function rich(text) {
+  return esc(text || '').split('\n').map(line => {
+    const h = line.match(/^\s*#{1,4}\s*(.+)$/);
+    if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
+    line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    line = line.replace(/（([^（）]{1,30}?(?:和合本|KJV))）|\(([^()]{1,30}?, KJV)\)/g, (m) => '<span class="ref">' + m + '</span>');
+    if (/^\s*(【[^】]{1,20}】|[一二三四五六七八九十]+、|第[一二三四五六七八九十]+[點\u70b9段])/.test(line) && line.length < 60)
+      line = '<span class="rh">' + line + '</span>';
+    return line;
+  }).join('\n');
+}
+
+function setRich(el, text) { el.classList.add('rich'); el.innerHTML = rich(text); }
+
+function keepScroll(fn) {
+  const y = window.scrollY;
+  fn();
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
 function pollJob(jobId, onWait, onDone, onError) {
   clearInterval(polling);
   polling = setInterval(() => {
@@ -749,11 +785,12 @@ function wsOpen(pid) {
     document.getElementById('wsList').classList.add('hidden');
     document.getElementById('wsProject').classList.remove('hidden');
     document.getElementById('wsTitle').textContent = p.passage + (p.theme ? '｜' + p.theme : '') + (p.audience ? '｜' + p.audience : '');
-    document.getElementById('wsBriefs').textContent = p.briefs;
+    setRich(document.getElementById('wsBriefs'), p.briefs);
     document.getElementById('wsWordCard').classList.toggle('hidden', !p.word_study);
     document.getElementById('wsWords').textContent = p.word_study || '';
-    wsRenderBoard(p.board);
-    wsRenderTurns(p.turns);
+    const newest = wsCurrent.openNewest && p.turns.length ? p.turns[p.turns.length - 1].id : null;
+    wsCurrent.openNewest = false;
+    keepScroll(() => { wsRenderBoard(p.board); wsRenderTurns(p.turns, newest); });
     document.getElementById('wsSendBtn').disabled = p.busy;
     document.getElementById('wsAssembleBtn').disabled = p.busy;
   });
@@ -770,15 +807,24 @@ function wsCheckText(c) {
   return parts.join('。');
 }
 
-function wsRenderTurns(turns) {
+function wsRenderTurns(turns, openId) {
   const box = document.getElementById('wsTurns');
+  const wasOpen = new Set([...box.querySelectorAll('details.turn[open]')].map(d => d.dataset.id));
   box.innerHTML = turns.length ? '' : '<div class="help">還沒有對話。可以從問一個字、要一段引言開始。</div>';
+  const last = turns.length ? turns[turns.length - 1].id : null;
   turns.forEach(t => {
-    const d = document.createElement('div');
-    d.style.cssText = 'border-bottom:1px solid var(--border);padding:10px 0';
-    const ask = document.createElement('div'); ask.className = 'help'; ask.textContent = (t.kind === 'sermon_draft' ? '【完整講稿】' : '牧者：') + t.ask;
-    const rep = document.createElement('div'); rep.className = 'card-content'; rep.style.marginTop = '6px'; rep.textContent = t.reply;
-    const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '4px'; chk.textContent = wsCheckText(t.check);
+    const d = document.createElement('details');
+    d.className = 'turn'; d.dataset.id = t.id;
+    d.open = openId ? t.id === openId : (wasOpen.size ? wasOpen.has(t.id) : t.id === last);
+    const sm = document.createElement('summary');
+    const ask = document.createElement('span'); ask.className = 'ask';
+    ask.textContent = (t.kind === 'sermon_draft' ? '【完整講稿】' : '') + t.ask;
+    const tag = document.createElement('span'); tag.className = 'tag';
+    const c = t.check || {};
+    tag.textContent = (t.rated ? '✓ 已評分' : '未評分') + (c.unsupported ? '｜未能核實 ' + c.unsupported : '');
+    sm.appendChild(ask); sm.appendChild(tag); d.appendChild(sm);
+    const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply);
+    const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '6px'; chk.textContent = wsCheckText(t.check);
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
     const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = '加入講稿';
     add.onclick = () => {
@@ -787,11 +833,52 @@ function wsRenderTurns(turns) {
       wsBoardAction({action: 'add', item: t.id, label: label});
     };
     const rate = document.createElement('button'); rate.className = 'btn btn-secondary btn-sm';
-    rate.textContent = t.rated ? '✓ 已評分（修改）' : '評分'; rate.onclick = () => showId(t.id);
+    rate.textContent = t.rated ? '✓ 已評分（修改）' : '評分';
+    const panel = document.createElement('div'); panel.className = 'rate-panel hidden';
+    rate.onclick = () => wsRatePanel(t, panel, rate, tag);
     if (t.kind !== 'sermon_draft') act.appendChild(add);
     act.appendChild(rate);
-    d.appendChild(ask); d.appendChild(rep); if (chk.textContent) d.appendChild(chk); d.appendChild(act);
+    d.appendChild(rep); if (chk.textContent) d.appendChild(chk); d.appendChild(act); d.appendChild(panel);
     box.appendChild(d);
+  });
+}
+
+// Scoring right under the reply: no page change, no jump to the top.
+function wsRatePanel(t, panel, button, tag) {
+  if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  panel.innerHTML = '<div class="help">這個回答對您的講道預備有多大幫助？（0–10，10 最好；7 分以上 = 可以直接用或小改就能用）</div>';
+  const opts = document.createElement('div'); opts.className = 'dim-options'; opts.style.margin = '8px 0';
+  let score = null;
+  const draw = () => {
+    opts.innerHTML = '';
+    for (let v = 0; v <= 10; v++) {
+      const b = document.createElement('button'); b.className = 'dim-btn' + (score === v ? ' active' : ''); b.textContent = v;
+      b.onclick = () => { score = v; draw(); };
+      opts.appendChild(b);
+    }
+  };
+  draw();
+  const note = document.createElement('textarea'); note.className = 'comment-input'; note.placeholder = '備註（選填）：哪裡要改、哪句不對、太長或太淺……';
+  const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = '儲存評分';
+  save.onclick = () => {
+    if (score === null) { showToast('請選一個分數'); return; }
+    save.disabled = true;
+    api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: t.id, scores: {overall: score}, comment: note.value.trim(), denomination: denom})})
+      .then(r => {
+        save.disabled = false;
+        if (r.error) { showToast(r.error); return; }
+        t.rated = true; button.textContent = '✓ 已評分（修改）';
+        tag.textContent = tag.textContent.replace('未評分', '✓ 已評分');
+        panel.classList.add('hidden'); showToast('已儲存評分');
+      }).catch(() => { save.disabled = false; showToast('儲存失敗，請檢查網路'); });
+  };
+  panel.appendChild(opts); panel.appendChild(note);
+  const a = document.createElement('div'); a.className = 'actions'; a.appendChild(save); panel.appendChild(a);
+  if (t.rated) api('/api/item?id=' + encodeURIComponent(t.id)).then(it => {  // show the earlier score
+    const prev = it && it.previous;
+    if (prev && prev.scores) { score = prev.scores.overall; note.value = prev.comment || ''; draw(); }
   });
 }
 
@@ -805,7 +892,7 @@ function wsRenderBoard(board) {
     head.textContent = (i + 1) + '. ' + b.label + (b.edited ? '（已修改）' : '');
     const body = document.createElement('details');
     const sm = document.createElement('summary'); sm.className = 'help'; sm.textContent = b.text.slice(0, 60) + (b.text.length > 60 ? '…' : '');
-    const full = document.createElement('div'); full.className = 'card-content'; full.textContent = b.text;
+    const full = document.createElement('div'); full.className = 'card-content'; setRich(full, b.text);
     body.appendChild(sm); body.appendChild(full);
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
     [['↑', 'up'], ['↓', 'down'], ['改標題', 'label'], ['修改內容', 'text'], ['刪除', 'delete']].forEach(([t, a]) => {
@@ -827,7 +914,7 @@ function wsRenderBoard(board) {
 function wsBoardAction(req) {
   req.project = wsCurrent.id;
   api('/api/sermon/board', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(req)})
-    .then(r => { if (r.error) { showToast(r.error); return; } wsCurrent.board = r.board; wsRenderBoard(r.board); showToast('已更新講稿板'); });
+    .then(r => { if (r.error) { showToast(r.error); return; } wsCurrent.board = r.board; keepScroll(() => wsRenderBoard(r.board)); showToast('已更新講稿板'); });
 }
 
 function wsRun(path, body, waitText) {
@@ -839,7 +926,8 @@ function wsRun(path, body, waitText) {
       if (r.error) { showToast(r.error); send.disabled = asm.disabled = false; return; }
       pollJob(r.job,
         t => { wait.textContent = waitText + (t >= 0 ? '（已 ' + t + ' 秒）' : '（連線不穩，重試中）'); },
-        () => { wait.textContent = ''; document.getElementById('wsInput').value = path.endsWith('turn') ? '' : document.getElementById('wsInput').value; wsOpen(wsCurrent.id); },
+        () => { wait.textContent = ''; if (path.endsWith('turn')) document.getElementById('wsInput').value = '';
+                wsCurrent.openNewest = true; wsOpen(wsCurrent.id); },
         msg => { wait.textContent = msg; send.disabled = asm.disabled = false; });
     }).catch(() => { send.disabled = asm.disabled = false; showToast('送出失敗，請檢查網路'); });
 }
@@ -882,10 +970,10 @@ function load(id) {
     document.getElementById('posInfo').innerHTML = it.chat ? '' : '第 ' + it.position + ' / ' + it.total + ' 題' +
       (state.done.includes(it.id) ? ' <span class="saved-tag">已評</span>' : '');
     document.getElementById('questionText').textContent = it.prompt;
-    document.getElementById('answerText').textContent = it.answer;
+    setRich(document.getElementById('answerText'), it.answer);
     document.getElementById('briefsCard').classList.toggle('hidden', !it.briefs);
     document.getElementById('checkCard').classList.toggle('hidden', !it.check_summary);
-    if (it.briefs) document.getElementById('briefsText').textContent = it.briefs;
+    if (it.briefs) setRich(document.getElementById('briefsText'), it.briefs);
     document.getElementById('wordCard').classList.toggle('hidden', !it.word_study);
     if (it.word_study) document.getElementById('wordText').textContent = it.word_study;
     if (it.check_summary) {
