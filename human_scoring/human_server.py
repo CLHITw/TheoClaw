@@ -16,9 +16,10 @@
 提問模式（serve --chat）：評分人用同一條連結自己提問，agent 當場回答（預設 deepseek-flash），
 再用同一套標準評分。每人每天有題數上限，總花費超過上限就停止回答。這個模式要在 .env 放 DEEPSEEK_API_KEY。
 
-所有資料（連結、提問與回答、評分、講章、花費、使用者）存在資料庫：伺服器上是 MySQL（.env 的
-THEOCLAW_DB），其他地方是 SQLite 檔。啟動時會把舊的檔案（assignment.json、runs/pastor-chat/、
-runs/*/human/）匯入一次；評測工具要的檔案格式用 `python human_scoring/db.py export <資料夾>` 匯出。
+資料（連結、提問與回答、評分、講章、花費）預設存成檔案（assignment.json、runs/pastor-chat/、
+runs/*/human/，評測工具直接讀）。`serve --storage db` 改存資料庫：伺服器上是 MySQL（.env 的
+THEOCLAW_DB），其他地方是 SQLite 檔；啟動時會把檔案裡還沒有的資料匯入（不會重複），
+評測工具要的檔案格式用 `python human_scoring/db.py export <資料夾>` 匯出。
 """
 
 from __future__ import annotations
@@ -45,10 +46,12 @@ from theoclaw.evals.human import (Item, calibration_sample, load_items,  # noqa:
                                   load_rubric, rating_record)
 from human_scoring import db as db_mod  # noqa: E402
 from human_scoring.db import DB, import_files, run_key  # noqa: E402
+from human_scoring.files_store import FileStore  # noqa: E402
 
 RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
 CHAT_DIR = ROOT / "runs" / "pastor-chat"
+STORAGE = "files"   # serve --storage: "files" (the layout evals read) or "db" (MySQL / SQLite, human_scoring/db.py)
 SERMON_TIMEOUT = 600
 WS_TIMEOUT = {"sermon_start": 360, "sermon_turn": 300, "sermon_draft": 420}   # 講章工作區各步驟的等候上限（秒）
 WS_TURN_LIMIT = 20       # 每位牧者每天在講章工作區最多問幾次（開講章另計，每天 --sermon-daily-limit 篇）
@@ -140,21 +143,30 @@ def add_group(name: str, path: Path = ASSIGNMENT, role: str = "lay", db: DB | No
 
 
 class Store:
-    """Links, answers, ratings, sermon projects and costs in the database; the blind-scoring
-    answers (packaged eval runs) and the questions asked here are also held in memory."""
+    """Links, answers, ratings, sermon projects and costs in the chosen storage (plain files, the
+    default, or the database); the blind-scoring answers (packaged eval runs) and the questions
+    asked here are also held in memory."""
 
     def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path = CHAT_DIR,
-                 rubric: Path = RUBRIC_10, db: DB | None = None):
+                 rubric: Path = RUBRIC_10, db=None, storage: str | None = None):
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
-        self.db = db or DB(sqlite_file=chat_dir / "theoclaw.db")
-        # files from before the database (and links added with `prepare`/`group`): brought in, once
         run_dirs = sorted({_abs(e["run_dir"]) for e in data["items"]})
-        imported = import_files(self.db, path, chat_dir, run_dirs)
-        if any(imported.values()):
-            sys.stderr.write(f"imported into the database: {imported}\n")
-        for code, entry in data["raters"].items():  # a re-run `prepare` changes a rater's order
-            if not entry.get("group"):
-                self.db.put_link(code, entry)
+        if db is None and (storage or STORAGE) == "files":
+            db = FileStore(path, chat_dir)
+            for d in run_dirs:
+                db.register(d)
+        elif db is None:
+            db = DB(sqlite_file=chat_dir / "theoclaw.db")
+        self.db = db
+        if isinstance(db, DB):
+            # files from before the database, or written by the file-based server since, and links
+            # added with `prepare`/`group`: brought in (what is already there is skipped)
+            imported = import_files(self.db, path, chat_dir, run_dirs)
+            if any(imported.values()):
+                sys.stderr.write(f"imported into the database: {imported}\n")
+            for code, entry in data["raters"].items():  # a re-run `prepare` changes a rater's order
+                if not entry.get("group"):
+                    self.db.put_link(code, entry)
         self.raters = self.db.links()
         self.rubric = load_rubric(rubric)
         self.items: dict[str, Item] = {}
@@ -834,6 +846,8 @@ def main(argv=None):
                    help="循道衛理知識庫（平信徒提問與講道預備共用）")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
+    p.add_argument("--storage", choices=("files", "db"), default=STORAGE,
+                   help="資料存成檔案（預設）或資料庫（.env 的 THEOCLAW_DB，沒有就用 SQLite 檔）")
     a = ap.parse_args(argv)
     if a.cmd == "prepare":
         data = prepare(a.run_dirs, [r.strip() for r in a.raters.split(",") if r.strip()], a.sample, a.flagged_by)
@@ -841,20 +855,20 @@ def main(argv=None):
         for code, r in data["raters"].items():
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
     elif a.cmd == "group":
-        code = add_group(a.name, role=a.role, db=DB(sqlite_file=CHAT_DIR / "theoclaw.db"))
+        code = add_group(a.name, role=a.role)  # the database server reads it in at its next start
         print(f"團體連結（{a.name}，{'牧者' if a.role == 'pastor' else '平信徒'}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
                  "kb": a.kb} if a.chat else None)
         try:
-            store = Store(chat=chat, rubric=Path(a.rubric))
+            store = Store(chat=chat, rubric=Path(a.rubric), storage=a.storage)
         except Exception as e:  # the database is the usual cause: say so in one line, not a traceback
             if type(e).__module__.startswith(("sqlalchemy", "pymysql")):
                 raise SystemExit(f"連不上資料庫（{db_mod.db_url().split('@')[-1]}）：{getattr(e, 'orig', e)}\n"
                                  "請檢查 .env 的 THEOCLAW_DB（帳號、密碼、資料庫名稱）以及 MySQL 是否在執行。") from None
             raise
-        print(f"資料庫：{store.db.url}")
+        print(f"資料存放：{store.db.url}")
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
         print(f"{len(store.items)} 個回答、{len(store.raters)} 位評分人{note}。"

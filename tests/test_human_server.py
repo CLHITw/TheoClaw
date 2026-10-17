@@ -14,14 +14,17 @@ hs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hs)
 
 
-@pytest.fixture(autouse=True)
-def own_database(tmp_path, monkeypatch):
-    """Every test its own SQLite database, never the project's or the server's."""
+@pytest.fixture(autouse=True, params=["files", "db"])
+def storage(request, tmp_path, monkeypatch):
+    """Every server test on both storages; the database is each test's own SQLite file,
+    never the project's or the server's."""
     monkeypatch.setenv("THEOCLAW_DB", f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
+    monkeypatch.setattr(hs, "STORAGE", request.param)
+    return request.param
 
 
-def _ratings(rater=None):
-    return sorted(hs.DB().ratings(rater=rater), key=lambda r: r["rated_at"])
+def _ratings(store, rater=None):
+    return sorted(store.db.ratings(rater=rater), key=lambda r: r["rated_at"])
 
 
 def _run(tmp_path, name, n=3):
@@ -54,7 +57,7 @@ def test_blind_items_full_tools_and_ratings_saved(tmp_path):
     assert store.rate(code, {"id": it["id"], "scores": dims, "verdict": None}) == "請選擇總評"
     assert "還沒有評分" in store.rate(code, {"id": it["id"], "scores": {}, "verdict": True})
     assert store.rate(code, {"id": it["id"], "scores": dims, "verdict": False, "problems": ["shallow", "bogus"]}) is None
-    rec = _ratings("王牧師")
+    rec = _ratings(store, "王牧師")
     assert len(rec) == 1 and rec[0]["problems"] == ["shallow"] and rec[0]["blind"] and rec[0]["verdict"] is False
     assert hs.Store(path).state(code)["done"] == [it["id"]]  # survives a restart (any rubric)
     assert store.item(code, it["id"])["previous"]["verdict"] is False
@@ -74,10 +77,9 @@ def test_default_rubric_is_one_score_0_to_10(tmp_path):
     assert "無效" in store.rate(code, {"id": item, "scores": {"overall": True}})
     assert store.rate(code, {"id": item, "scores": {"overall": 6}}) is None  # verdict from the score, none sent
     assert store.rate(code, {"id": item, "scores": {"overall": 7}, "verdict": False}) is None  # client verdict ignored
-    with hs.DB().engine.connect() as c:  # every rating kept, the latest one counts
-        rows = [r.data for r in c.execute(hs.db_mod.select(hs.db_mod.ratings.c.data).order_by(hs.db_mod.ratings.c.id))]
+    rows = [r for _, r in store.db.all_ratings()]  # every rating kept, the latest one counts
     assert [(r["scores"]["overall"], r["verdict"]) for r in rows] == [(6, False), (7, True)]
-    assert [r["scores"]["overall"] for r in _ratings("信徒1")] == [7]
+    assert [r["scores"]["overall"] for r in _ratings(store, "信徒1")] == [7]
 
 
 def test_http_requires_code(tmp_path):
@@ -121,7 +123,7 @@ def test_chat_mode_limits_and_saving(tmp_path):
     assert store.item(codes[1], j["item"]) is None and store.item(codes[0], j["item"])["chat"]
     dims = {d["key"]: 5 for d in store.rubric["dimensions"]}
     assert store.rate(codes[0], {"id": j["item"], "scores": dims, "verdict": True}) is None
-    [rec] = _ratings("牧者1")
+    [rec] = _ratings(store, "牧者1")
     assert rec["mode"] == "own" and rec["blind"] is False
     again = hs.Store(path, chat={"model": "deepseek-flash", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=chat_dir)
     assert [q["rated"] for q in again.state(codes[0])["chat"]["questions"]] == [True]
@@ -176,7 +178,7 @@ def test_group_link_is_private_per_person(tmp_path):
         assert store.state(code, other)["chat"]["questions"] == []
         assert store.item(code, item, other) is None and store.rate(code, {"id": item, "scores": {"overall": 3}}, other) == "找不到這一題"
     assert store.rate(code, {"id": item, "scores": {"overall": 8}}, tom1) is None
-    [rec] = _ratings()
+    [rec] = _ratings(store)
     assert rec["rater"].startswith("查經班·小明#") and "k" * 20 not in json.dumps(rec)  # a hash, not the key
     personal = next(c for c, r in store.raters.items() if not r.get("group"))
     assert store.item(personal, item) is None  # a pastor's personal link cannot see it either
@@ -199,11 +201,11 @@ def test_denomination_recorded_with_question_and_rating(tmp_path):
     j = store.ask(code, "What is grace?", runner=fake, nick="Tom", denomination="聖公會 Anglican")
     store.ask(code, "Another?", runner=fake, nick="Tom", denomination="made up")
     time.sleep(0.3)
-    traces = hs.DB().answers()
+    traces = store.db.answers()
     assert sorted(str(t["denomination"]) for t in traces) == ["None", "聖公會 Anglican"]
     item = store.job(code, j["job"], "Tom")["item"]
     assert store.rate(code, {"id": item, "scores": {"overall": 7}, "denomination": "聖公會 Anglican"}, "Tom") is None
-    [rec] = _ratings()
+    [rec] = _ratings(store)
     assert rec["denomination"] == "聖公會 Anglican"
 
 

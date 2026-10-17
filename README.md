@@ -412,9 +412,12 @@ storage) for raters who will not use a terminal:
 - **Ask mode (`--chat`).** Raters ask their own questions. The agent (deepseek-flash)
   answers with the same tools, and they score the answer on the same rubric. Every
   question is traced in full, with a daily limit per rater and an overall budget.
-- **Storage (`human_scoring/db.py`).** Links, users, questions and answers (with every tool
-  call), ratings, sermon projects and research costs live in one database: MySQL on the
-  server (`THEOCLAW_DB=mysql+pymysql://…` in `.env`), a SQLite file anywhere else. Each row
+- **Storage (`--storage files|db`).** By default the server keeps its data in the file
+  layout the eval tools read (`files_store.py`). With `--storage db` (`db.py`) links, users,
+  questions and answers (with every tool call), ratings, sermon projects and research costs
+  live in one database: MySQL on the server (`THEOCLAW_DB=mysql+pymysql://…` in `.env`), a
+  SQLite file anywhere else. On the VPS the database version runs as a second service on its
+  own port and tunnel, for testing beside the file version in use. Each row
   keeps the full record as JSON plus the columns one queries by (asker, time, conversation,
   score). On start the server imports the earlier file-based data once (safe to repeat);
   `db.py export <folder>` writes the file layout the eval tools read, and `deploy/export.sh`

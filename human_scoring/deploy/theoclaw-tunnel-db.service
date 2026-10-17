@@ -1,0 +1,11 @@
+[Unit]
+Description=Cloudflare 臨時通道：資料庫測試版（本機 8766）
+After=network-online.target theoclaw-scoring-db.service
+
+[Service]
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8766
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
