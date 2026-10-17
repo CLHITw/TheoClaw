@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import json
 import random
@@ -58,8 +59,8 @@ DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Bapt
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
-GROUP_DAYS = 2             # a group member also sees (and may score) the group's questions of the last two days
-_NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·]{1,20}$")
+_NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
+_KEY = re.compile(r"^[A-Za-z0-9_-]{16,64}$")  # a random key each browser makes once and keeps
 
 # 「主要問題」：評分人勾選答案的毛病，日後可直接變成回歸測試題
 PROBLEMS = [
@@ -161,28 +162,31 @@ class Store:
     def rater(self, code: str) -> dict | None:
         return self.raters.get(code or "")
 
-    def who(self, code: str, nick: str | None = None) -> dict | None:
-        """The rater behind a request. A personal link is the rater; a group link plus a
-        nickname is one member of the group, recorded as 「群組·暱稱」. None: group link
-        without a valid nickname yet."""
+    def who(self, code: str, nick=None) -> dict | None:
+        """The rater behind a request. A personal link is the rater. On a group link a person
+        is their nickname plus the private key their browser made (sent as (nick, key) by the
+        web page): two people who pick the same nickname are still two people and never see
+        each other's questions. Recorded as 「群組·暱稱#xxxxxxxx」 (a hash of the key, not the key).
+        None: a group link without a valid nickname or key yet."""
         r = self.raters[code]
         if not r.get("group"):
             return r
+        key = None
+        if isinstance(nick, tuple):
+            nick, key = nick
+            if not _KEY.match(key or ""):
+                return None
         nick = (nick or "").strip()
         if not _NICK.match(nick):
             return None
-        return {"name": f"{r['name']}{GROUP_SEP}{nick}", "order": [], "group": r["name"], "role": r.get("role", "lay")}
+        tag = "#" + hashlib.sha256(key.encode()).hexdigest()[:8] if key else ""
+        return {"name": f"{r['name']}{GROUP_SEP}{nick}{tag}", "nick": nick, "order": [], "group": r["name"],
+                "role": r.get("role", "lay")}
 
     @staticmethod
     def is_pastor(r: dict) -> bool:
         """Personal links are the pastors' (and the project owner's); a group link by its role."""
         return not r.get("group") or r.get("role") == "pastor"
-
-    def _group_items(self, group: str) -> list[str]:
-        since = time.strftime("%Y%m%d", time.localtime(time.time() - GROUP_DAYS * 86400))
-        return sorted((i for i, n in self.owner.items()
-                       if n.startswith(group + GROUP_SEP) and str(self.items[i].trace.get("asked_at", "")) >= since),
-                      key=lambda i: self.items[i].trace.get("asked_at", ""))
 
     def done(self, name: str) -> dict[str, dict]:
         """item id -> latest rating by this rater."""
@@ -208,10 +212,7 @@ class Store:
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
             if self.is_pastor(r) and self.chat.get("sermon_daily_limit"):
                 chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
-            if r.get("group"):  # the others' questions, so answers get more than one rater
-                chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
-                                  for i in self._group_items(r["group"]) if self.owner[i] != r["name"]]
-        return {"rater": r["name"], "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
+        return {"rater": r.get("nick", r["name"]), "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
                 "problems": PROBLEMS, "chat": chat, "denominations": DENOMINATIONS,
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
                            "allow_na": self.rubric.get("allow_na", True), "anchors": self.rubric.get("anchors", []),
@@ -272,9 +273,8 @@ class Store:
     def _allowed(self, r: dict, item_id: str) -> bool:
         if item_id not in self.items:
             return False
-        if item_id in r["order"] or self.owner.get(item_id) == r["name"]:
-            return True
-        return bool(r.get("group")) and item_id in self._group_items(r["group"])
+        # Private like a pastoral conversation: only one's own questions, never anyone else's.
+        return item_id in r["order"] or self.owner.get(item_id) == r["name"]
 
     def _chat_traces(self) -> list[dict]:
         return [self.items[i].trace for i in self.owner]
@@ -615,6 +615,24 @@ class Store:
 
 # ---------------------------------------------------------------- HTTP
 
+_ZH_MAP: bytes | None = None
+
+
+def zh_map() -> bytes:
+    """Every CJK character whose Simplified form differs, 繁 -> 簡 (OpenCC t2s), as JSON; built once."""
+    global _ZH_MAP
+    if _ZH_MAP is None:
+        from theoclaw.common import zh
+        out = {}
+        if zh.available():
+            chars = "".join(chr(c) for c in range(0x4E00, 0xA000))
+            conv = zh.to_simplified(chars)
+            if len(conv) == len(chars):
+                out = {a: b for a, b in zip(chars, conv) if a != b}
+        _ZH_MAP = json.dumps(out, ensure_ascii=False).encode("utf-8")
+    return _ZH_MAP
+
+
 def make_handler(store: Store):
     class Handler(BaseHTTPRequestHandler):
         server_version = "TheoClawScoring/2.0"
@@ -647,10 +665,19 @@ def make_handler(store: Store):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if u.path == "/zhmap.json":  # 繁 -> 簡 for the page's switch; no code needed, it holds no data
+                body = zh_map()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效，請向負責人索取您的專屬連結"}, HTTPStatus.FORBIDDEN)
-            nick = (q.get("u") or [""])[0]
+            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
             if u.path == "/api/state":
                 return self._json(store.state(code, nick))
             if u.path == "/api/item":
@@ -672,7 +699,7 @@ def make_handler(store: Store):
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
-            nick = (q.get("u") or [""])[0]
+            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
             if u.path not in ("/api/rate", "/api/ask", "/api/sermon", "/api/sermon/start", "/api/sermon/turn",
                               "/api/sermon/assemble", "/api/sermon/board"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -720,10 +747,10 @@ def main(argv=None):
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--chat", action="store_true", help="開啟提問模式（需要 DEEPSEEK_API_KEY）")
     p.add_argument("--chat-model", default=CHAT_MODEL, help=f"提問模式的模型（預設 {CHAT_MODEL}）")
-    p.add_argument("--daily-limit", type=int, default=30, help="每人每天最多問幾題")
+    p.add_argument("--daily-limit", type=int, default=20, help="每人每天最多問幾題")
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
     p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題")
-    p.add_argument("--sermon-daily-limit", type=int, default=5, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
+    p.add_argument("--sermon-daily-limit", type=int, default=15, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
     p.add_argument("--sermon-kb", default=SERMON_KB, help="講道預備時衛斯理傳統研究用的知識庫")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")

@@ -325,6 +325,16 @@
     .verdict-btn { max-width: 100%; }
     .actions { flex-direction: column; }
     .actions .btn { width: 100%; }
+    .header-inner { flex-direction: row; align-items: center; }
+    .header h1 { font-size: 1rem; }
+    .tabs { flex-wrap: wrap; }
+    .tab { flex: 1 1 30%; font-size: 0.85rem; padding: 8px 4px; }
+    .dim-btn { min-width: 30px; padding: 6px 0; }
+    .rate-panel .dim-options { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+    .turn > summary { flex-wrap: wrap; }
+    .turn > summary .tag { width: 100%; padding-left: 14px; }
+    .nav { flex-wrap: wrap; gap: 6px; }
+    .rich { font-size: 0.95rem; }
   }
 
   /* Hidden */
@@ -384,7 +394,10 @@
 <header class="header">
   <div class="header-inner">
     <h1>TheoClaw 人工評分</h1>
-    <div class="progress-info" id="progressInfo">載入中…</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="progress-info" id="progressInfo">載入中…</div>
+      <button class="btn btn-secondary btn-sm" id="scriptBtn" onclick="toggleScript()" title="簡體／繁體">&#31616;</button>
+    </div>
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 </header>
@@ -396,6 +409,8 @@
     <div class="card-title">請先輸入您的稱呼 · Please enter your name</div>
     <div class="help">用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。<br>
     A nickname is fine (no full name needed); this device will remember it. Please use the same name each time.</div>
+    <div class="help" style="margin-top:6px">🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。
+    · Your questions are private: only you, on this device, can see them.</div>
     <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom">
     <div class="help" style="margin-top:10px">您所屬的宗派（只作統計，回答目前以循道衛理立場為主）· Your church tradition (for statistics only; answers currently take a Methodist perspective)</div>
     <select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select>
@@ -430,10 +445,6 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
     <div class="card">
       <div class="card-title">我問過的問題 · My questions（點選可查看或修改評分 · tap to view or change your score）</div>
       <ul class="q-list" id="qList"></ul>
-    </div>
-    <div class="card hidden" id="othersCard">
-      <div class="card-title">團契其他人這兩天的問題 · Others' questions from the last two days（也請幫忙評分 · please score them too）</div>
-      <ul class="q-list" id="otherList"></ul>
     </div>
   </div>
 
@@ -529,12 +540,21 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
 const code = new URLSearchParams(location.search).get('t') || '';
 let state = null, pos = 0, item = null, scores = {}, verdict = null, problems = new Set();
 const NICK_KEY = 'theoclaw_nick_' + code;
-let nick = '', denom = '';
+let nick = '', denom = '', deviceKey = '';
+try {
+  deviceKey = localStorage.getItem('theoclaw_device') || '';
+  if (!deviceKey) {
+    const a = new Uint8Array(18); crypto.getRandomValues(a);
+    deviceKey = Array.from(a, b => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[b % 64]).join('');
+    localStorage.setItem('theoclaw_device', deviceKey);
+  }
+} catch (e) { deviceKey = 'session' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
 try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
-  return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : ''), opts)
+  return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : '') +
+               '&k=' + encodeURIComponent(deviceKey), opts)
     .then(r => r.json());
 }
 
@@ -651,16 +671,6 @@ function refreshAsk() {
       a.onclick = (e) => { e.preventDefault(); changeName(); };
       info.appendChild(a);
     }
-    const others = c.others || [];
-    document.getElementById('othersCard').classList.toggle('hidden', !c.others);
-    const ol = document.getElementById('otherList');
-    ol.innerHTML = others.length ? '' : '<li class="help">暫時還沒有</li>';
-    others.slice().reverse().forEach(q => {
-      const li = document.createElement('li');
-      li.textContent = (q.rated ? '✓ ' : '○ ') + q.prompt;
-      li.onclick = () => showId(q.id);
-      ol.appendChild(li);
-    });
     document.getElementById('askBtn').disabled = !c.open || c.remaining_today <= 0;
     const ul = document.getElementById('qList');
     ul.innerHTML = '';
@@ -1074,6 +1084,58 @@ function save() {
     })
     .catch(() => { btn.disabled = false; showToast('儲存失敗，請檢查網路後再按一次'); });
 }
+
+// 簡／繁: the server sends a character map (繁 -> 簡, from OpenCC); the page converts every text
+// it shows, including what is drawn later, and remembers the choice on this device.
+let zhMap = null, zhMode = 'hant';
+const zhOriginal = new WeakMap();
+try { zhMode = localStorage.getItem('theoclaw_script') || 'hant'; } catch (e) {}
+
+function toHans(t) { let o = ''; for (const c of t) o += zhMap[c] || c; return o; }
+
+function convertNode(node) {
+  if (node.nodeType === 3) {
+    if (zhMode === 'hans') {
+      if (!zhOriginal.has(node)) zhOriginal.set(node, node.nodeValue);
+      const v = toHans(zhOriginal.get(node));
+      if (node.nodeValue !== v) node.nodeValue = v;
+    } else if (zhOriginal.has(node)) {
+      node.nodeValue = zhOriginal.get(node); zhOriginal.delete(node);
+    }
+    return;
+  }
+  if (node.nodeType !== 1 || node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return;
+  if (node.placeholder) {
+    if (!node.dataset.ph) node.dataset.ph = node.placeholder;
+    node.placeholder = zhMode === 'hans' ? toHans(node.dataset.ph) : node.dataset.ph;
+  }
+  node.childNodes.forEach(convertNode);
+}
+
+function applyScript() {
+  document.getElementById('scriptBtn').textContent = zhMode === 'hans' ? '繁' : '\u7b80';
+  convertNode(document.body);
+}
+
+function toggleScript() {
+  const go = () => { zhMode = zhMode === 'hans' ? 'hant' : 'hans';
+    try { localStorage.setItem('theoclaw_script', zhMode); } catch (e) {} applyScript(); };
+  if (zhMap) go(); else fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; go(); });
+}
+
+new MutationObserver(muts => {
+  if (zhMode !== 'hans' || !zhMap) return;
+  muts.forEach(m => {
+    if (m.type === 'characterData') {
+      const o = zhOriginal.get(m.target);
+      if (o !== undefined && m.target.nodeValue === toHans(o)) return;  // our own conversion, not new text
+      zhOriginal.delete(m.target); convertNode(m.target);
+    }
+    m.addedNodes.forEach(convertNode);
+  });
+}).observe(document.body, {childList: true, subtree: true, characterData: true});
+
+if (zhMode === 'hans') fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; applyScript(); });
 
 function showToast(msg) {
   const t = document.getElementById('toast');

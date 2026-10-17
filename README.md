@@ -465,6 +465,12 @@ one-shot generator.
 4. **Assemble:** the writer joins the board into one manuscript, keeping the pastor's
    pieces and adding only titles and transitions, then the checks run again.
 
+**Privacy.** Questions are treated like a private pastoral conversation:
+
+- Each person sees only their own questions, answers and sermons. There is no shared list and no scoring of others' answers.
+- On a shared link, a person is their nickname plus a random key their browser makes once. Two people who choose the same nickname are still separate.
+- Records keep only a hash of that key.
+
 Every reply and every manuscript is its own scored item (0–10), so evaluation can tell
 which kinds of request work. `theoclaw.agent.sermon.prepare` keeps the one-shot pipeline
 (research, then write, then check, then revise once) for the single-agent vs multi-agent

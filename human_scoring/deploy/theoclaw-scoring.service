@@ -5,8 +5,9 @@ After=network-online.target
 [Service]
 User=theoclaw
 WorkingDirectory=/opt/theoclaw
-# 提問模式：每人每天 10 題、團體連結每天合計 60 題，總花費上限 5 美元；要改上限就改這一行，再 systemctl restart theoclaw-scoring
-ExecStart=/opt/theoclaw/.venv/bin/python human_scoring/human_server.py serve --chat --host 127.0.0.1 --port 8765 --daily-limit 10 --group-daily-limit 60 --budget 5
+# 平信徒每人每天 20 題（團體連結全團合計 200 題）；牧者每人每天 15 篇講章；總花費上限 5 美元。
+# 要改上限就改下面這一行，再 systemctl restart theoclaw-scoring
+ExecStart=/opt/theoclaw/.venv/bin/python human_scoring/human_server.py serve --chat --host 127.0.0.1 --port 8765 --daily-limit 20 --group-daily-limit 200 --sermon-daily-limit 15 --budget 5
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
