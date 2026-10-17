@@ -412,8 +412,11 @@
     <div class="help" style="margin-top:6px">🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。
     · Your questions are private: only you, on this device, can see them.</div>
     <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom">
-    <div class="help" style="margin-top:10px">您所屬的宗派（只作統計，回答目前以循道衛理立場為主）· Your church tradition (for statistics only; answers currently take a Methodist perspective)</div>
-    <select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select>
+    <!-- 宗派選擇暫時不顯示：目前只有循道衛理的資料，預設循道衛理；補上其他宗派的內容後再打開 -->
+    <div class="hidden">
+      <div class="help" style="margin-top:10px">您所屬的宗派（只作統計，回答目前以循道衛理立場為主）· Your church tradition (for statistics only; answers currently take a Methodist perspective)</div>
+      <select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select>
+    </div>
     <div class="actions"><button class="btn" onclick="setName()">開始 · Start</button></div>
   </div>
 
@@ -588,7 +591,7 @@ function init() {
       const sel = document.getElementById('denomSelect');
       sel.innerHTML = '';
       s.denominations.forEach(d => { const o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
-      sel.value = s.denominations.find(d => d.startsWith('無宗派')) || s.denominations[0];
+      sel.value = s.denominations.find(d => d.startsWith('循道衛理')) || s.denominations[0];
       document.getElementById('nameCard').classList.remove('hidden');
       return;
     }
