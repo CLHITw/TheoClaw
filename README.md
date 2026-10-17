@@ -2,15 +2,57 @@
 
 TheoClaw is a small tool-using agent that helps a Mandarin-speaking fellowship of the
 Methodist Church, Hong Kong (香港循道衛理聯合教會) prepare Bible studies, and helps
-preachers prepare Sunday sermons. It answers
-in Traditional Chinese, quotes scripture only from a lookup tool, and draws on the
-Methodist sources: John Wesley's *Explanatory Notes upon the New Testament* and, through
-a compiled knowledge base, his other writings and the fellowship's course material.
+preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified) or
+English, quotes scripture only from a lookup tool, and draws on the Methodist sources:
+John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
+base, his sermons, journal, hymns, the General Rules and the fellowship's course material.
+It is deployed: church members and pastors use it through a web page, and score what it says.
 
 The agent is the small part. Most of this repository is the evaluation harness around
 it: every task runs N times, every model call and tool call is traced, tools can be
-broken on purpose, answers can be scored by people, and the reports separate "succeeds
-sometimes" (pass@k) from "succeeds every time" (pass^k), with tokens and cost per answer.
+broken on purpose, answers are scored by people and by checkers whose own reliability is
+measured, and the reports separate "succeeds sometimes" (pass@k) from "succeeds every
+time" (pass^k), with tokens and cost per answer.
+
+## At a glance
+
+**The problem.** A domain-specific, nondeterministic agent for people who cannot check its
+sources themselves: a wrong verse or an invented Wesley quotation in a Bible study is worse
+than no answer. Unit tests do not tell whether it works; the question is how to know, with
+how much evidence, and at what cost.
+
+**What was built** (Python, 144 tests, no agent framework):
+
+- *The agent:* a hand-written tool loop; scripture is never written by the model but filled
+  in by the program from a lookup; a multi-agent sermon pipeline (two research agents, a
+  writer, deterministic and model checks, one revision) and a step-by-step workspace for pastors.
+- *Evals:* tasks run N times with pass@k / pass^k; injected tool faults; rule graders that
+  are themselves tested against fake models; a groundedness evaluator (RAGAS / FActScore
+  style) and a citation-precision check (ALCE style), with a blind sheet for a person to check the checker.
+- *Decisions:* `evals decide`, a two-stage bootstrap non-inferiority test with margins fixed
+  in advance and a simulation of how much data a decision needs.
+- *Judges:* `evals judge`, measuring an LLM judge's position, length and self-preference bias
+  against blind human scores.
+- *Production:* a web app on a VPS (systemd, Cloudflare tunnel, MySQL) where members ask
+  and score answers, private per person; `evals monitor` compares the automatic checks with
+  their scores, measures coverage of the test suite, and turns low-scored answers into
+  draft regression tasks.
+
+**What the numbers said:**
+
+- Cheaper model kept: 270 blind-scored answers, not worse on any human metric, 5× cheaper,
+  yet the pre-registered rule said "wait" on one metric whose interval was too wide; the
+  sample-size simulation gives the data needed (about 108 tasks × 3 runs).
+- Rule graders are a floor, not quality: Cohen's kappa ≈ 0 against the human verdict.
+- The LLM judge's main bias is answer length (the longer answer wins 65%), not self-preference.
+- How a long PDF is ingested mattered more than compiling it: wiki + search beat plain RAG on
+  faithfulness (92% vs 88%) and citation precision (91% vs 85%).
+- Giving lay members the Methodist knowledge base: faithfulness 67% → 92% (+25.5 pp, 95%
+  interval +10.8 to +42.3), at $0.010 per answer.
+
+**What is not solved yet:** live monitoring has few human scores so far (7 answers scored), too few to say
+whether the automatic flags catch what people dislike; coverage is measured by question
+category only; one reference rater for the model comparison.
 
 ## What this project tries to answer
 
@@ -22,9 +64,9 @@ in this repository and what is still missing.
 |---|---|---|---|
 | **How much evidence is enough to act?** (deploy, roll back, switch model) | `evals decide`: two-stage bootstrap (tasks, then runs within a task) non-inferiority test with margins fixed before looking; sequential view ("from how many runs would the decision have held?"); simulated sample-size planning | [`runs/calibration/decision_qwen-max_to_deepseek-flash.md`](runs/calibration/decision_qwen-max_to_deepseek-flash.md) | done, used once on a real decision |
 | **Can an LLM judge stand in for a person?** | `evals judge score / pair / analyze`: blind rubric scoring, pairwise judgments in both orders, agreement with a reference rater, self-preference, position and length bias | [`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md) | done against one reference rater; domain experts are rating now |
-| **How do domain experts turn traces into evals?** | a blind web scoring tool for pastors (rubric, 11 problem types, and a mode where they ask their own questions and score the answer); always-on graders; graders checked against two fake models | [`human_scoring/`](human_scoring/), [Human scoring](#human-scoring) | half: experts can flag problems, but a flagged trace does not yet become a regression task by itself |
-| **Can production behaviour be monitored as precisely as regression evals?** | every live question and answer is traced in the same format as eval runs | `runs/pastor-chat/` on the server (not published) | not started: no detector or baseline comparison yet |
-| **How far is the eval suite from real use?** (coverage) | 27 tasks in 9 categories (quotation, cross references, Wesley notes, study, worship, sermon, doctrine, traps, tool faults) | [`tasks/tasks.yaml`](tasks/tasks.yaml) | not started |
+| **How do domain experts turn traces into evals?** | a web app where members and pastors ask their own questions and score the answers (0–10, 11 problem types, comments); blind scoring of eval runs; `evals monitor --export-tasks` writes low-scored or flagged answers as draft regression tasks with the raters' comments | [`human_scoring/`](human_scoring/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; the drafts still need a person to write the expected behaviour |
+| **Can production behaviour be monitored as precisely as regression evals?** | every live answer is traced like an eval run; `evals monitor` runs the rule graders and the groundedness evaluator on it and reports their precision and recall against the people's scores, and rater agreement | [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built and run on the first real data (12 answers, 7 scored): too few to judge the flags yet |
+| **How far is the eval suite from real use?** (coverage) | 27 regression tasks in 9 categories plus 10 everyday lay questions; `evals monitor` puts each real question in a category (a model call per batch) and compares the counts with the suite | [`tasks/`](tasks/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; by category only, not by behaviour |
 
 ### Findings so far
 
@@ -84,8 +126,8 @@ in this repository and what is still missing.
 | `theoclaw.kb.query` | reads a compiled wiki (the agent's kb tools); measures and queries wikis | `python -m theoclaw.kb.query …` |
 | `theoclaw.evals` | runs, graders, reports, cost comparison, experiments, human scoring | `python -m theoclaw.evals …` |
 | `theoclaw.llm` | every model call's settings: roles, providers, models and prices, API clients, single completions | `python -m theoclaw.llm …` |
-| `theoclaw.common` | shared: references, scripture data, prices, token counting, 繁體 check | |
-| `theoclaw/ui/` | placeholder, not started | |
+| `theoclaw.common` | shared: references, scripture data, prices, token counting, 繁體 check, original-language word study | |
+| `human_scoring/` | the web app: asking, scoring, sermon workspace, storage (files or MySQL), deployment | `python human_scoring/human_server.py …` |
 
 Content you edit lives outside the code:
 
@@ -169,8 +211,9 @@ Tools come in groups, switched on with `--tools`:
 
 | group | tools | source |
 |---|---|---|
-| `scripture` | `lookup_verse` (和合本 / KJV), `cross_references` | `data/` |
+| `scripture` | `lookup_verse` (和合本 / KJV / World English Bible), `cross_references` | `data/` |
 | `wesley` | `wesley_note`: Wesley's NT note on one verse, exact lookup | `data/wesley_nt.json` |
+| `reference` | Bible dictionaries (ISBE, Easton, Smith) and the original-language word study; pastors only | `data/reference/`, `data/original/` |
 | `kb` | `kb_read_file`, `kb_get_page_content` over a compiled wiki | `knowledge/<name>/` |
 | `rag` | `rag_search`: BM25 over the same wiki's source text, nothing compiled (the baseline for the compile) | `knowledge/<name>/wiki/sources/` |
 
@@ -189,7 +232,7 @@ model's own text is kept in the trace as `model_text`:
 
 1. **Simplified → 繁體** (`common.zh.fix_simplified`): flagged characters only.
 2. **Scripture placeholders** (`agent/quotes.py`). For a whole verse or passage the model
-   does not write the text: it writes `〔經文：羅馬書 5:8〕` (or `，KJV`), and the program
+   does not write the text: it writes `〔經文：羅馬書 5:8〕` (or `，WEB` / `，KJV`), and the program
    fills in the verse through the same `lookup_verse` handler the run was given, as
    「…」（羅馬書 5:8，和合本）. Each fill is recorded as a `fill_quote` tool call, and an
    injected fault reaches it too: a failed lookup leaves 〔經文查詢失敗：…〕 instead of text.
@@ -442,12 +485,14 @@ The first lay testers, an English-speaking Bible-study group, gave three pieces 
 
 What changed:
 
-- **Language.** The agent answers in the language of the question. English answers use
-  the KJV and plain English, with no Chinese at all; many in that group use Bible study
-  to practise English.
-- **Tradition, recorded.** The online page asks each person once for their church
-  tradition (dropdown, including "non-denominational"). It is stored with every question
-  and rating. Answers still take a Methodist perspective.
+- **Language.** The agent answers in the language of the question, and the page has a
+  Traditional / Simplified / English switch for its own text and for the answers (the English page asks for
+  English answers whatever language the question is in; each answer records which). English
+  answers quote the World English Bible (the KJV on request) in plain English, with no
+  Chinese at all; many in that group use Bible study to practise English.
+- **Tradition, recorded.** Every question and rating records the asker's church tradition;
+  for now it is Methodist by default (the choice is hidden until other traditions'
+  sources are in). Answers take a Methodist perspective.
 - **Tradition, planned.** One compiled wiki per tradition. The agent answers from the
   wiki of the asker's tradition, or compares several. "Non-denominational" would draw on
   every tradition that confesses the Trinity. The groundedness, citation and monitoring
@@ -469,14 +514,16 @@ one-shot generator.
      usual English renderings across the Bible, and the research briefs in English.
    - Two research agents run in parallel:
      - scripture: the passage, cross references, Bible dictionaries;
-     - Wesley and Methodist sources: his notes, plus the compiled *Plain Account* wiki
-       with search.
+     - Wesley and Methodist sources: his notes, plus the compiled Methodist wiki (sermons,
+       journal, *Plain Account*, rules, articles, course booklets) and search, hymns included.
    - Each returns sourced, numbered points.
 2. **Ask, one request at a time:** one assistant agent with every pastor tool answers only
    that request, in about 20–60 seconds for about $0.005–0.02.
    - Context is managed by state, not by an ever-growing history. The agent sees the
-     research briefs and a short state document: the sermon, the draft board, and the last
-     four turns shortened.
+     research briefs and a short state document: the sermon, the draft board, and the
+     conversation so far within a fixed budget (the last three turns in full, earlier
+     questions only; `theoclaw/agent/conversation.py`, also used for lay members' follow-up
+     questions).
    - Written passages get the deterministic checks and a model check against the briefs
      and that turn's own lookups. Statements it cannot verify are shown to the pastor as
      "not verified", not as "wrong".
@@ -577,13 +624,15 @@ answers the scrub would have cut the answers with internal words from 11 to 1.
 |---|---|---|
 | `cuv.json` | 和合本（繁體）, via scrollmapper/bible_databases | public domain |
 | `kjv.json` | King James Version (1769), same source | public domain |
+| `web.json` | World English Bible, eBible.org (66 books; psalm headings taken out of verse 1) | public domain |
 | `crossrefs.json` | OpenBible.info cross references (top 25 per verse by votes) | CC-BY, credit OpenBible.info |
 | `wesley_nt.json` | Wesley, *Explanatory Notes upon the New Testament*, parsed from the PDF in the Methodist folder | text in the public domain |
 
 Only the New Testament part of the Wesley PDF is used: it is Wesley's own work and a
 doctrinal standard; the Old Testament notes are largely adapted from other
 commentators. The parser is heuristic (5,595 verse notes); spot-check a sample by hand
-before building tasks on a specific note. `scripts/build_data.py` rebuilds `data/`.
+before building tasks on a specific note. `scripts/build_data.py` rebuilds `data/`
+(`scripts/build_web.py` the World English Bible).
 
 ## Known pitfalls for graders
 
