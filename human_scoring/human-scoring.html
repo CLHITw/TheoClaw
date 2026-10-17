@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TheoClaw 人工評分</title>
+<title>TheoClaw</title>
 <style>
   :root {
     --bg: #f8f7f4;
@@ -393,7 +393,7 @@
 
 <header class="header">
   <div class="header-inner">
-    <h1>TheoClaw 人工評分</h1>
+    <h1>TheoClaw</h1>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="progress-info" id="progressInfo">載入中…</div>
       <button class="btn btn-secondary btn-sm" id="scriptBtn" onclick="toggleScript()" title="簡體／繁體">&#31616;</button>
@@ -593,7 +593,7 @@ function init() {
       return;
     }
     state = s;
-    document.querySelector('.header h1').textContent = 'TheoClaw 人工評分 · ' + s.rater;
+    document.querySelector('.header h1').textContent = 'TheoClaw · ' + s.rater;
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
     const r = s.rubric, simple = r.verdict.auto_min !== undefined;
     document.getElementById('scoreTitle').textContent = '評分 · Score（' + r.scale.min + '–' + r.scale.max + '，' + r.scale.max + ' 最好 · best' +

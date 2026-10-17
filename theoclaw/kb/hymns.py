@@ -129,7 +129,9 @@ def split_ccel(folder: str | Path) -> list[dict]:
     for f in sorted(folder.glob("jwg[0-9][0-9]_jwg*.html")):
         number = int(re.search(r"jwg(\d+)\.html$", f.name).group(1))
         section = next((t for start, t in reversed(sections) if start <= number), "")
-        hymns.append({"number": number, "section": section, "text": ccel_hymn(f.read_text(encoding="cp1252", errors="replace"))})
+        text = ccel_hymn(f.read_text(encoding="cp1252", errors="replace"))
+        if text:  # CCEL's pages for hymns 501 and 829 are empty
+            hymns.append({"number": number, "section": section, "text": text})
     return sorted(hymns, key=lambda h: h["number"])
 
 
@@ -186,8 +188,9 @@ def main(argv=None) -> None:
     r = build(a.pdf, a.kb, a.name) if a.cmd == "build" else build_ccel(a.folder, a.kb, a.name)
     print(f"{r['hymns']} hymns (highest number {r['highest']}, {r['chars']:,} characters) → {r['file']}")
     if r["missing"]:
-        print(f"numbers not found ({len(r['missing'])}), usually an OCR-garbled heading; "
-              f"those hymns are inside the one before: {r['missing'][:30]}")
+        print(f"numbers not found ({len(r['missing'])}): {r['missing'][:30]}"
+              + ("; from a PDF these are usually OCR-garbled headings, inside the hymn before" if a.cmd == "build"
+                 else "; their e-text pages are empty"))
 
 
 if __name__ == "__main__":
