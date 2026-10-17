@@ -41,7 +41,8 @@ to find out, with how much evidence, and at what cost.
 
 - *Regression tasks* run N times; reports give pass@k and pass^k, tokens and cost per answer.
 - *Rule graders* (scripture word for word against three Bible texts, leaked internal words)
-  are themselves tested against deliberately bad fake models.
+  are themselves tested against two fake models with known behaviour (one honest, one that
+  quotes "from memory" when a lookup fails).
 - *Fault injection:* a tool can fail, return nothing, or silently return the wrong verse.
 - *Groundedness* (RAGAS / FActScore style: atomic statements checked against what the agent
   retrieved) and *citation precision* (ALCE style), with a blind sheet for a person to check
