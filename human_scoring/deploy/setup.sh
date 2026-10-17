@@ -18,6 +18,17 @@ mkdir -p "$APP"
 # 解壓到暫存再複製，保留伺服器上已有的評分與 .env
 TMP=$(mktemp -d)
 tar -xzf "$TARBALL" -C "$TMP"
+# assignment.json：包裡的評分名單加上伺服器上已有的評分人與團體連結（在 VPS 上建立的連結不會因更新而失效）
+if [ -f "$APP/human_scoring/assignment.json" ]; then
+  python3 - "$TMP/theoclaw/human_scoring/assignment.json" "$APP/human_scoring/assignment.json" <<'PY'
+import json, sys
+new_path, old_path = sys.argv[1], sys.argv[2]
+new, old = json.load(open(new_path, encoding="utf-8")), json.load(open(old_path, encoding="utf-8"))
+for code, r in old.get("raters", {}).items():
+    new.setdefault("raters", {}).setdefault(code, r)
+json.dump(new, open(new_path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PY
+fi
 cp -r "$TMP/theoclaw/." "$APP/"
 rm -rf "$TMP"
 
