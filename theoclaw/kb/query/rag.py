@@ -47,6 +47,10 @@ SYSTEM_ADDENDUM = """
 2. 每個段落標有文件名稱與段落編號。引用衛斯理的原話時，只能用檢索回傳的段落，並註明文件名稱與段落編號。
 """
 
+HYMNS_ADDENDUM = """3. 檢索結果也包括聖詩集（標為「第 N 首」），可用英文詩句、主題或經文用語查詢，例如 "love divine all loves excelling"。
+   聖詩是掃描辨識的文字，每首第一個字母常被漏掉、個別字母可能有誤：引用詩句要短，並註明第幾首。
+"""
+
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset("the a an and or of to in on at by for is are was were be been it its this that "
                   "with as from not but he his him they them their we our you your i my me".split())
@@ -108,16 +112,26 @@ class BM25:
 
 def index_wiki_sources(wiki_dir: Path | str) -> BM25:
     """Short documents are sources/*.md; long PDFs compiled with PageIndex are
-    sources/*.json, one entry per page, chunked page by page (chunk label = page)."""
+    sources/*.json, one entry per page, chunked page by page (chunk label = page).
+    Hymn books split by program (kb.hymns) are hymns/*.json, one hymn per passage
+    (label = hymn number); they come last, so adding them leaves earlier numbers alone.
+    Passage numbers run through the whole index, as the citation check expects."""
     import json
-    root = Path(wiki_dir) / "sources"
+    wiki = Path(wiki_dir)
+    root = wiki / "sources"
     chunks: list[Chunk] = []
     for p in sorted(root.glob("*.md")):
-        chunks += chunk(p.stem, p.read_text(encoding="utf-8"))
+        for c in chunk(p.stem, p.read_text(encoding="utf-8")):
+            chunks.append(Chunk(c.doc, len(chunks) + 1, c.text))
     for p in sorted(root.glob("*.json")):
         for e in json.loads(p.read_text(encoding="utf-8")):
             for c in chunk(p.stem, e.get("content", "")):
                 chunks.append(Chunk(f"{p.stem} 第 {e.get('page')} 頁", len(chunks) + 1, c.text))
+    for p in sorted((wiki / "hymns").glob("*.json")):
+        for e in json.loads(p.read_text(encoding="utf-8")):
+            head = f"HYMN {e['number']}" + (f" ({e['section']})" if e.get("section") else "")
+            for c in chunk(p.stem, head + "\n" + e.get("text", ""), size=CHUNK_CHARS * 3):
+                chunks.append(Chunk(f"{p.stem} 第 {e['number']} 首", len(chunks) + 1, c.text))
     if not chunks:
         raise FileNotFoundError(f"no source text in {root}")
     return BM25(chunks)
@@ -134,6 +148,11 @@ def search(inp: dict, index: BM25) -> str:
     if not hits:
         return "沒有找到相關段落；請換用其他英文關鍵詞。"
     return "\n\n".join(f"[{c.doc} · 段落 {c.index}]\n{c.text}" for _, c in hits)
+
+
+def system_addendum(wiki_dir: Path | str) -> str:
+    has_hymns = any((Path(wiki_dir) / "hymns").glob("*.json"))
+    return SYSTEM_ADDENDUM + (HYMNS_ADDENDUM if has_hymns else "")
 
 
 def make_handlers(wiki_dir: Path | str) -> dict[str, Handler]:

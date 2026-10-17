@@ -207,7 +207,7 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
         if "rag" in groups:  # the wiki's source text, chunked and searched; with kb too, a hybrid
             defs += rag.TOOL_DEFS
             handlers.update(rag.make_handlers(base_kb.wiki))
-            addendum += rag.SYSTEM_ADDENDUM
+            addendum += rag.system_addendum(base_kb.wiki)
         meta.update(base_kb.meta())
     elif kb:
         raise ValueError("--kb given but neither the kb nor the rag tool group is switched on")

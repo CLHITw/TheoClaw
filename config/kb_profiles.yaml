@@ -60,7 +60,8 @@ profiles:
       # 第二階段
       - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, name: plain-account-of-christian-perfection.pdf}
       - {file: 04_John_Wesley_The_Journal_of_John_Wesley.pdf, name: wesley-journal.pdf}
-      # 聖詩集暫停：沒有帶頁碼的目錄，PageIndex 建索引很貴（試編已花約 $0.75 仍未完成）；之後另想辦法再加
+      # 聖詩集不編譯：掃描檔沒有目錄，PageIndex 建索引很貴（試編花了 $1.21 仍未完成）。改用程式按「HYMN n.」切分、只供檢索：
+      #   python -m theoclaw.kb.hymns build <這個 PDF> --kb methodist.en.deepseek-flash
       # - {file: 05_Charles_Wesley_Collection_of_Hymns_for_the_Use_of_the_People_Called_Methodists.pdf, name: wesley-hymns-1780.pdf}
       - {file: 08_John_Wesley_The_General_Rules_1743_text.pdf, name: general-rules-1743-en.pdf}
       - {file: 09_United_Methodist_Articles_of_Religion_text.pdf, name: articles-of-religion.pdf}

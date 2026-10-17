@@ -70,6 +70,7 @@ in this repository and what is still missing.
   - Read with care: "unsupported" means not backed by what the agent retrieved, not false. Many of the old arm's statements are true (for example the 1761 *Directions for Singing*). The gain is that a reader can now check them.
   - Lay members now get the same Methodist wiki as pastors; Bible dictionaries and the original-language word study stay pastor-only.
   - Compile cost: about $2.6 for 13 sources. The 1780 hymn book was stopped after $1.21: an Internet Archive scan with no outline and noisy OCR text, on which PageIndex spent 961 calls guessing a table of contents.
+  - The hymn book was then split by program instead (`python -m theoclaw.kb.hymns build`, no model calls): 748 of its 769 hymns cut at the "HYMN n." headings (the other 21 headings are OCR-garbled and stay inside the hymn before), lines broken at punctuation joined back, one hymn per search passage labelled with its number. Asked again, the agent quoted hymns 1, 201, 385 and others by number. The OCR usually loses each hymn's large first letter, so the search tool tells the agent to quote briefly.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
   - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.
