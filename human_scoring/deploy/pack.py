@@ -19,12 +19,25 @@ SKIP_DIRS = {"__pycache__", "_backup_原版", ".pytest_cache"}
 METHODIST_KB = "methodist.en.deepseek-flash"  # 與 human_server.METHODIST_KB 相同；只帶 wiki/ 與 build.json
 
 
+def _add_unix(tar: tarfile.TarFile, path: Path, arcname: str) -> None:
+    """Shell scripts and unit files with Unix line endings, whatever the Windows checkout has:
+    bash stops at the first CRLF line ("invalid option name: pipefail")."""
+    import io
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    info = tar.gettarinfo(str(path), arcname)
+    info.size = len(data)
+    tar.addfile(info, io.BytesIO(data))
+
+
 def _add_tree(tar: tarfile.TarFile, folder: Path) -> None:
     for p in sorted(folder.rglob("*")):
         rel = p.relative_to(ROOT)
         if p.is_file() and not SKIP_DIRS & set(rel.parts) and p.suffix not in (".pyc",) \
-                and p.name != OUT.name and p.name != ".env":
-            tar.add(p, arcname=f"theoclaw/{rel.as_posix()}")
+                and p.name != OUT.name and p.name != ".env" and p.suffix != ".db":
+            if p.suffix in (".sh", ".service"):
+                _add_unix(tar, p, f"theoclaw/{rel.as_posix()}")
+            else:
+                tar.add(p, arcname=f"theoclaw/{rel.as_posix()}")
 
 
 def main() -> None:
