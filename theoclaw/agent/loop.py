@@ -63,6 +63,7 @@ class AgentRun:
     # The answer is shown in 繁體: Simplified characters the model wrote are converted, and
     # its own text is kept here so reports can still count how often it slipped.
     simplified_fixed: list[str] = field(default_factory=list)
+    script: str = "hant"  # "hans": the question was Simplified, so the answer is too
     model_text: str | None = None  # the model's answer before placeholders and conversion, when it changed
 
     @property
@@ -131,8 +132,10 @@ def run_agent(
     max_steps: int = 12,
     fix_simplified: bool = True,
     fill_quotes: bool = True,
+    script: str | None = None,  # "hant" (繁體) or "hans" (簡體); None: follow the question
 ) -> AgentRun:
     run = AgentRun(model=model, prompt=prompt)
+    run.script = script or (zh.script_of(prompt) if zh.available() else "hant")
     if injector is not None:
         handlers = injector.wrap(handlers)
     messages: list[dict] = [{"role": "user", "content": prompt}]
@@ -178,7 +181,9 @@ def run_agent(
                 continue
 
             model_text = run.final_text = "".join(b.text for b in response.content if b.type == "text")
-            if fix_simplified:  # first, so a placeholder written with a Simplified 經 is still found
+            if run.script == "hans":  # work in 繁體 (placeholders, scrub rules), convert back at the end
+                run.final_text = zh.to_traditional(run.final_text)
+            elif fix_simplified:  # first, so a placeholder written with a Simplified 經 is still found
                 fixed, run.simplified_fixed = zh.fix_simplified(run.final_text)
                 if run.simplified_fixed:
                     run.final_text = fixed
@@ -186,6 +191,8 @@ def run_agent(
                 run.final_text, fills = fill_placeholders(run.final_text, handlers)
                 step.tool_calls.extend(fills)
                 run.final_text, _ = scrub_internal(run.final_text)
+            if run.script == "hans":
+                run.final_text = zh.to_simplified(run.final_text)
             if run.final_text != model_text:
                 run.model_text = model_text
             if response.stop_reason in ("max_tokens", "refusal"):

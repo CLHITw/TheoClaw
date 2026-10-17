@@ -18,7 +18,7 @@ from .tools import EMPTY_VERSE
 
 # 〔經文：羅馬書 5:8〕, 〔經文：羅 5:6-8，和合本〕, 〔經文：John 3:16，KJV〕
 # (【經文：…】 and an ASCII colon are accepted too; a Simplified 經 is converted before filling)
-PLACEHOLDER_RE = re.compile(r"[〔【]\s*經文\s*[：:]\s*([^〔〕【】]{1,40}?)\s*[〕】]")
+PLACEHOLDER_RE = re.compile(r"[〔【]\s*[經\u7ecf]文\s*[：:]\s*([^〔〕【】]{1,40}?)\s*[〕】]")
 _VERSION_RE = re.compile(r"\s*[,，、]\s*(KJV|kjv|和合本|cuv|CUV)\s*$")
 _VERSE_NUMBER = re.compile(r"^\s*\d+:\d+\s*")
 

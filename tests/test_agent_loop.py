@@ -154,3 +154,20 @@ def test_merged_verse_and_square_bracket_placeholder(tmp_path):
     client = Scripted([resp([_Block("text", text="【經文：路加福音 21:29-31】")], "end_turn")], [])
     run = run_agent(client, "問題", model="qwen3.8-max", handlers=handlers)
     assert run.final_text == "「耶穌又設比喻；它發芽的時候，自然曉得夏天近了。這樣，也該曉得神的國近了。」（路加福音 21:29-31，和合本）"
+
+
+def test_simplified_question_gets_a_simplified_answer_with_converted_scripture(corpus):
+    from theoclaw.common import zh
+    from theoclaw.evals.grading import load_graders
+    if not zh.available():
+        pytest.skip("opencc not installed")
+    to_hans = zh.to_simplified
+    question = to_hans("羅馬書 5:8 講甚麼？")  # Simplified, built by conversion so this file stays 繁體
+    answer = to_hans("〔經文：羅馬書 5:8〕這節說神的愛，「還作罪人的時候」（羅馬書 5:8）。")
+    client = Scripted([resp([_Block("text", text=answer)], "end_turn")], [])
+    run = run_agent(client, question, model="qwen3.8-max", handlers=make_handlers(corpus))
+    assert run.script == "hans"
+    assert run.final_text.startswith(to_hans("「惟有基督在我們還作罪人的時候為我們死")) and to_hans("和合本") in run.final_text
+    assert zh.simplified_chars(run.final_text)  # really Simplified, not converted to 繁體
+    grade = load_graders()["no_misquotes"](type("T", (), {"prompt": question})(), run.to_dict())
+    assert grade.passed, grade.details  # quotations are compared with the 繁體 和合本 after conversion

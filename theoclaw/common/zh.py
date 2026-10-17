@@ -93,6 +93,29 @@ def fix_simplified(text: str) -> tuple[str, list[str]]:
     return CJK_RUN.sub(fix_run, text), sorted(bad)
 
 
+@lru_cache(maxsize=1)
+def _t2s():
+    try:
+        import opencc
+    except ImportError:
+        return None
+    return opencc.OpenCC("t2s")
+
+
+def to_simplified(text: str) -> str:
+    conv = _t2s()
+    if conv is None:
+        raise RuntimeError("pip install opencc-python-reimplemented (needed to convert to 簡體)")
+    return conv.convert(text)
+
+
+def script_of(question: str) -> str:
+    """'hans' if the question is written in Simplified characters, else 'hant'. Users who
+    write Simplified get Simplified answers (and the 和合本 converted); everyone else 繁體."""
+    bad = simplified_chars(question)
+    return "hans" if bad else "hant"
+
+
 def to_traditional(text: str) -> str:
     conv = _s2t()
     if conv is None:

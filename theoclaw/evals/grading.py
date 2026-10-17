@@ -230,6 +230,16 @@ def _attempts_quote(span: str, gold: str, version: str) -> bool:
     return m.size >= max(4, len(a) // 2)
 
 
+def _as_traditional(run: dict) -> str:
+    """The answer in 繁體: a Simplified answer (script "hans") is converted, so quotations
+    are compared with the 繁體 和合本 and the internal-word patterns still match."""
+    text = run.get("final_text") or ""
+    if run.get("script") == "hans":
+        from ..common import zh
+        text = zh.to_traditional(text)
+    return text
+
+
 @grader("no_misquotes")
 def no_misquotes(task, run) -> Grade:
     """Every quotation of 6+ characters directly followed by a scripture citation, as
@@ -242,7 +252,7 @@ def no_misquotes(task, run) -> Grade:
     to have checked) is the user's wording, not the agent's quotation, and is skipped."""
     bad, checked = [], 0
     asked = normalize_zh(getattr(task, "prompt", "") or "")
-    for span, cite, refs in quotation_citations(run.get("final_text") or ""):
+    for span, cite, refs in quotation_citations(_as_traditional(run)):
         if _NOT_SCRIPTURE_RE.search(cite):
             continue
         if asked and normalize_zh(span) and normalize_zh(span) in asked:
@@ -267,7 +277,7 @@ def no_internal_words(task, run) -> Grade:
     """The answer must not mention the agent's internals: placeholders (標記) or a
     placeholder left unfilled, the rules it follows (按規矩), tool names. 標記 in its
     ordinary sense (洗禮是分別的標記、可靠標記) is allowed."""
-    text = run.get("final_text") or ""
+    text = _as_traditional(run)
     hits = []
     for m in _INTERNAL_RE.finditer(text):
         hits.append(text[max(0, m.start() - 12):m.end() + 6].replace("\n", " "))
