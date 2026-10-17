@@ -847,7 +847,13 @@ def main(argv=None):
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
                  "kb": a.kb} if a.chat else None)
-        store = Store(chat=chat, rubric=Path(a.rubric))
+        try:
+            store = Store(chat=chat, rubric=Path(a.rubric))
+        except Exception as e:  # the database is the usual cause: say so in one line, not a traceback
+            if type(e).__module__.startswith(("sqlalchemy", "pymysql")):
+                raise SystemExit(f"連不上資料庫（{db_mod.db_url().split('@')[-1]}）：{getattr(e, 'orig', e)}\n"
+                                 "請檢查 .env 的 THEOCLAW_DB（帳號、密碼、資料庫名稱）以及 MySQL 是否在執行。") from None
+            raise
         print(f"資料庫：{store.db.url}")
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
