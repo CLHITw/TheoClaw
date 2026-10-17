@@ -77,6 +77,8 @@ def test_always_on_misquote_check():
     # English is checked only against the KJV, and only when the citation says so
     assert check("“For God so loved the world”（John 3:16, KJV）").passed
     assert not check("“For God so much loved the world”（John 3:16, KJV）").passed
+    assert check("“For God so loved the world, that he gave his only born Son”（John 3:16, WEB）").passed  # World English Bible
+    assert not check("“For God so loved the world, that he gave his only begotten Son”（John 3:16, WEB）").passed
     assert check("“For God so much loved the world”（John 3:16）").passed
 
 

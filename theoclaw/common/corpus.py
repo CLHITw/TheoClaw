@@ -5,6 +5,7 @@ Data files live in ``data/`` and are flat JSON objects keyed by OSIS verse id
 
 - cuv.json      和合本（繁體）
 - kjv.json      King James Version
+- web.json      World English Bible (public domain; scripts/build_web.py)
 - crossrefs.json  {"John.3.16": [["Rom.5.8", 96], ...]}  (OpenBible.info, CC-BY)
 - wesley_nt.json  {"John.3.16": "Yea, and this was ..."}  (Wesley, Explanatory Notes upon the NT)
 """
@@ -20,7 +21,7 @@ from pathlib import Path
 from .paths import DATA_DIR
 from .refs import Ref
 
-VERSIONS = {"cuv": "和合本", "kjv": "KJV"}
+VERSIONS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB"}
 
 
 class Corpus:

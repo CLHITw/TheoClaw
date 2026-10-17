@@ -1,6 +1,6 @@
 """The agent's tools, in groups that can be switched on and off:
 
-    scripture  lookup_verse, cross_references   (Bible text: 和合本 / KJV)
+    scripture  lookup_verse, cross_references   (Bible text: 和合本 / KJV / World English Bible)
     wesley     wesley_note                      (Wesley's NT notes, looked up by verse)
     kb         kb_read_file, kb_get_page_content (a compiled OpenKB wiki; theoclaw.kb.query)
     rag        rag_search (BM25 over the same wiki's source text, nothing compiled; theoclaw.kb.query.rag)
@@ -41,7 +41,7 @@ TOOL_DEFS: list[dict] = [
                 "version": {
                     "type": "string",
                     "enum": list(VERSIONS),
-                    "description": "cuv = 和合本（繁體）；kjv = King James Version。",
+                    "description": "cuv = 和合本（繁體）；kjv = King James Version；web = World English Bible（現代英文，公共領域）。",
                 },
             },
             "required": ["reference", "version"],

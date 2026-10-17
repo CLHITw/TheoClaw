@@ -97,7 +97,7 @@ def quotation_citations(text: str) -> list[tuple[str, str, list[Ref]]]:
             continue
         cite_text = cite.group(1) or cite.group(2)
         refs = extract_refs(cite_text)
-        if not refs and "KJV" in cite_text.upper():
+        if not refs and re.search(r"\b(KJV|WEB)\b", cite_text.upper()):
             try:
                 refs = [parse_ref(re.split(r"[,，;；(（]", cite_text)[0].strip())]
             except RefError:
@@ -109,10 +109,11 @@ def quotation_citations(text: str) -> list[tuple[str, str, list[Ref]]]:
 
 def quotation_version(span: str, cite: str) -> str | None:
     """The Bible version a cited quotation is in: Chinese is 和合本 (cuv); English counts
-    as a quotation only when the citation says KJV; anything else is None."""
+    as a quotation only when the citation says KJV or WEB; anything else is None."""
     if re.search(r"[㐀-鿿]", span):
         return "cuv"
-    return "kjv" if "KJV" in cite.upper() else None
+    up = cite.upper()
+    return "kjv" if "KJV" in up else ("web" if re.search(r"\bWEB\b", up) else None)
 
 
 def cited_quotations(text: str) -> list[tuple[str, Ref]]:

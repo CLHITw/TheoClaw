@@ -16,10 +16,10 @@ from ..common.refs import RefError, parse_ref
 from ..common.tooling import Handler, ToolError
 from .tools import EMPTY_VERSE
 
-# 〔經文：羅馬書 5:8〕, 〔經文：羅 5:6-8，和合本〕, 〔經文：John 3:16，KJV〕
+# 〔經文：羅馬書 5:8〕, 〔經文：羅 5:6-8，和合本〕, 〔經文：John 3:16，KJV〕, 〔經文：John 3:16，WEB〕
 # (【經文：…】 and an ASCII colon are accepted too; a Simplified 經 is converted before filling)
 PLACEHOLDER_RE = re.compile(r"[〔【]\s*[經\u7ecf]文\s*[：:]\s*([^〔〕【】]{1,40}?)\s*[〕】]")
-_VERSION_RE = re.compile(r"\s*[,，、]\s*(KJV|kjv|和合本|cuv|CUV)\s*$")
+_VERSION_RE = re.compile(r"\s*[,，、]\s*(KJV|kjv|WEB|web|和合本|cuv|CUV)\s*$")
 _VERSE_NUMBER = re.compile(r"^\s*\d+:\d+\s*")
 
 
@@ -32,8 +32,8 @@ def _verse_lines(output: str) -> list[str]:
 
 def _render(output: str, version: str, label: str) -> str:
     verses = _verse_lines(output)
-    if version == "kjv":
-        return f"“{' '.join(verses)}” ({label}, KJV)"  # English answers: ASCII brackets
+    if version in ("kjv", "web"):
+        return f"“{' '.join(verses)}” ({label}, {version.upper()})"  # English answers: ASCII brackets
     text = "".join(verses).replace("「", "『").replace("」", "』")  # keep the outer 「」 unambiguous
     return f"「{text}」（{label}，和合本）"
 
@@ -73,7 +73,7 @@ def fill_placeholders(text: str, handlers: dict[str, Handler]) -> tuple[str, lis
     def replace(m: re.Match) -> str:
         body = m.group(1)
         v = _VERSION_RE.search(body)
-        version = "kjv" if v and v.group(1).lower() == "kjv" else "cuv"
+        version = v.group(1).lower() if v and v.group(1).lower() in ("kjv", "web") else "cuv"
         reference = _VERSION_RE.sub("", body).strip()
         inp = {"reference": reference, "version": version}
         start, output, is_error = time.perf_counter(), "", True
@@ -92,7 +92,7 @@ def fill_placeholders(text: str, handlers: dict[str, Handler]) -> tuple[str, lis
             return f"〔經文查詢失敗：{reference}〕"
         try:
             ref = parse_ref(reference)
-            label = ref.en() if version == "kjv" else ref.zh()  # 羅 5:8 -> 羅馬書 5:8
+            label = ref.en() if version != "cuv" else ref.zh()  # 羅 5:8 -> 羅馬書 5:8
         except RefError:
             label = reference
         return _render(output, version, label)
