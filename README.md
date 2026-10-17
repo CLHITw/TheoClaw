@@ -634,6 +634,25 @@ commentators. The parser is heuristic (5,595 verse notes); spot-check a sample b
 before building tasks on a specific note. `scripts/build_data.py` rebuilds `data/`
 (`scripts/build_web.py` the World English Bible).
 
+### Sources and licences of everything else
+
+Only openly licensed or public-domain texts are used, and nothing compiled from them (the
+wiki pages, the processed lexicons) is committed: `knowledge/`, `data/original/` and
+`data/reference/` are git-ignored and copied only to the server.
+
+| what | used for | source | licence |
+|---|---|---|---|
+| Wesley's *Sermons on Several Occasions* (the Standard Sermons), *Journal*, *A Plain Account of Christian Perfection*; the General Rules (1743); the Articles of Religion | the Methodist knowledge base (`knowledge/methodist…`, compiled with OpenKB) | public editions of 18th-century texts | public domain |
+| *A Collection of Hymns for the Use of the People Called Methodists* (1876 edition; its first 539 hymns are substantially the 1780 text) | hymn search (`theoclaw.kb.hymns`, one hymn per passage, no compiling) | CCEL e-text by John Harris (1994), released as a public-domain edition; CCEL permits non-profit use | public domain |
+| The church's own course booklets (six on the creed, one on spiritual gifts) | the Methodist knowledge base, for this church's members | the Methodist Church, Hong Kong | used within the church only; not published |
+| STEPBible lexicons (TBESG, TBESH) and tagged Bibles (TAGNT, TAHOT) | the original-language word study, Chinese and English | STEPBible.org, Tyndale House, Cambridge | CC BY 4.0 |
+| 和合本 with Strong's numbers | which original word each Chinese word translates | 信望愛 FHL | FDL; Strong's tags kept |
+| ISBE (1915), Easton (1897), Smith (1884) | pastors' Bible-dictionary lookups | CrossWire modules | public domain |
+
+Deliberately not used: commercial reference works (for example the Anchor Yale Bible
+Dictionary, BDAG and HALOT), even where a copy was available, and the STEPBible ESV tags
+(CC BY-NC and tied to the copyrighted ESV text).
+
 ## Known pitfalls for graders
 
 - The 和合本 text contains its own 「」 marks (約翰福音 3:16 begins with 「), so a
