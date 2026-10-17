@@ -32,8 +32,8 @@ _SPLIT = r"[，,。；;、\s與和及跟同或的之在對於]+"
 COMMON = 1500   # Strong's numbers more frequent than this (articles, 和, 他 ...) are left out
 MAX_ROWS = 30
 CREDIT = "原文資料：STEPBible.org（Tyndale House，CC BY 4.0）；和合本 Strong's 編號：信望愛 FHL"
-CREDIT_EN = ("Original-language data: STEPBible.org (Tyndale House, CC BY 4.0); Strong's numbers from the "
-             "Strong's-tagged Chinese Union Version (FHL).")
+CREDIT_EN = ("Original-language data: STEPBible.org (Tyndale House, Cambridge), CC BY 4.0: the tagged Greek NT "
+             "(TAGNT), Hebrew OT (TAHOT) and lexicons; English renderings are STEP's word-by-word translation.")
 
 
 def to_hant(text: str) -> str:
@@ -48,13 +48,84 @@ def available() -> bool:
     return (DIR / "verses.json").is_file()
 
 
+EN_FILES = ("en_verses.json", "en_renderings.json", "en_frequency.json", "en_lexicon.json")
+EN_COMMON = 1000   # the English table leaves out words more frequent than this (γάρ, οὗτος ...)
+
+
+def available_en() -> bool:
+    """The English word study's data (scripts/build_original_en.py) is there."""
+    return all((DIR / f).is_file() for f in EN_FILES)
+
+
+def _row_en(strong: str) -> dict | None:
+    """By the extended number STEP tags with (H7462B "to pasture"), else the plain one."""
+    lex = _load("en_lexicon.json")
+    e = lex.get(strong) or lex.get(strong[:5])
+    if e is None:
+        return None
+    rend, freq = _load("en_renderings.json"), _load("en_frequency.json")
+    return {"strong": strong[:5], "lemma": e["lemma"], "translit": e["translit"], "pos": e["pos"], "gloss": e["gloss"],
+            "def": e["def"], "count": freq.get(strong, freq.get(strong[:5], 0)), "where": [], "here": [],
+            "usual": [w for w, _ in (rend.get(strong) or rend.get(strong[:5]) or [])[:6]]}
+
+
+def word_study_en(reference: str, max_rows: int = MAX_ROWS) -> list[dict]:
+    """The content words of a passage from STEPBible's tagged Greek and Hebrew text, each with
+    how it is translated here and usually across the Bible (for English-speaking pastors)."""
+    if not available_en():
+        return []
+    try:
+        ref = parse_ref(reference)
+    except RefError:
+        return []
+    verses, freq = _load("en_verses.json"), _load("en_frequency.json")
+    rows: dict[str, dict] = {}
+    for v in range(ref.verse_start, ref.verse_end + 1):
+        for eng, strongs in verses.get(f"{ref.book}.{ref.chapter}.{v}", []):
+            for s in strongs:
+                if freq.get(s, 0) > EN_COMMON:
+                    continue
+                where = f"{ref.chapter}:{v}"
+                r = rows.get(s)
+                if r is None:
+                    r = _row_en(s)
+                    if r is None:
+                        continue
+                    rows[s] = r
+                if where not in r["where"]:
+                    r["where"].append(where)
+                e = eng.strip(" ,.;:")
+                if e and e not in r["here"]:
+                    r["here"].append(e)
+    out = list(rows.values())
+    if len(out) > max_rows:
+        keep = {r["strong"] for r in sorted(out, key=lambda r: r["count"])[:max_rows]}
+        out = [r for r in out if r["strong"] in keep]
+    return out
+
+
 @lru_cache(maxsize=None)
 def _load(name: str):
     return json.loads((DIR / name).read_text(encoding="utf-8"))
 
 
+@lru_cache(maxsize=None)
+def _main_sense() -> dict[str, dict]:
+    """Plain number -> the lexicon entry of its most used extended sense in the tagged Bible
+    (H7462 -> H7462B "to pasture", not H7462A, a place). The 和合本 tags give only plain numbers,
+    and a lexicon's first entry under a number is sometimes a rare name. Empty without the data."""
+    if not available_en():
+        return {}
+    lex, freq = _load("en_lexicon.json"), _load("en_frequency.json")
+    best: dict[str, str] = {}
+    for key in lex:
+        if len(key) > 5 and freq.get(key, 0) > freq.get(best.get(key[:5], ""), 0):
+            best[key[:5]] = key
+    return {base: lex[key] for base, key in best.items()}
+
+
 def _row(strong: str, words: str, where: str | None = None) -> dict | None:
-    lex = _load("lexicon.json").get(strong)
+    lex = _main_sense().get(strong) or _load("lexicon.json").get(strong)
     if lex is None:
         return None
     return {"strong": strong, "zh": words, "lemma": lex["lemma"], "translit": lex["translit"],
@@ -184,13 +255,13 @@ def render(rows: list[dict], def_chars: int = 140, lang: str = "zh") -> str:
     if not rows:
         return ""
     if lang == "en":
-        lines = ["| Original | Transliteration | Part of speech | Meaning | In this passage | Times in the Bible |",
-                 "|---|---|---|---|---|---|"]
+        lines = ["| Original | Transliteration | Part of speech | Meaning | Translated here | Usual English renderings | Verses | Times in the Bible |",
+                 "|---|---|---|---|---|---|---|---|"]
         for r in rows:
             gloss = r["gloss"] + (": " + r["def"][:def_chars] if r["def"] and r["def"] != r["gloss"] else "")
-            where = ", ".join(r["where"]) or "theme"
             lines.append(f"| {r['lemma']} ({r['strong']}) | {r['translit']} | {r['pos']} | {gloss.replace('|', '/')} | "
-                         f"{where} | {r['count']} |")
+                         f"{'; '.join(r.get('here', [])).replace('|', '/')} | {'; '.join(r.get('usual', []))} | "
+                         f"{', '.join(r['where']) or 'theme'} | {r['count']} |")
         return "\n".join(lines) + f"\n\n{CREDIT_EN}"
     lines = ["| 和合本 | 原文 | 音譯 | 詞性 | 字義（英文） | 和合本常見譯法 | 本段出現 | 全本次數 |",
              "|---|---|---|---|---|---|---|---|"]

@@ -26,8 +26,10 @@ def tiny(tmp_path, monkeypatch):
         (d / name).write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(original, "DIR", d)
     original._load.cache_clear()
+    original._main_sense.cache_clear()
     yield
     original._load.cache_clear()
+    original._main_sense.cache_clear()
 
 
 def test_word_study_lists_content_words_once_with_their_verses(tiny):
@@ -51,3 +53,27 @@ def test_theme_words_match_the_bibles_own_vocabulary(tiny):
 def test_without_data_nothing_breaks(tmp_path, monkeypatch):
     monkeypatch.setattr(original, "DIR", tmp_path / "missing")
     assert original.word_study("羅馬書 5:8") == [] and original.theme_words("恩典") == [] and original.render([]) == ""
+
+
+def test_english_word_study_from_the_tagged_text_and_the_main_sense(tiny):
+    d = original.DIR
+    en = {
+        "en_verses.json": {"Ps.23.1": [["Yahweh", ["H3068G"]], ["[is] shepherd my", ["H7462B"]], ["I lack", ["H2637"]]]},
+        "en_lexicon.json": {"H7462": {"lemma": "בֵּית־עֵקֶד", "translit": "bet-eqed", "pos": "N:N--L", "gloss": "House of Shepherds", "def": ""},
+                            "H7462A": {"lemma": "בֵּית־עֵקֶד", "translit": "bet-eqed", "pos": "N:N--L", "gloss": "House of Shepherds", "def": ""},
+                            "H7462B": {"lemma": "רָעָה", "translit": "ra.ah", "pos": "H:V", "gloss": "to pasture", "def": "to tend"},
+                            "H2637": {"lemma": "חָסֵר", "translit": "cha.ser", "pos": "H:V", "gloss": "to lack", "def": "to lack"},
+                            "H3068G": {"lemma": "יְהוָה", "translit": "YHWH", "pos": "N:N-M-T", "gloss": "LORD", "def": "LORD"}},
+        "en_renderings.json": {"H7462B": [["shepherd", 48], ["graze", 17]], "H2637": [["lack", 9]]},
+        "en_frequency.json": {"H7462": 170, "H7462A": 1, "H7462B": 169, "H2637": 23, "H3068G": 6000, "H3068": 6000},
+    }
+    for name, obj in en.items():
+        (d / name).write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
+    original._load.cache_clear()
+    original._main_sense.cache_clear()
+    rows = original.word_study_en("Psalm 23:1")
+    assert [r["gloss"] for r in rows] == ["to pasture", "to lack"]  # the extended sense, not the place; LORD too common
+    assert rows[0]["here"] == ["[is] shepherd my"] and rows[0]["usual"] == ["shepherd", "graze"]
+    table = original.render(rows, lang="en")
+    assert "Translated here" in table and "רָעָה (H7462)" in table and "TAGNT" in table
+    assert original._main_sense()["H7462"]["gloss"] == "to pasture"  # the Chinese word study's sense too

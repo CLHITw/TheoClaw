@@ -464,7 +464,9 @@ one-shot generator.
    - Research runs once, about a minute and about $0.03, and is kept with the sermon.
    - The program builds the original-language word table: the passage's words and the
      theme's words, mapped to Strong's numbers through the tagged 和合本, with STEPBible
-     lexicon entries. No tokens.
+     lexicon entries. No tokens. A pastor working in English gets the table from STEPBible's
+     tagged Greek NT and Hebrew OT instead: each word's translation in this passage and its
+     usual English renderings across the Bible, and the research briefs in English.
    - Two research agents run in parallel:
      - scripture: the passage, cross references, Bible dictionaries;
      - Wesley and Methodist sources: his notes, plus the compiled *Plain Account* wiki
@@ -496,10 +498,12 @@ comparison.
 
 Pastor-only references, looked up by program and never shown on the lay link:
 
-- `data/original/`: STEPBible lexicons (CC BY) and the 信望愛 Strong's-tagged 和合本 (FDL).
+- `data/original/`: STEPBible lexicons and tagged Greek NT / Hebrew OT (TAGNT, TAHOT; CC BY) and
+  the 信望愛 Strong's-tagged 和合本 (FDL). A plain Strong's number takes its most used extended
+  sense (H7462 is "to pasture", not the place name the lexicon lists first).
 - `data/reference/`: ISBE 1915, Easton 1897, Smith 1884 (public domain).
 - Both are git-ignored and packed only for the server. Build them with
-  `scripts/build_original.py` and `scripts/build_reference.py`.
+  `scripts/build_original.py`, `scripts/build_original_en.py` and `scripts/build_reference.py`.
 
 ## Design decisions
 
