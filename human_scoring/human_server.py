@@ -110,14 +110,19 @@ def prepare(run_dirs: list[str], raters: list[str], sample: int | None, flagged_
     return data
 
 
-def add_group(name: str, path: Path = ASSIGNMENT) -> str:
+ROLES = ("lay", "pastor")  # 平信徒連結只能提問；牧者連結另有講道預備，也只有它用得到牧者參考資料
+
+
+def add_group(name: str, path: Path = ASSIGNMENT, role: str = "lay") -> str:
     """Add (or find) a shared group link in the assignment; returns its code."""
+    if role not in ROLES:
+        raise ValueError(f"role must be one of {ROLES}")
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
     for code, r in data["raters"].items():
         if r.get("group") and r["name"] == name:
             return code
     code = secrets.token_urlsafe(9)
-    data["raters"][code] = {"name": name, "order": [], "group": True}
+    data["raters"][code] = {"name": name, "order": [], "group": True, "role": role}
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return code
 
@@ -163,7 +168,12 @@ class Store:
         nick = (nick or "").strip()
         if not _NICK.match(nick):
             return None
-        return {"name": f"{r['name']}{GROUP_SEP}{nick}", "order": [], "group": r["name"]}
+        return {"name": f"{r['name']}{GROUP_SEP}{nick}", "order": [], "group": r["name"], "role": r.get("role", "lay")}
+
+    @staticmethod
+    def is_pastor(r: dict) -> bool:
+        """Personal links are the pastors' (and the project owner's); a group link by its role."""
+        return not r.get("group") or r.get("role") == "pastor"
 
     def _group_items(self, group: str) -> list[str]:
         since = time.strftime("%Y%m%d", time.localtime(time.time() - GROUP_DAYS * 86400))
@@ -193,7 +203,7 @@ class Store:
                     "open": self._spent() < self.chat["budget_usd"],
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
-            if not r.get("group") and self.chat.get("sermon_daily_limit"):
+            if self.is_pastor(r) and self.chat.get("sermon_daily_limit"):
                 chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon"))}
             if r.get("group"):  # the others' questions, so answers get more than one rater
                 chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
@@ -315,8 +325,8 @@ class Store:
         if not self.chat or not self.chat.get("sermon_daily_limit"):
             return {"error": "講道預備沒有開啟"}
         r = self.who(code, nick)
-        if r is None or r.get("group"):
-            return {"error": "講道預備只開放給牧者的個人連結"}
+        if r is None or not self.is_pastor(r):
+            return {"error": "講道預備只開放給牧者連結"}
         f = {k: str(body.get(k) or "").strip() for k in ("passage", "theme", "audience", "length", "notes")}
         if not 2 <= len(f["passage"]) <= 60:
             return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
@@ -490,7 +500,8 @@ def main(argv=None):
     p.add_argument("--flagged-by", help="抽樣時約四分之一取自這位評分人判有問題的回答")
     p.add_argument("--base-url", default="http://localhost:8765", help="印出連結時用的網址")
     p = sub.add_parser("group", help="加一條團體連結：大家共用一條連結，第一次打開時輸入稱呼，資料按稱呼分開記錄")
-    p.add_argument("name", help="團體名稱，例如 查經班")
+    p.add_argument("name", help="團體名稱，例如 查經班、牧者")
+    p.add_argument("--role", choices=ROLES, default="lay", help="lay = 平信徒（只能提問）；pastor = 牧者（另有講道預備）")
     p.add_argument("--base-url", default="http://localhost:8765")
     p = sub.add_parser("serve", help="啟動評分伺服器")
     p.add_argument("--host", default="127.0.0.1", help="預設只聽本機；經通道對外，不要直接開 0.0.0.0")
@@ -511,8 +522,8 @@ def main(argv=None):
         for code, r in data["raters"].items():
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
     elif a.cmd == "group":
-        code = add_group(a.name)
-        print(f"團體連結（{a.name}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
+        code = add_group(a.name, role=a.role)
+        print(f"團體連結（{a.name}，{'牧者' if a.role == 'pastor' else '平信徒'}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,

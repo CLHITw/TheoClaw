@@ -216,3 +216,8 @@ def test_sermon_preparation_for_pastors_only(tmp_path):
     assert item["kind"] == "sermon" and item["briefs"] == "[A1] 要點" and "父親的愛" in item["prompt"]
     assert "1 篇" in store.sermon(pastor, {"passage": "約翰福音 3"}, runner=fake)["error"]  # daily limit
     assert store.state(pastor)["chat"]["remaining_today"] == 5  # sermons do not use up questions
+    pastors = hs.add_group("牧者", path, role="pastor")
+    store2 = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "sermon_daily_limit": 1},
+                      chat_dir=tmp_path / "chat2")
+    assert store2.state(pastors, "王牧師")["chat"]["sermon"]["remaining_today"] == 1  # the shared pastor link
+    assert "sermon" not in store2.state(group, "小明")["chat"]                         # the lay link

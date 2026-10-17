@@ -21,7 +21,8 @@ people = [(c, r) for c, r in raters.items() if not r.get("group")]
 print("對外網址（每次重啟 theoclaw-tunnel 會換新的）：" + url)
 print()
 for c, r in groups:
-    print(f"★ {r['name']}（大家共用，發到群組即可，不要公開張貼）：")
+    role = "牧者，有講道預備" if r.get("role") == "pastor" else "平信徒，只能提問"
+    print(f"★ {r['name']}（{role}；大家共用，發到群組即可，不要公開張貼）：")
     print(f"  {url}/?t={c}")
 print()
 print("個人連結：")
