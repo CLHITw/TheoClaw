@@ -296,3 +296,15 @@ def test_follow_up_questions_carry_the_conversation(tmp_path):
     assert len(state) == 1 and state[0]["turns"] == 2 and state[0]["title"] == "羅馬書 8 章的重點？"
     assert store.conversation(code, first["conv"], other) is None  # private
     assert "找不到" in store.ask(code, "插話", runner=fake, nick=other, conv=first["conv"])["error"]
+
+
+def test_lay_tools_use_the_methodist_kb_and_never_the_pastor_tools(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["甲"], None, None, path)
+    missing = hs.Store(path, chat={"model": "deepseek-flash", "kb": "no-such-kb"}, chat_dir=tmp_path / "c1")
+    assert missing._lay_tools().meta["tools"] == ["scripture", "wesley"]  # falls back, does not fail
+    if (ROOT / "knowledge" / hs.METHODIST_KB).is_dir():  # only where the (git-ignored) KB has been compiled
+        ts = hs.Store(path, chat={"model": "deepseek-flash", "kb": hs.METHODIST_KB}, chat_dir=tmp_path / "c2")._lay_tools()
+        assert "kb" in ts.meta["tools"] and "rag" in ts.meta["tools"]
+        assert "reference" not in ts.meta["tools"] and "original" not in ts.meta["tools"]

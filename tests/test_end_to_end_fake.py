@@ -125,4 +125,6 @@ def test_internal_words_scrubbed_and_reported():
     assert not check("工具恢復後我會補上經文標記。").passed
     assert check("真基督徒與假基督徒的可靠標記。").passed and check("自覺一直守規矩的人").passed
     assert not check("〔經文：羅馬書 5:8〕").passed
+    assert not check("知識庫裡沒有專門討論聖詩的資料。").passed
     assert check("〔經文查詢失敗：羅馬書 5:8〕").passed
+    assert check("總規的這些規矩是「上帝聖靈寫在人心裡的」。").passed and not check("我的規矩是先查經文。").passed

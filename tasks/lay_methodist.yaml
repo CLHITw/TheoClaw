@@ -1,0 +1,54 @@
+# 平信徒常見問題：比較「不用知識庫」與「用循道衛理知識庫（講道集、日記、聖詩、規章、中文課程、完全論）」。
+#   不用：python -m theoclaw.evals run --tasks tasks/lay_methodist.yaml --tools scripture,wesley --n 1
+#   用：  python -m theoclaw.evals run --tasks tasks/lay_methodist.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1
+# 題目是查經班成員可能會問的；category 標出最可能用到的資料。
+
+- id: lay-assurance
+  category: sermons
+  prompt: 我怎樣知道自己真的得救了？衛斯理說的「聖靈的見證」是甚麼意思？
+  graders: []
+
+- id: lay-money
+  category: sermons
+  prompt: 基督徒可以賺很多錢嗎？衛斯理對金錢有甚麼教導？
+  graders: []
+
+- id: lay-heart-warmed
+  category: journal
+  prompt: 聽說衛斯理有一次在聚會中「心裡奇妙地溫暖起來」，那是甚麼事？對我們有甚麼意義？
+  graders: []
+
+- id: lay-hymns
+  category: hymns
+  prompt: 循道衛理的聖詩有甚麼特色？查理·衛斯理的詩歌常講甚麼主題？
+  graders: []
+
+- id: lay-general-rules
+  category: rules
+  prompt: 循道衛理的會友要守哪些規矩？總規的三條規則是甚麼？
+  graders: []
+
+- id: lay-articles
+  category: rules
+  prompt: 循道衛理教會怎樣看聖餐？是象徵還是真的有基督的臨在？
+  graders: []
+
+- id: lay-why-believe
+  category: course
+  prompt: 朋友問我「為甚麼要信耶穌」，我可以怎樣簡單回答？
+  graders: []
+
+- id: lay-holy-spirit
+  category: course
+  prompt: 聖靈是一種力量還是一位？聖靈在我們成聖的生活中做甚麼？
+  graders: []
+
+- id: lay-gifts
+  category: course
+  prompt: 我怎樣知道自己有甚麼屬靈恩賜？
+  graders: []
+
+- id: lay-perfection
+  category: perfection
+  prompt: 循道衛理說基督徒可以「完全」，這是說我們不會再犯錯嗎？
+  graders: []

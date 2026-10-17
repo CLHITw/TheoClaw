@@ -48,7 +48,8 @@ SERMON_TIMEOUT = 600
 WS_TIMEOUT = {"sermon_start": 360, "sermon_turn": 300, "sermon_draft": 420}   # 講章工作區各步驟的等候上限（秒）
 WS_TURN_LIMIT = 20       # 每位牧者每天在講章工作區最多問幾次（開講章另計，每天 --sermon-daily-limit 篇）
 PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")                     # 講道預備要跑研究、寫作、查核，約 3 分鐘
-SERMON_KB = "plain-account-pdf.en.deepseek-flash"   # 衛斯理傳統研究用的知識庫（knowledge/ 底下）
+METHODIST_KB = "methodist.en.deepseek-flash"   # 循道衛理知識庫（knowledge/ 底下）：講道集、日記、聖詩、規章、課程；
+                                                # 平信徒與牧者共用。聖經辭典與原文工具只給牧者。
 CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗（背景的回答若之後完成仍會存檔）
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
@@ -404,7 +405,7 @@ class Store:
 
     def _run_sermon(self, f: dict) -> dict:
         from theoclaw.agent.sermon import prepare
-        kb = self.chat.get("sermon_kb")
+        kb = self.chat.get("kb")
         if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
             kb = None  # the knowledge base was not deployed: Wesley's notes only
         return prepare(f["passage"], theme=f["theme"], audience=f["audience"], length=f["length"], notes=f["notes"],
@@ -494,7 +495,7 @@ class Store:
         def work():
             try:
                 from theoclaw.agent import workspace
-                kb = self.chat.get("sermon_kb")
+                kb = self.chat.get("kb")
                 if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
                     kb = None
                 p = (runner or workspace.start)(f, owner=r["name"], model=self.chat["model"], kb=kb)
@@ -614,13 +615,27 @@ class Store:
                 "conv": j.get("conv"),
                 "elapsed": int(time.time() - j["started"])}
 
+    def _lay_tools(self):
+        """Lay members' tools: scripture and Wesley's notes, plus the Methodist knowledge base when it
+        is on this server. Built once (the search index takes a moment) and shared by all questions."""
+        from theoclaw.agent.tools import build_tool_set
+        with self.lock:
+            if getattr(self, "_lay_ts", None) is None:
+                kb = self.chat.get("kb")
+                if kb and (ROOT / "knowledge" / kb).is_dir():
+                    self._lay_ts = build_tool_set("scripture,wesley,kb,rag", kb=ROOT / "knowledge" / kb)
+                else:
+                    sys.stderr.write(f"knowledge base {kb!r} not found; lay questions use scripture,wesley only\n")
+                    self._lay_ts = build_tool_set("scripture,wesley")
+            return self._lay_ts
+
     def _run_agent(self, question: str) -> dict:
         from theoclaw.agent.loop import run_agent
         from theoclaw.agent.tools import build_tool_set
         from theoclaw.common.pricing import cost
         from theoclaw.llm import make_client, role
         rl = role("agent", model=self.chat["model"])
-        ts = build_tool_set("scripture,wesley")
+        ts = self._lay_tools()
         run = run_agent(make_client(provider=rl.provider, params=rl.params), question, model=rl.model,
                         handlers=ts.handlers, tools=ts.defs, system=ts.system, effort=rl.effort,
                         max_tokens=rl.max_tokens)
@@ -803,7 +818,8 @@ def main(argv=None):
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
     p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題")
     p.add_argument("--sermon-daily-limit", type=int, default=15, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
-    p.add_argument("--sermon-kb", default=SERMON_KB, help="講道預備時衛斯理傳統研究用的知識庫")
+    p.add_argument("--kb", "--sermon-kb", dest="kb", default=METHODIST_KB,
+                   help="循道衛理知識庫（平信徒提問與講道預備共用）")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
     a = ap.parse_args(argv)
@@ -818,7 +834,7 @@ def main(argv=None):
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
-                 "sermon_kb": a.sermon_kb} if a.chat else None)
+                 "kb": a.kb} if a.chat else None)
         store = Store(chat=chat, rubric=Path(a.rubric))
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""

@@ -3,7 +3,7 @@
     python human_scoring/deploy/pack.py            寫出 human_scoring/deploy/theoclaw-scoring.tar.gz
 
 包含：theoclaw/ 程式、config/、data/（提問模式查經用）、human_scoring/（含 assignment.json）、
-assignment.json 用到的 runs 資料夾（只取 traces.jsonl 與 config.json）、講道預備用的知識庫（SERMON_KB）、
+assignment.json 用到的 runs 資料夾（只取 traces.jsonl 與 config.json）、講道預備用的知識庫（METHODIST_KB）、
 requirements-server.txt 與部署腳本。
 """
 
@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent / "theoclaw-scoring.tar.gz"
 SKIP_DIRS = {"__pycache__", "_backup_原版", ".pytest_cache"}
-SERMON_KB = "plain-account-pdf.en.deepseek-flash"  # 與 human_server.SERMON_KB 相同；只帶 wiki/ 與 build.json
+METHODIST_KB = "methodist.en.deepseek-flash"  # 與 human_server.METHODIST_KB 相同；只帶 wiki/ 與 build.json
 
 
 def _add_tree(tar: tarfile.TarFile, folder: Path) -> None:
@@ -38,12 +38,12 @@ def main() -> None:
                 p = ROOT / d / f
                 if p.exists():
                     tar.add(p, arcname=f"theoclaw/{Path(d).as_posix()}/{f}")
-        kb = ROOT / "knowledge" / SERMON_KB
+        kb = ROOT / "knowledge" / METHODIST_KB
         if (kb / "wiki").is_dir():
             _add_tree(tar, kb / "wiki")
             for f in ("build.json", "inputs.json"):
                 if (kb / f).exists():
-                    tar.add(kb / f, arcname=f"theoclaw/knowledge/{SERMON_KB}/{f}")
+                    tar.add(kb / f, arcname=f"theoclaw/knowledge/{METHODIST_KB}/{f}")
         tar.add(Path(__file__).parent / "requirements-server.txt", arcname="theoclaw/requirements-server.txt")
     print(f"寫出 {OUT}（{OUT.stat().st_size / 1e6:.1f} MB），包含 {len(run_dirs)} 個 runs 資料夾；不含 .env")
 

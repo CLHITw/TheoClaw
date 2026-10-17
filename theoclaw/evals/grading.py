@@ -212,9 +212,10 @@ ALWAYS_ON = ("no_misquotes", "no_internal_words")
 # Words from the agent's instructions and tooling that should not reach the user. The
 # agent loop rewrites the obvious ones (quotes.scrub_internal); this grader reports what
 # is left, so new internal words show up in the reports instead of going unnoticed.
+# 「規矩是」只在說自己的規矩時算（「我的規矩是」）；講循道衛理總規時「這些規矩是……」是正常的話。
 _INTERNAL_RE = re.compile(
     r"(?:經文|引用|整節|放|寫|補上|貼出|給出)[^，。；\n]{0,4}標記|標記(?:格式|呈現)"
-    r"|(?:按|照|依)(?:著|照)?(?:我的)?規矩|規矩是|按(?:照)?規則|系統(?:會)?自動填入"
+    r"|(?:按|照|依)(?:著|照)?(?:我的)?規矩|我(?:的|們的)規矩是|按(?:照)?規則|系統(?:會)?自動填入|知識庫"
     r"|lookup_verse|cross_references|wesley_note|fill_quote|〔經文：|【經文：")
 
 _ELLIPSIS_RE = re.compile(r"…+|\.{3,}|⋯+")

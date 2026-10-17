@@ -63,6 +63,13 @@ in this repository and what is still missing.
   - Default from now on: compile PDFs as PDFs and give the agent search too.
   - Citation precision (ALCE-style: does the cited passage or page support the sentence?) separated the arms most sharply: hybrid 91%, RAG 85%, wiki with PageIndex 70%, text-converted wiki 47%. Wiki-only answers tend to attach page numbers to paraphrases.
   - Statements the evaluator found unsupported, rechecked against the whole book: almost none contradict Wesley. Most are the comparisons with other traditions that the system prompt asks for, written from general knowledge.
+- **Giving lay members the Methodist knowledge base: answers became checkable** (2026-10-17, `tasks/lay_methodist.yaml`, 10 everyday questions, one run each).
+  - Arms: scripture + Wesley's notes only vs the same plus the compiled Methodist wiki and search (Standard Sermons, Journal, *Plain Account*, General Rules, Articles of Religion, six Chinese course booklets, a booklet on spiritual gifts).
+  - Faithfulness 67% → 92%, +25.5 pp [+10.8, +42.3]; unsupported statements 45 → 7; relevance 8.7 → 9.0, interval includes zero. Cost per answer $0.004 → $0.010, median time 23 s → 29 s.
+  - Largest gains where the old arm answered from memory: Journal 40% → 93%, rules 50% → 92%, hymns 27% → 93% (the hymn book itself is not in the wiki; the answer used hymns quoted in the sermons and the Journal and said so).
+  - Read with care: "unsupported" means not backed by what the agent retrieved, not false. Many of the old arm's statements are true (for example the 1761 *Directions for Singing*). The gain is that a reader can now check them.
+  - Lay members now get the same Methodist wiki as pastors; Bible dictionaries and the original-language word study stay pastor-only.
+  - Compile cost: about $2.6 for 13 sources. The 1780 hymn book was stopped after $1.21: an Internet Archive scan with no outline and noisy OCR text, on which PageIndex spent 961 calls guessing a table of contents.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
   - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.

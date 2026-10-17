@@ -735,8 +735,24 @@ let wsCurrent = null;
 function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 // Headings, **bold** and scripture references stand out; everything else stays plain text.
+// Citations as readers know them: the knowledge base's file names become book titles, and the
+// search-passage numbers (段落 N, which only the citation check uses) are not shown.
+const BOOKS = [
+  [/standard-sermons/, '《衛斯理講道集》'], [/wesley-journal/, '《衛斯理日記》'],
+  [/plain-account(?:-of-christian-perfection)?/, '《基督徒完全論》'], [/articles-of-religion/, '《循道衛理信條》'],
+  [/general-rules-1743-en|總規-中文/, '《總規》'], [/課程0\d-[^\s*`.，。、；：）)]+/, null], [/屬靈恩賜(?=\*|`)/, '《屬靈恩賜》'],
+];
+function readableCites(text) {
+  for (const [re, title] of BOOKS) {
+    const g = new RegExp('[*`]*(' + re.source + ')(?:\.(?:md|json|pdf))?[*`]*', 'g');
+    text = text.replace(g, (m, name) => title || '《信仰課程：' + name.replace(/^課程0\d-/, '') + '》');
+  }
+  text = text.replace(/\s*[·，,、]?\s*段落\s*\d+(?:\s*[–\-—~至到]\s*\d+)?(?:\s*附近)?/g, '');
+  return text.replace(/（\s*[，,、]\s*/g, '（').replace(/\s*[，,、]\s*）/g, '）').replace(/（\s*）|\(\s*\)/g, '');
+}
+
 function rich(text) {
-  return esc(text || '').split('\n').map(line => {
+  return esc(readableCites(text || '')).split('\n').map(line => {
     const h = line.match(/^\s*#{1,4}\s*(.+)$/);
     if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
     line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
