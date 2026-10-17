@@ -649,10 +649,6 @@ wiki pages, the processed lexicons) is committed: `knowledge/`, `data/original/`
 | 和合本 with Strong's numbers | which original word each Chinese word translates | 信望愛 FHL | FDL; Strong's tags kept |
 | ISBE (1915), Easton (1897), Smith (1884) | pastors' Bible-dictionary lookups | CrossWire modules | public domain |
 
-Deliberately not used: commercial reference works (for example the Anchor Yale Bible
-Dictionary, BDAG and HALOT), even where a copy was available, and the STEPBible ESV tags
-(CC BY-NC and tied to the copyrighted ESV text).
-
 ## Known pitfalls for graders
 
 - The 和合本 text contains its own 「」 marks (約翰福音 3:16 begins with 「), so a
