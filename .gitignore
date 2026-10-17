@@ -31,3 +31,6 @@ runs/*/human/*
 human_scoring/assignment.json
 human_scoring/_backup_原版/
 human_scoring/deploy/*.tar.gz
+
+# data pulled from the VPS: users' private questions and ratings, never committed
+runs_vps/
