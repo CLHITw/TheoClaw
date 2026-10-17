@@ -436,6 +436,43 @@ What changed:
   tools above are what would tell whether a tradition-specific answer stays faithful to
   that tradition's sources.
 
+## Sermon preparation for pastors (`theoclaw.agent.sermon`)
+
+Lay members get one agent; pastors preparing a sermon get a fixed pipeline of small agents.
+The pipeline is plain code rather than an orchestrating model, so each stage can be traced
+and evaluated on its own.
+
+1. **Research, two agents in parallel.** Each reads a lot and hands back at most about ten
+   numbered points, every point with its source.
+   - Scripture: the passage, its context and cross references.
+   - Tradition: Wesley's notes, plus the compiled *Plain Account* wiki with search.
+2. **Writing agent.** It has no tools and sees only the briefs and the pastor's request.
+   It cites brief points as [A2] or [B1] and writes scripture as placeholders that the
+   program fills, as in the lay agent.
+3. **Check.**
+   - Deterministic: scripture word for word, cited points that do not exist, scripture
+     references that cannot be found.
+   - Model: the draft's statements against the briefs.
+   - With problems, the writer revises once.
+
+The record has the shape of an agent trace, so the scoring server, graders and evaluators
+read it unchanged. The online page has a 講道預備 tab on the pastors' personal links (5 a
+day each).
+
+First runs (Luke 15:11-32, John 4:1-26):
+
+| | |
+|---|---|
+| time | about 3 minutes |
+| cost | about $0.05 |
+| statements checked | 15 |
+| unsupported | 0 |
+| partly supported | 1–2 |
+
+The planned evaluation compares this pipeline with the single agent on the same sermon
+tasks: cost, time, groundedness, citation precision and pastors' scores. Failures are
+attributed to a stage from the trace.
+
 ## Design decisions
 
 - **Hand-written loop.** `messages.create(tools=...)`, run every `tool_use` block, return

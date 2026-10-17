@@ -43,6 +43,8 @@ from theoclaw.evals.human import (Item, calibration_sample, load_items, load_rat
 RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
 CHAT_DIR = ROOT / "runs" / "pastor-chat"
+SERMON_TIMEOUT = 600                     # 講道預備要跑研究、寫作、查核，約 3 分鐘
+SERMON_KB = "plain-account-pdf.en.deepseek-flash"   # 衛斯理傳統研究用的知識庫（knowledge/ 底下）
 CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗（背景的回答若之後完成仍會存檔）
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
@@ -189,8 +191,10 @@ class Store:
                           key=lambda i: self.items[i].trace.get("asked_at", ""))
             chat = {"remaining_today": max(0, self.chat["daily_limit"] - self._today(r["name"])),
                     "open": self._spent() < self.chat["budget_usd"],
-                    "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
-                                  for i in mine]}
+                    "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
+                                   "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
+            if not r.get("group") and self.chat.get("sermon_daily_limit"):
+                chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon"))}
             if r.get("group"):  # the others' questions, so answers get more than one rater
                 chat["others"] = [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done}
                                   for i in self._group_items(r["group"]) if self.owner[i] != r["name"]]
@@ -209,7 +213,8 @@ class Store:
                  for s in t["steps"] for c in s["tool_calls"]]
         prev = self.done(r["name"]).get(item_id)
         chat = item_id in self.owner
-        return {"id": item_id, "chat": chat,
+        extra = {k: t[k] for k in ("kind", "briefs", "check_summary", "revised") if k in t}
+        return {**extra, "id": item_id, "chat": chat,
                 "position": None if chat else r["order"].index(item_id) + 1, "total": len(r["order"]),
                 "prompt": t["prompt"], "tools": calls, "answer": t.get("final_text") or "（沒有回答）",
                 "previous": None if prev is None else {k: prev.get(k) for k in ("scores", "verdict", "comment", "problems")}}
@@ -264,11 +269,13 @@ class Store:
     def _spent(self) -> float:
         return sum(t.get("cost_usd") or 0.0 for t in self._chat_traces())
 
-    def _today(self, name: str) -> int:
+    def _today(self, name: str, kind: str = "question") -> int:
         today = time.strftime("%Y%m%d")
         asked = sum(1 for t in self._chat_traces()
-                    if t.get("asked_by") == name and str(t.get("asked_at", "")).startswith(today))
-        running = sum(1 for j in self.jobs.values() if j["name"] == name and j["status"] == "running")
+                    if t.get("asked_by") == name and str(t.get("asked_at", "")).startswith(today)
+                    and t.get("kind", "question") == kind)
+        running = sum(1 for j in self.jobs.values()
+                      if j["name"] == name and j["status"] == "running" and j.get("kind", "question") == kind)
         return asked + running
 
     def _today_group(self, group: str) -> int:
@@ -303,12 +310,47 @@ class Store:
         threading.Thread(target=self._answer, args=(job, r["name"], question, runner, denom), daemon=True).start()
         return {"job": job}
 
+    def sermon(self, code: str, body: dict, runner=None, nick: str | None = None) -> dict:
+        """Start a sermon preparation (pastors' personal links only)."""
+        if not self.chat or not self.chat.get("sermon_daily_limit"):
+            return {"error": "講道預備沒有開啟"}
+        r = self.who(code, nick)
+        if r is None or r.get("group"):
+            return {"error": "講道預備只開放給牧者的個人連結"}
+        f = {k: str(body.get(k) or "").strip() for k in ("passage", "theme", "audience", "length", "notes")}
+        if not 2 <= len(f["passage"]) <= 60:
+            return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
+        if any(len(v) > 300 for v in f.values()):
+            return {"error": "每一欄請在 300 字以內"}
+        with self.lock:
+            if self._spent() >= self.chat["budget_usd"]:
+                return {"error": "本次測試的額度已用完，謝謝您的參與"}
+            if self._today(r["name"], "sermon") >= self.chat["sermon_daily_limit"]:
+                return {"error": f"今天已預備了 {self.chat['sermon_daily_limit']} 篇，請明天再來"}
+            job = secrets.token_hex(6)
+            self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None,
+                              "started": time.time(), "kind": "sermon", "timeout": SERMON_TIMEOUT}
+        run = runner or (lambda _q: self._run_sermon(f))
+        from theoclaw.agent.sermon import request_text
+        question = request_text(f["passage"], f["theme"], f["audience"], f["length"], f["notes"])
+        threading.Thread(target=self._answer, args=(job, r["name"], question, run, body.get("denomination") if body.get("denomination") in DENOMINATIONS else None),
+                         daemon=True).start()
+        return {"job": job}
+
+    def _run_sermon(self, f: dict) -> dict:
+        from theoclaw.agent.sermon import prepare
+        kb = self.chat.get("sermon_kb")
+        if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
+            kb = None  # the knowledge base was not deployed: Wesley's notes only
+        return prepare(f["passage"], theme=f["theme"], audience=f["audience"], length=f["length"], notes=f["notes"],
+                       model=self.chat["model"], kb=kb)
+
     def job(self, code: str, job_id: str, nick: str | None = None) -> dict | None:
         j = self.jobs.get(job_id)
         r = self.who(code, nick)
         if j is None or r is None or j["name"] != r["name"]:
             return None
-        if j["status"] == "running" and time.time() - j["started"] > CHAT_TIMEOUT:
+        if j["status"] == "running" and time.time() - j["started"] > j.get("timeout", CHAT_TIMEOUT):
             j.update(status="error", error="回答超時，請稍後再試，或把問題問得具體一點")
         return {"status": j["status"], "item": j["item"], "error": j["error"],
                 "elapsed": int(time.time() - j["started"])}
@@ -336,7 +378,7 @@ class Store:
                              f"cost={rec.get('cost_usd')} error={rec.get('error')}\n")
             stamp = time.strftime("%Y%m%d-%H%M%S")
             rec = {"task_id": f"chat-{stamp}-{job}", "run_index": 0, "asked_by": name, "asked_at": stamp,
-                   "denomination": denomination, **rec}
+                   "denomination": denomination, "kind": rec.get("kind", "question"), **rec}
             with self.lock:
                 self.chat_dir.mkdir(parents=True, exist_ok=True)
                 cfg = self.chat_dir / "config.json"
@@ -415,7 +457,7 @@ def make_handler(store: Store):
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
             nick = (q.get("u") or [""])[0]
-            if u.path not in ("/api/rate", "/api/ask"):
+            if u.path not in ("/api/rate", "/api/ask", "/api/sermon"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
@@ -426,6 +468,9 @@ def make_handler(store: Store):
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
                 out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"))
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            if u.path == "/api/sermon":
+                out = store.sermon(code, body, nick=nick)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             err = store.rate(code, body, nick)
             self._json({"error": err} if err else {"ok": True}, HTTPStatus.BAD_REQUEST if err else HTTPStatus.OK)
@@ -455,6 +500,8 @@ def main(argv=None):
     p.add_argument("--daily-limit", type=int, default=30, help="每人每天最多問幾題")
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
     p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題")
+    p.add_argument("--sermon-daily-limit", type=int, default=5, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
+    p.add_argument("--sermon-kb", default=SERMON_KB, help="講道預備時衛斯理傳統研究用的知識庫")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
     a = ap.parse_args(argv)
@@ -468,7 +515,8 @@ def main(argv=None):
         print(f"團體連結（{a.name}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
-                 "group_daily_limit": a.group_daily_limit} if a.chat else None)
+                 "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
+                 "sermon_kb": a.sermon_kb} if a.chat else None)
         store = Store(chat=chat, rubric=Path(a.rubric))
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""

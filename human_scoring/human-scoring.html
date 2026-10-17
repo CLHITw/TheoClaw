@@ -398,6 +398,7 @@
   <div class="tabs hidden" id="tabs">
     <button class="tab active" id="tabBlind" onclick="mode('blind')">評分指定題目</button>
     <button class="tab" id="tabAsk" onclick="mode('ask')">自己提問並評分</button>
+    <button class="tab hidden" id="tabSermon" onclick="mode('sermon')">講道預備</button>
   </div>
 
   <div id="askSection" class="hidden">
@@ -423,6 +424,30 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
     </div>
   </div>
 
+  <div id="sermonSection" class="hidden">
+    <div class="card">
+      <div class="card-title">講道預備（研究 → 寫作 → 查核）</div>
+      <div class="help">助手會先分頭研究經文和衛斯理／循道傳統，整理成附出處的研究摘要，再依摘要寫出講題、大綱和講章草稿，最後逐句查核有沒有根據。
+約 3 到 5 分鐘。完成後請打 0–10 分，並在備註寫下您會怎樣修改。講章中的 [A2]、[B1] 是所根據的研究要點，方便您核對。</div>
+      <div class="help" style="margin-top:8px">經文（必填）</div>
+      <input class="ask-input" id="sPassage" maxlength="60" style="min-height:auto;height:40px" placeholder="例如：路加福音 15:11-32">
+      <div class="help" style="margin-top:8px">主題（選填）</div>
+      <input class="ask-input" id="sTheme" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：父親的愛與兩個兒子">
+      <div class="help" style="margin-top:8px">對象（選填）</div>
+      <input class="ask-input" id="sAudience" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：主日崇拜、普通話會眾；青年團契">
+      <div class="help" style="margin-top:8px">長度（選填）</div>
+      <input class="ask-input" id="sLength" maxlength="300" style="min-height:auto;height:40px" placeholder="例如：約 20 分鐘">
+      <div class="help" style="margin-top:8px">其他要求（選填）</div>
+      <textarea class="ask-input" id="sNotes" maxlength="300" placeholder="例如：多用生活例子"></textarea>
+      <div class="actions"><button class="btn" id="sermonBtn" onclick="sermon()">開始預備</button></div>
+      <div class="help" id="sermonInfo" style="margin-top:8px"></div>
+    </div>
+    <div class="card hidden" id="sermonWait">
+      <div class="card-title">進度</div>
+      <div class="card-content help" id="sermonWaitText"></div>
+    </div>
+  </div>
+
   <div id="scoringSection" class="hidden">
     <div class="nav" id="navBar">
       <button class="btn btn-secondary btn-sm" onclick="go(-1)">← 上一題</button>
@@ -432,6 +457,9 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
     <div class="card"><div class="card-title">題目 · Question</div><div class="card-content" id="questionText"></div></div>
     <div class="card"><div class="card-title">工具查到的資料 · What the assistant looked up（點開看全文 · tap to open）</div><div id="toolCalls"></div></div>
     <div class="card"><div class="card-title">回答 · Answer</div><div class="card-content" id="answerText"></div></div>
+    <div class="card hidden" id="briefsCard"><div class="card-title">研究摘要（講章所根據的要點）</div>
+      <details><summary class="help">點開查看</summary><div class="card-content" id="briefsText"></div></details></div>
+    <div class="card hidden" id="checkCard"><div class="card-title">查核結果</div><div class="card-content help" id="checkText"></div></div>
     <div class="card"><div class="card-title" id="scoreTitle">評分</div><div class="help" id="anchors"></div><div class="dimensions" id="dimensions"></div></div>
     <div class="card" id="problemsCard"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
     <div class="card verdict-section" id="verdictCard">
@@ -523,6 +551,7 @@ function init() {
     document.getElementById('problemsCard').classList.toggle('hidden', simple);
     document.getElementById('introBox').classList.remove('hidden');
     if (s.chat) document.getElementById('tabs').classList.remove('hidden');
+    if (s.chat && s.chat.sermon) document.getElementById('tabSermon').classList.remove('hidden');
     if (!s.order.length && s.chat) {  // a group link: only asking and scoring the group's answers
       document.getElementById('tabBlind').classList.add('hidden');
       document.getElementById('progressInfo').textContent = '';
@@ -552,8 +581,16 @@ function mode(m) {
   current = m;
   document.getElementById('tabBlind').classList.toggle('active', m === 'blind');
   document.getElementById('tabAsk').classList.toggle('active', m === 'ask');
+  document.getElementById('tabSermon').classList.toggle('active', m === 'sermon');
   document.getElementById('askSection').classList.toggle('hidden', m !== 'ask');
-  document.getElementById('introBox').classList.toggle('hidden', m === 'ask');
+  document.getElementById('sermonSection').classList.toggle('hidden', m !== 'sermon');
+  document.getElementById('introBox').classList.toggle('hidden', m !== 'blind');
+  if (m === 'sermon') {
+    document.getElementById('scoringSection').classList.add('hidden');
+    document.getElementById('doneSection').classList.add('hidden');
+    refreshSermon();
+    return;
+  }
   if (m === 'ask') {
     document.getElementById('scoringSection').classList.add('hidden');
     document.getElementById('doneSection').classList.add('hidden');
@@ -593,7 +630,7 @@ function refreshAsk() {
     if (!c.questions.length) ul.innerHTML = '<li class="help">還沒有問過問題</li>';
     c.questions.slice().reverse().forEach(q => {
       const li = document.createElement('li');
-      li.textContent = (q.rated ? '✓ ' : '○ ') + q.prompt;
+      li.textContent = (q.rated ? '✓ ' : '○ ') + (q.kind === 'sermon' ? '【講章】' : '') + q.prompt.split('\n').join(' ');
       li.onclick = () => showId(q.id);
       ul.appendChild(li);
     });
@@ -629,6 +666,45 @@ function ask() {
     .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
 }
 
+function refreshSermon() {
+  api('/api/state').then(s => {
+    state.chat = s.chat;
+    const left = s.chat.sermon ? s.chat.sermon.remaining_today : 0;
+    document.getElementById('sermonInfo').textContent = '今天還可以預備 ' + left + ' 篇。預備過的講章列在「自己提問並評分」頁的清單中（標有【講章】）。';
+    document.getElementById('sermonBtn').disabled = left <= 0 || !s.chat.open;
+  });
+}
+
+function sermon() {
+  const v = id => document.getElementById(id).value.trim();
+  if (v('sPassage').length < 2) { showToast('請填寫經文'); return; }
+  const btn = document.getElementById('sermonBtn');
+  btn.disabled = true;
+  api('/api/sermon', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({passage: v('sPassage'), theme: v('sTheme'), audience: v('sAudience'), length: v('sLength'),
+                          notes: v('sNotes'), denomination: denom})})
+    .then(r => {
+      if (r.error) { showToast(r.error); btn.disabled = false; return; }
+      const wait = document.getElementById('sermonWait'), text = document.getElementById('sermonWaitText');
+      wait.classList.remove('hidden');
+      const stages = ['研究經文和衛斯理註釋…', '研究經文和衛斯理註釋…', '整理研究摘要…', '撰寫講章草稿…', '撰寫講章草稿…', '逐句查核…', '依查核意見修改…'];
+      const stop = (msg) => { clearInterval(polling); btn.disabled = false; if (msg) text.textContent = msg; };
+      polling = setInterval(() => {
+        api('/api/job?id=' + r.job).then(j => {
+          if (j.error && !j.status) { stop('找不到這次預備（伺服器可能剛重新啟動），請再送出一次。'); return; }
+          if (j.status === 'running') {
+            text.textContent = stages[Math.min(stages.length - 1, Math.floor(j.elapsed / 40))] + '（已 ' + j.elapsed + ' 秒，約需 3 到 5 分鐘，請不要關閉頁面）';
+            return;
+          }
+          if (j.status === 'error') { stop(j.error); return; }
+          stop(); wait.classList.add('hidden');
+          showId(j.item);
+        }).catch(() => { text.textContent = '連線不穩，正在重試…'; });
+      }, 4000);
+    })
+    .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+}
+
 function showId(id) {
   const i = state.order.indexOf(id);
   if (i >= 0) { show(i); return; }
@@ -657,6 +733,15 @@ function load(id) {
       (state.done.includes(it.id) ? ' <span class="saved-tag">已評</span>' : '');
     document.getElementById('questionText').textContent = it.prompt;
     document.getElementById('answerText').textContent = it.answer;
+    document.getElementById('briefsCard').classList.toggle('hidden', !it.briefs);
+    document.getElementById('checkCard').classList.toggle('hidden', !it.check_summary);
+    if (it.briefs) document.getElementById('briefsText').textContent = it.briefs;
+    if (it.check_summary) {
+      const c = it.check_summary;
+      document.getElementById('checkText').textContent = '查核了 ' + c.claims + ' 條事實陳述：沒有根據 ' + c.unsupported +
+        ' 條、部分有根據 ' + c.partial + ' 條' + (c.failed_scripture && c.failed_scripture.length ? '；查不到的經文：' + c.failed_scripture.join('、') : '') +
+        (c.misquotes ? '；經文引用不一致：' + c.misquotes : '') + (it.revised ? '。草稿已按查核意見修改過一次。' : '。');
+    }
     const tc = document.getElementById('toolCalls');
     tc.innerHTML = '';
     if (!it.tools.length) tc.innerHTML = '<div class="help">（沒有呼叫工具）</div>';

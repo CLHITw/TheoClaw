@@ -190,3 +190,29 @@ def test_denomination_recorded_with_question_and_rating(tmp_path):
     assert store.rate(code, {"id": item, "scores": {"overall": 7}, "denomination": "聖公會 Anglican"}, "Tom") is None
     rec = json.loads(next((chat_dir / "human").glob("*.jsonl")).read_text(encoding="utf-8"))
     assert rec["denomination"] == "聖公會 Anglican"
+
+
+def test_sermon_preparation_for_pastors_only(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    pastor = next(iter(hs.prepare([str(a)], ["牧者1"], None, None, path)["raters"]))
+    group = hs.add_group("查經班", path)
+    chat_dir = tmp_path / "pastor-chat"
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "sermon_daily_limit": 1},
+                     chat_dir=chat_dir)
+    assert store.state(pastor)["chat"]["sermon"]["remaining_today"] == 1
+    assert "sermon" not in store.state(group, "小明")["chat"]
+    assert "牧者" in store.sermon(group, {"passage": "路加福音 15"}, nick="小明")["error"]
+    assert "經文" in store.sermon(pastor, {"passage": ""})["error"]
+    fake = lambda q: {"kind": "sermon", "model": "m", "prompt": q, "final_text": "講章", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.05, "briefs": "[A1] 要點", "revised": False,
+                      "check_summary": {"unsupported": 0}}
+    j = store.sermon(pastor, {"passage": "路加福音 15:11-32", "theme": "父親的愛"}, runner=fake)
+    for _ in range(50):
+        if store.job(pastor, j["job"])["status"] != "running":
+            break
+        time.sleep(0.05)
+    item = store.item(pastor, store.job(pastor, j["job"])["item"])
+    assert item["kind"] == "sermon" and item["briefs"] == "[A1] 要點" and "父親的愛" in item["prompt"]
+    assert "1 篇" in store.sermon(pastor, {"passage": "約翰福音 3"}, runner=fake)["error"]  # daily limit
+    assert store.state(pastor)["chat"]["remaining_today"] == 5  # sermons do not use up questions
