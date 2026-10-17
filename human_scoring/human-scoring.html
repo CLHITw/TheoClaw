@@ -424,7 +424,10 @@
     <div style="display:flex;align-items:center"><button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw</h1></div>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="progress-info" id="progressInfo">載入中…</div>
-      <button class="btn btn-secondary btn-sm" id="scriptBtn" onclick="toggleScript()" title="簡體／繁體">&#31616;</button>
+      <select id="langSel" class="notr" onchange="setLang(this.value)" title="Language · 語言"
+              style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 6px;background:var(--card);color:var(--text)">
+        <option value="hant">繁體</option><option value="hans">&#31616;&#20307;</option><option value="en">English</option>
+      </select>
     </div>
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -463,7 +466,7 @@
 
   <div class="tabs hidden" id="tabs">
     <button class="tab active" id="tabBlind" onclick="mode('blind')">評分指定題目</button>
-    <button class="tab" id="tabAsk" onclick="mode('ask')">自己提問並評分</button>
+    <button class="tab" id="tabAsk" onclick="mode('ask')">對話並評分</button>
     <button class="tab hidden" id="tabSermon" onclick="mode('sermon')">講道預備</button>
   </div>
 
@@ -790,7 +793,7 @@ function ask() {
   const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
   api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({question: q, denomination: denom, conv: convId})})
+    body: JSON.stringify({question: q, denomination: denom, conv: convId, lang: answerLang()})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
@@ -880,7 +883,7 @@ function wsStart() {
   const btn = document.getElementById('wsStartBtn'), info = document.getElementById('wsStartInfo');
   btn.disabled = true;
   api('/api/sermon/start', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({passage: v('sPassage'), theme: v('sTheme'), audience: v('sAudience'), length: v('sLength')})})
+    body: JSON.stringify({passage: v('sPassage'), theme: v('sTheme'), audience: v('sAudience'), length: v('sLength'), lang: answerLang()})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
@@ -976,7 +979,7 @@ function renderTurns(box, turns, openId, onAdd) {
 
 function wsRenderTurns(turns, openId) {
   renderTurns(document.getElementById('wsTurns'), turns, openId, t => {
-    const label = prompt('這一段的標題（例如：引言、第一點、例證、結語）', '段落');
+    const label = prompt(T('這一段的標題（例如：引言、第一點、例證、結語）'), T('段落'));
     if (label === null) return;
     wsBoardAction({action: 'add', item: t.id, label: label});
   });
@@ -1038,9 +1041,9 @@ function wsRenderBoard(board) {
       const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = t;
       btn.onclick = () => {
         const req = {action: a, index: i};
-        if (a === 'label') { const v = prompt('新標題', b.label); if (v === null) return; req.label = v; }
-        if (a === 'text') { const v = prompt('修改這一段（可直接改寫）', b.text); if (v === null) return; req.text = v; }
-        if (a === 'delete' && !confirm('刪除這一段？')) return;
+        if (a === 'label') { const v = prompt(T('新標題'), b.label); if (v === null) return; req.label = v; }
+        if (a === 'text') { const v = prompt(T('修改這一段（可直接改寫）'), b.text); if (v === null) return; req.text = v; }
+        if (a === 'delete' && !confirm(T('刪除這一段？'))) return;
         wsBoardAction(req);
       };
       act.appendChild(btn);
@@ -1078,7 +1081,7 @@ function wsSend() {
 }
 
 function wsAssemble() {
-  if (!confirm('把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）')) return;
+  if (!confirm(T('把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）'))) return;
   wsRun('/api/sermon/assemble', {}, '正在組成完整講稿並查核，約 1 到 2 分鐘');
 }
 
@@ -1214,19 +1217,166 @@ function save() {
     .catch(() => { btn.disabled = false; showToast('儲存失敗，請檢查網路後再按一次'); });
 }
 
-// 簡／繁: the server sends a character map (繁 -> 簡, from OpenCC); the page converts every text
-// it shows, including what is drawn later, and remembers the choice on this device.
+// Language: Traditional (as written), Simplified (a character map from the server, OpenCC 繁 -> 簡) or English
+// (the dictionary below); applied to every text the page shows, including what is drawn later,
+// and remembered on this device. A visitor whose browser is not set to Chinese starts in English.
 let zhMap = null, zhMode = 'hant';
 const zhOriginal = new WeakMap();
-try { zhMode = localStorage.getItem('theoclaw_script') || 'hant'; } catch (e) {}
+try {
+  zhMode = localStorage.getItem('theoclaw_script') ||
+    (/^zh/i.test(navigator.language || '') ? 'hant' : 'en');
+} catch (e) { zhMode = /^zh/i.test(navigator.language || '') ? 'hant' : 'en'; }
 
 function toHans(t) { let o = ''; for (const c of t) o += zhMap[c] || c; return o; }
 
+// English: the page's own words (not the answers, questions or other things people wrote).
+// Exact strings first, then patterns for the ones built with numbers; a "中文 · English" label
+// shows its English half.
+const EN = {
+  '載入中…': 'Loading…', '評分指定題目': 'Score assigned answers', '對話並評分': 'Chat & score', '講道預備': 'Sermon preparation',
+  '說明': 'About', '過去的對話': 'Past conversations', '我的對話': 'My conversations', '我的講章': 'My sermons',
+  '＋ 新對話': '＋ New conversation', '＋ 新講章': '＋ New sermon', '還沒有': 'Nothing yet', '還沒有對話': 'No conversations yet',
+  '還沒有對話。': 'No conversation yet.', '還沒有講章': 'No sermons yet',
+  '用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。':
+    'A nickname is fine (no full name needed); this device will remember it. Please use the same name each time.',
+  '🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。':
+    '🔒 Your questions and scores are visible only to you, on this device; no other user can see them. They are kept under your nickname only, to improve this assistant.',
+  '· Your questions are private: only you, on this device, can see them.': '',
+  '例如 e.g. 小明 / Tom': 'e.g. Tom',
+  '每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。':
+    'Each item is an answer from a Bible-study and sermon-preparation assistant. Read the question, then the answer, and score it by how useful you find it; no need to check sources: scripture text is checked word for word by the program, and whether the answer is grounded is checked automatically.',
+  '覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
+    'If a sentence seems odd, paste it into the comment. Each score is saved when you press Save; you can close the page any time and continue later with the same link.',
+  '像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
+    'Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.',
+  'Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers.': '',
+  '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Your past conversations are in the list on the left (on a phone, tap ☰ at the top left); tap one to continue it.',
+  '例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
+    'e.g. How can we discuss the parable of the prodigal son (Luke 15) in our Bible study?',
+  '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Ask a follow-up… (e.g. And verse 9? Could you give an example?)',
+  '本次測試的提問額度已用完，謝謝您的參與。': 'The question allowance for this trial has been used up. Thank you for taking part.',
+  '開一篇新講章': 'Start a new sermon',
+  '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
+    'Enter the passage and the assistant first researches the text, the original language and the Wesleyan / Methodist tradition (about a minute). Then you can work step by step: the meaning of a word, an introduction, an illustration, a shorter version of a paragraph… Add the replies you like to the draft board, then press “Assemble full sermon”.',
+  '經文（必填）': 'Passage (required)', '主題（選填）': 'Theme (optional)', '對象（選填）': 'Audience (optional)', '長度（選填）': 'Length (optional)',
+  '例如：路加福音 15:11-32': 'e.g. Luke 15:11-32', '例如：父親的愛': 'e.g. The father’s love', '例如：主日崇拜；青年團契': 'e.g. Sunday worship; youth fellowship',
+  '例如：約 20 分鐘': 'e.g. about 20 minutes', '開始研究': 'Start research', '← 我的講章': '← My sermons',
+  '研究摘要': 'Research summary', '點開查看（助手回答時會用到，[A1]、[B2] 即這些要點）': 'Open to read (the assistant uses these points; [A1], [B2] refer to them)',
+  '原文逐詞表（程式整理）': 'Original-language word list (built by the program)', '點開查看': 'Open to read',
+  '講稿板（已選定的段落，可排序、修改、刪除）': 'Draft board (chosen paragraphs; reorder, edit or delete)', '組成完整講稿': 'Assemble full sermon',
+  '對話': 'Conversation', '送出': 'Send',
+  '例如：15:20「動了慈心」原文是甚麼字？／幫我寫引言，約 300 字，從「回家」切入。／第二點給一個青年人能明白的例子。':
+    'e.g. What is the Greek word behind “compassion” in 15:20? / Write an introduction of about 300 words starting from “coming home”. / Give an example for point two that young people can relate to.',
+  '還沒有段落。在下面的對話裡，把滿意的回答按「加入講稿」。': 'No paragraphs yet. In the conversation below, press “Add to draft” on the replies you like.',
+  '加入講稿': 'Add to draft', '評分': 'Score', '✓ 已評分': '✓ Scored', '✓ 已評分（修改）': '✓ Scored (change)', '未評分': 'Not scored',
+  '儲存評分': 'Save score', '已儲存評分': 'Score saved', '已儲存': 'Saved', '已更新講稿板': 'Draft board updated',
+  '改標題': 'Rename', '修改內容': 'Edit', '刪除': 'Delete', '【完整講稿】': '[Full sermon] ',
+  '這個回答對您的講道預備有多大幫助？（0–10，10 最好；7 分以上 = 可以直接用或小改就能用）': 'How helpful is this reply for your sermon preparation? (0–10, 10 best; 7 or more = usable as it is or with small changes)',
+  '備註（選填）：哪裡要改、哪句不對、太長或太淺……': 'Comment (optional): what to change, which sentence is wrong, too long or too shallow…',
+  '請選一個分數': 'Please choose a score', '儲存失敗，請檢查網路': 'Could not save; please check your connection',
+  '儲存失敗，請檢查網路後再按一次': 'Could not save; please check your connection and press again', '送出失敗，請檢查網路': 'Could not send; please check your connection',
+  '請輸入問題': 'Please enter a question', '請輸入要求': 'Please enter a request', '請填寫經文': 'Please enter the passage',
+  '請輸入 1 到 20 個字，不要用特殊符號': 'Please enter 1 to 20 characters, without special symbols',
+  '請使用負責人寄給您的專屬連結開啟本頁。': 'Please open this page with the personal link you were sent.',
+  '無法連線到評分伺服器，請稍後再試。': 'Cannot reach the server; please try again later.',
+  '連線不穩，正在重試…': 'Connection unstable, retrying…', '（連線不穩，重試中）': ' (connection unstable, retrying)',
+  '找不到這個工作（伺服器可能剛重新啟動），請再送出一次。': 'This request was lost (the server may have restarted); please send it again.',
+  '助手正在查資料和撰寫，通常 20 秒到 1 分鐘': 'The assistant is researching and writing, usually 20 seconds to a minute',
+  '正在組成完整講稿並查核，約 1 到 2 分鐘': 'Assembling and checking the full sermon, about 1 to 2 minutes',
+  '題目 · Question': 'Question', '回答 · Answer': 'Answer', '研究摘要（講章所根據的要點）': 'Research summary (the points the sermon is based on)',
+  '查核結果': 'Check', '主要問題（可複選；沒有就不用選）': 'Main problems (choose any; none is fine)', '總評': 'Verdict', '可以': 'Yes', '不可以': 'No',
+  '全部評完了，謝謝您！': 'All done, thank you!', '評分已經存檔，不需要另外下載。若想修改，可按下方按鈕回到任何一題。': 'Your scores are saved; nothing to download. To change one, go back with the button below.',
+  '回到第一題': 'Back to the first', '← 上一題': '← Previous', '下一題 →': 'Next →', '已評': 'scored',
+  '（沒有呼叫工具）': '(no tools used)', '（空白）': '(empty)', '（出錯）': ' (error)',
+  '查經文': 'Scripture lookup', '填入經文': 'Scripture filled in', '串珠': 'Cross references', '衛斯理註釋': 'Wesley’s Notes', '知識庫': 'Methodist sources',
+  '這個回答對你的查經或預備有多大幫助？ How helpful is this answer for your Bible study?': 'How helpful is this answer for your Bible study?',
+  '這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）': 'Can this answer be used as it is? (decided by the score: 7 or more = yes)',
+  '經文引錯或出處錯': 'Scripture misquoted or wrong reference', '經文不是查來的（憑記憶寫）': 'Scripture written from memory, not looked up',
+  '捏造或曲解衛斯理': 'Wesley invented or misrepresented', '史實、教義或條文錯誤': 'Wrong history, doctrine or rule',
+  '查不到卻沒有說明': 'Did not say when something could not be found', '經文、註釋與推論混在一起': 'Scripture, commentary and inference mixed up',
+  '空泛、沒有幫助': 'Vague, not helpful', '答非所問': 'Off the question', '太長或重複': 'Too long or repetitive',
+  '語言問題（簡體、夾雜、不通順）': 'Language problems', '不符合循道衛理傳統': 'Not in keeping with the Methodist tradition',
+  // from the server
+  '上一個要求還在處理中，請稍候': 'The previous request is still running; please wait', '今天團契的提問額度已用完，請明天再來': 'Your group’s questions for today are used up; please come back tomorrow',
+  '問題請在 2 到 1000 字之間': 'Questions must be 2 to 1000 characters', '找不到這一段': 'Paragraph not found', '找不到這一題': 'Item not found',
+  '找不到這個回答': 'Reply not found', '找不到這個對話': 'Conversation not found', '找不到這篇講章': 'Sermon not found',
+  '本次測試的提問額度已用完，謝謝您的參與': 'The question allowance for this trial has been used up. Thank you for taking part.',
+  '本次測試的額度已用完，謝謝您的參與': 'The allowance for this trial has been used up. Thank you for taking part.',
+  '段落內容請在 1 到 8000 字之間': 'A paragraph must be 1 to 8000 characters', '每一欄請在 300 字以內': 'Each field must be 300 characters or fewer',
+  '請先輸入您的稱呼': 'Please enter your name first', '請填寫經文（例如：路加福音 15:11-32）': 'Please enter the passage (e.g. Luke 15:11-32)',
+  '請輸入要求（1500 字以內）': 'Please enter a request (up to 1500 characters)', '講稿板上還沒有段落，請先把滿意的回答加入講稿': 'The draft board is empty; add the replies you like first',
+  '講稿板最多 30 段': 'The draft board holds at most 30 paragraphs', '講道預備只開放給牧者連結': 'Sermon preparation is for pastors’ links only',
+  '連結無效，請向負責人索取您的專屬連結': 'This link is not valid; please ask for your personal link', '回答時出錯，請稍後再試': 'Something went wrong; please try again later',
+  '回答超時，請稍後再試，或把問題問得具體一點': 'The answer took too long; please try again, or make the question more specific',
+  '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
+  '請選擇總評': 'Please choose a verdict',
+  // dialogs
+  '這一段的標題（例如：引言、第一點、例證、結語）': 'A title for this paragraph (e.g. Introduction, Point 1, Illustration, Conclusion)',
+  '段落': 'Paragraph', '新標題': 'New title', '修改這一段（可直接改寫）': 'Edit this paragraph', '刪除這一段？': 'Delete this paragraph?',
+  '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Assemble the paragraphs on the draft board into a full sermon? (about 1 to 2 minutes)',
+};
+const EN_PATTERNS = [
+  [/^今天還可以問 (\d+) 題。$/, 'You can ask $1 more questions today.'],
+  [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (saved as “$1”; not you? change it here)'],
+  [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' question' : ' questions') + (b ? ', ' + b + ' not scored' : '') + (c || '')],
+  [/^講稿板 (\d+) 段( · .+)?$/, (m, a, c) => a + ' on the draft board' + (c || '')],
+  [/^今天還可以開 (\d+) 篇新講章。$/, 'You can start $1 more sermons today.'],
+  [/^對話：/, 'Conversation: '],
+  [/^助手正在查經文並撰寫回答……已等 (\d+) 秒（通常 20 秒到一分鐘），請不要關閉頁面。$/, 'The assistant is looking up scripture and writing… $1 s so far (usually 20 s to a minute). Please keep this page open.'],
+  [/^正在研究經文、原文和衛斯理傳統……（已 (\d+) 秒，約需 1 分鐘）$/, 'Researching the passage, the original language and the Wesleyan tradition… ($1 s; about a minute)'],
+  [/^正在研究經文、原文和衛斯理傳統……/, 'Researching the passage, the original language and the Wesleyan tradition…'],
+  [/^(.+)（已 (\d+) 秒）$/, (m, a, b) => toEn(a) + ' (' + b + ' s)'],
+  [/^(✓ 已評分|未評分)｜未能核實 (\d+)$/, (m, a, b) => toEn(a) + ' | ' + b + ' unverified'],
+  [/^第 (\d+) \/ (\d+) 題$/, 'Item $1 / $2'], [/^已評 (\d+) \/ (\d+)$/, 'Scored $1 / $2'],
+  [/^評分 · Score（(\d+)–(\d+)，(\d+) 最好 · best(；N = 不適用)?）$/, (m, a, b, c, n) => 'Score (' + a + '–' + b + ', ' + c + ' best' + (n ? '; N = not applicable' : '') + ')'],
+  [/^(\S+) 分 · pts：.*· (.+)$/, '$1 pts: $2'],
+  [/^還有「(.+)」沒有評分$/, (m, a) => toEn(a) + ' is not scored yet'],
+  [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'You have asked $1 today; please come back tomorrow'],
+  [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'You have started $1 sermons today; please come back tomorrow'],
+  [/^「(.+)」(還沒有評分|需要打分|的分數無效)$/, (m, a, b) => toEn(a) + ({'還沒有評分': ' is not scored yet', '需要打分': ' needs a score', '的分數無效': ': invalid score'})[b]],
+  [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (edited)'],
+  [/^查核 (\d+) 條陳述：未能核實 (\d+)、部分核實 (\d+)（[^）]*）/, 'Checked $1 statements: $2 could not be verified, $3 partly verified (“could not be verified” means no support was found in the research or this reply’s lookups; not necessarily wrong — please check)'],
+  [/^查核了 (\d+) 條事實陳述：沒有根據 (\d+) 條、部分有根據 (\d+) 條/, 'Checked $1 statements: $2 unsupported, $3 partly supported'],
+  [/^(.+)：(.+)$/, null],  // label: value pairs (tool calls) are left to the dictionary below
+];
+const EN_LABELS = {'查不到的經文：': 'Passages not found: ', '經文引用不一致：': 'Scripture quotations not matching: ',
+  '不存在的要點編號：': 'Point numbers that do not exist: ', '未能核實的句子：': 'Sentences that could not be verified: '};
+
+function toEn(t) {
+  const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], s = t.trim().replace(/\s*\n\s*/g, ' ');
+  if (!s || !/[㐀-鿿（）【】《》]/.test(s)) return t;
+  if (s in EN) return EN[s] ? lead + EN[s] + trail : '';
+  for (const [re, rep] of EN_PATTERNS) {
+    if (rep === null || !re.test(s)) continue;
+    return lead + s.replace(re, rep).replace(/查不到的經文：|經文引用不一致：|不存在的要點編號：|未能核實的句子：/g, x => EN_LABELS[x])
+      .replace(/。/g, '. ').replace(/、/g, ', ').replace(/；/g, '; ') + trail;
+  }
+  const bi = s.match(/^.*[一-鿿].*?\s·\s([A-Za-z].*)$/);  // "中文 · English"
+  if (bi) return lead + bi[1] + trail;
+  return t;
+}
+
+// User and assistant text is never translated, only the page's own words.
+const NO_TR = '.rich, #questionText, .turn summary .ask, #wsBriefs, #wsWords, #briefsText, #wordText, #toolCalls pre, #wsTitle, .notr, textarea';
+function noTr(node) {
+  const p = node.parentElement;
+  return !!p && (p.matches('.sb-list li:not(.help)') || !!p.closest(NO_TR));
+}
+
+function T(s) { return zhMode === 'en' ? toEn(s) : (zhMode === 'hans' && zhMap ? toHans(s) : s); }
+
+
+function shown(orig, node) {
+  if (zhMode === 'hans') return zhMap ? toHans(orig) : orig;
+  if (zhMode === 'en' && !(node && noTr(node))) return toEn(orig);
+  return orig;
+}
+
 function convertNode(node) {
   if (node.nodeType === 3) {
-    if (zhMode === 'hans') {
+    if (zhMode !== 'hant') {
       if (!zhOriginal.has(node)) zhOriginal.set(node, node.nodeValue);
-      const v = toHans(zhOriginal.get(node));
+      const v = shown(zhOriginal.get(node), node);
       if (node.nodeValue !== v) node.nodeValue = v;
     } else if (zhOriginal.has(node)) {
       node.nodeValue = zhOriginal.get(node); zhOriginal.delete(node);
@@ -1236,28 +1386,31 @@ function convertNode(node) {
   if (node.nodeType !== 1 || node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return;
   if (node.placeholder) {
     if (!node.dataset.ph) node.dataset.ph = node.placeholder;
-    node.placeholder = zhMode === 'hans' ? toHans(node.dataset.ph) : node.dataset.ph;
+    node.placeholder = shown(node.dataset.ph);
   }
   node.childNodes.forEach(convertNode);
 }
 
 function applyScript() {
-  document.getElementById('scriptBtn').textContent = zhMode === 'hans' ? '繁' : '\u7b80';
+  document.getElementById('langSel').value = zhMode;
+  document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant');
   convertNode(document.body);
 }
 
-function toggleScript() {
-  const go = () => { zhMode = zhMode === 'hans' ? 'hant' : 'hans';
-    try { localStorage.setItem('theoclaw_script', zhMode); } catch (e) {} applyScript(); };
-  if (zhMap) go(); else fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; go(); });
+function setLang(m) {
+  const go = () => { zhMode = m; try { localStorage.setItem('theoclaw_script', zhMode); } catch (e) {} applyScript(); };
+  if (m !== 'hans' || zhMap) go(); else fetch('/zhmap.json').then(r => r.json()).then(map => { zhMap = map; go(); });
 }
 
+// what the assistant should answer in: English when the page is in English
+function answerLang() { return zhMode === 'en' ? 'en' : 'zh'; }
+
 new MutationObserver(muts => {
-  if (zhMode !== 'hans' || !zhMap) return;
+  if (zhMode === 'hant' || (zhMode === 'hans' && !zhMap)) return;
   muts.forEach(m => {
     if (m.type === 'characterData') {
       const o = zhOriginal.get(m.target);
-      if (o !== undefined && m.target.nodeValue === toHans(o)) return;  // our own conversion, not new text
+      if (o !== undefined && m.target.nodeValue === shown(o, m.target)) return;  // our own conversion, not new text
       zhOriginal.delete(m.target); convertNode(m.target);
     }
     m.addedNodes.forEach(convertNode);
@@ -1265,6 +1418,7 @@ new MutationObserver(muts => {
 }).observe(document.body, {childList: true, subtree: true, characterData: true});
 
 if (zhMode === 'hans') fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; applyScript(); });
+else applyScript();
 
 function showToast(msg) {
   const t = document.getElementById('toast');

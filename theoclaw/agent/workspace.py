@@ -60,13 +60,14 @@ def _tool_groups(kb: str | None) -> str:
 def start(fields: dict, *, owner: str, model: str = "deepseek-flash", kb: str | None = None, client=None) -> dict:
     from .sermon import research
     r = research(fields["passage"], theme=fields.get("theme", ""), audience=fields.get("audience", ""),
-                 length=fields.get("length", ""), notes=fields.get("notes", ""), model=model, kb=kb, client=client)
+                 length=fields.get("length", ""), notes=fields.get("notes", ""), model=model, kb=kb, client=client,
+                 lang=fields.get("lang") or "zh")
     costs = sum((r[k].get("cost_usd") or 0.0) for k in ("research_scripture", "research_tradition"))
     research_steps = [s for k in ("research_scripture", "research_tradition") for s in r[k].get("steps", [])]
     return {"id": secrets.token_hex(6), "owner": owner, "created": time.strftime("%Y%m%d-%H%M%S"),
             **{k: fields.get(k, "") for k in ("passage", "theme", "audience", "length", "notes")},
             "request": r["request"], "briefs": r["briefs"], "word_study": r["word_study"],
-            "research_steps": research_steps, "research_cost_usd": costs, "kb": kb,
+            "research_steps": research_steps, "research_cost_usd": costs, "kb": kb, "lang": fields.get("lang") or "zh",
             "board": [], "turns": []}
 
 

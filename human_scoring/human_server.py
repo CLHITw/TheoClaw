@@ -370,7 +370,7 @@ class Store:
                                       for i in ids]}
 
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
-            denomination: str | None = None, conv: str | None = None) -> dict:
+            denomination: str | None = None, conv: str | None = None, lang: str | None = None) -> dict:
         """Start answering in the background; returns {"job": id} or {"error": ...}. With conv, the
         question continues that conversation and is answered with its earlier turns."""
         if not self.chat:
@@ -403,6 +403,8 @@ class Store:
         denom = denomination if denomination in DENOMINATIONS else None
         from theoclaw.agent.conversation import follow_up_prompt
         prompt = follow_up_prompt(history, question)
+        if lang == "en":  # the page is in English: answer in English, whatever language the question is in
+            prompt += "\n\n(Please answer in English.)"
 
         def run(_q):
             rec = (runner or self._run_agent)(prompt)
@@ -509,6 +511,7 @@ class Store:
             return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
         if any(len(v) > 300 for v in f.values()):
             return {"error": "每一欄請在 300 字以內"}
+        f["lang"] = "en" if body.get("lang") == "en" else "zh"
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的額度已用完，謝謝您的參與"}
@@ -802,7 +805,7 @@ def make_handler(store: Store):
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
             if u.path == "/api/ask":
                 out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"),
-                                conv=body.get("conv") or None)
+                                conv=body.get("conv") or None, lang=body.get("lang"))
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             ws = {"/api/sermon/start": store.ws_start, "/api/sermon/turn": store.ws_turn,
                   "/api/sermon/assemble": store.ws_assemble, "/api/sermon/board": store.ws_board}

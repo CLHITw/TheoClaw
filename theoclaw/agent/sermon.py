@@ -67,6 +67,15 @@ CHECK = """你是講章的事實查核員。只根據【研究摘要】判斷，
 判斷每條能否由研究摘要支持：supported、partial（說得比摘要多）、unsupported（摘要沒有或相反）。
 只輸出 JSON：{"claims": [{"claim": "陳述", "verdict": "supported|partial|unsupported", "cites": "草稿標的要點，如 A2"}]}"""
 
+# A pastor working in English gets the briefs in English (the instructions above stay as they are).
+ENGLISH_BRIEF = """
+
+Write the whole brief in English for an English-speaking pastor: the heading in English
+("## Scripture research brief" or "## Wesley and Methodist tradition brief"), the points in
+plain English, sources in English (e.g. "Romans 5:8", "Wesley's Notes, Romans 5:8", "ISBE: GRACE").
+Keep the [A1] / [B1] numbering. Original-language words: the Greek or Hebrew word, transliteration
+and meaning. Where the instructions say 查不到, write "not found"."""
+
 _POINT = re.compile(r"\[([AB]\d{1,2})\]")
 
 
@@ -145,7 +154,7 @@ def problems_of(det: dict, chk: dict) -> list[str]:
 
 
 def research(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
-             model: str = "deepseek-flash", kb: str | None = None, client=None) -> dict:
+             model: str = "deepseek-flash", kb: str | None = None, client=None, lang: str = "zh") -> dict:
     """The research stage alone: the program-built word study, then the two research agents in
     parallel. Used by prepare() and, once per sermon, by the pastor's workspace."""
     from ..llm import make_client, role
@@ -157,15 +166,17 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
     from ..common import original
     word_table = original.render(original.word_study(passage) + original.theme_words(theme))
 
+    extra = ENGLISH_BRIEF if lang == "en" else ""
+
     def one(kind):
         if kind == "A":
             prompt = req + ("\n\n【原文逐詞表】（程式從帶 Strong's 編號的和合本與 STEPBible 辭典整理）\n" + word_table
                             if word_table else "")
             from . import reference
             groups = "scripture,reference" if reference.available() else "scripture"
-            return _agent(client, rl.model, RESEARCH_SCRIPTURE, prompt, groups, None, rl.max_tokens, rl.effort)
+            return _agent(client, rl.model, RESEARCH_SCRIPTURE + extra, prompt, groups, None, rl.max_tokens, rl.effort)
         groups = "scripture,wesley" + (",kb,rag" if kb else "")
-        return _agent(client, rl.model, RESEARCH_TRADITION, req, groups, kb, rl.max_tokens, rl.effort)
+        return _agent(client, rl.model, RESEARCH_TRADITION + extra, req, groups, kb, rl.max_tokens, rl.effort)
 
     with ThreadPoolExecutor(max_workers=2) as ex:
         ra, rb = ex.map(one, ["A", "B"])
