@@ -164,7 +164,10 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
     # The word study is built by the program (no tokens): the passage's content words and the
     # original words the theme's Chinese words translate. Only the scripture researcher reads it.
     from ..common import original
-    word_table = original.render(original.word_study(passage) + original.theme_words(theme), lang=lang)
+    if lang == "en" and original.available_en():  # from the tagged Greek and Hebrew, with English renderings
+        word_table = original.render(original.word_study_en(passage), lang="en")
+    else:
+        word_table = original.render(original.word_study(passage) + original.theme_words(theme), lang=lang)
 
     extra = ENGLISH_BRIEF if lang == "en" else ""
 
