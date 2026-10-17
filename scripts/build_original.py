@@ -38,12 +38,7 @@ OUT = ROOT / "data" / "original"
 TAG = re.compile(r"<W(A?)([GH])(\d+)>")
 MORPH = re.compile(r"<WT[GH]\d+>")
 DEF_CHARS = 400
-# opencc's s2t gives some variant forms; the 繁體 和合本 (data/cuv.json) writes these
-VARIANTS = str.maketrans({"爲": "為", "裏": "裡", "啓": "啟", "衆": "眾", "麪": "麵", "牀": "床", "綫": "線"})
-
-
-def to_hant(text: str) -> str:
-    return zh.to_traditional(text).translate(VARIANTS)
+from theoclaw.common.original import to_hant  # noqa: E402  (繁體, with the 和合本's own variant forms)
 
 
 def norm(letter: str, num: str) -> str:
@@ -127,8 +122,9 @@ def main(argv=None) -> None:
         for words, strongs, minor in parts:
             for s in strongs:
                 freq[s] += 1
-                if words and not minor and len(words) <= 4 and "或譯" not in words:
-                    renderings[s][words] += 1
+                shown = words.strip("的")  # 「的恩」 -> 「恩」: the particle is the sentence's, not the word's
+                if shown and not minor and len(shown) <= 4 and not any(x in shown for x in ("或譯", "願")):
+                    renderings[s][shown] += 1
             if words and len(strongs) == 1 and not minor:
                 index[words][strongs[0]] += 1
     OUT.mkdir(parents=True, exist_ok=True)
@@ -136,8 +132,8 @@ def main(argv=None) -> None:
                                                      encoding="utf-8")
     dump("lexicon.json", lex)
     dump("verses.json", verses)
-    dump("renderings.json", {s: c.most_common(8) for s, c in renderings.items()})
-    dump("zh_index.json", {w: c.most_common(5) for w, c in index.items() if len(w) <= 6})
+    dump("renderings.json", {s: c.most_common(12) for s, c in renderings.items()})
+    dump("zh_index.json", {w: c.most_common(8) for w, c in index.items() if len(w) <= 6})
     dump("frequency.json", dict(freq))
     (OUT / "SOURCES.md").write_text(
         "Lexicons: STEPBible.org (Tyndale House, Cambridge), TBESG and TBESH, CC BY 4.0.\n"
