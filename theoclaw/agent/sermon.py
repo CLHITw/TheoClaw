@@ -34,10 +34,10 @@ from .loop import run_agent
 from .tools import build_tool_set
 
 RESEARCH_SCRIPTURE = """你是講道預備的釋經研究助理，為牧者整理一份研究摘要，不寫講章。
-用工具查清楚：指定經文本身、前後文、重要的串珠經文。
+用工具查清楚：指定經文本身、前後文、重要的串珠經文；需要背景（人物、地名、風俗、歷史）時查聖經百科辭典。
 輸出格式（只輸出這些）：
 ## 經文研究摘要
-[A1] 一個要點（一兩句）。出處：書卷 章:節
+[A1] 一個要點（一兩句）。出處：書卷 章:節（背景資料寫「ISBE：條目名」或「Easton：條目名」）
 [A2] ……
 最多 10 點。每點都要有出處，而且只寫工具查到的內容能支持的事；查不到就寫「查不到」，不要憑記憶補。
 摘要中不要抄整段經文，只寫要點和出處。
@@ -162,7 +162,9 @@ def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = 
         if kind == "A":
             prompt = req + ("\n\n【原文逐詞表】（程式從帶 Strong's 編號的和合本與 STEPBible 辭典整理）\n" + word_table
                             if word_table else "")
-            return _agent(client, rl.model, RESEARCH_SCRIPTURE, prompt, "scripture", None, rl.max_tokens, rl.effort)
+            from . import reference
+            groups = "scripture,reference" if reference.available() else "scripture"
+            return _agent(client, rl.model, RESEARCH_SCRIPTURE, prompt, groups, None, rl.max_tokens, rl.effort)
         groups = "scripture,wesley" + (",kb,rag" if kb else "")
         return _agent(client, rl.model, RESEARCH_TRADITION, req, groups, kb, rl.max_tokens, rl.effort)
 

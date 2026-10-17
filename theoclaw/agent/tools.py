@@ -4,6 +4,7 @@
     wesley     wesley_note                      (Wesley's NT notes, looked up by verse)
     kb         kb_read_file, kb_get_page_content (a compiled OpenKB wiki; theoclaw.kb.query)
     rag        rag_search (BM25 over the same wiki's source text, nothing compiled; theoclaw.kb.query.rag)
+    reference  dictionary_entry, dictionary_search (ISBE, Easton, Smith; pastor mode; theoclaw.agent.reference)
 
 Every handler takes the tool input dict and returns a string. A handler raises
 ToolError for a failure the model should be told about; the agent loop turns it
@@ -154,6 +155,7 @@ GROUPS = {
     "wesley": ["wesley_note"],
     "kb": ["kb_read_file", "kb_get_page_content"],
     "rag": ["rag_search"],
+    "reference": ["dictionary_entry", "dictionary_search"],  # pastor mode only: ISBE, Easton, Smith
 }
 DEFAULT_TOOLS = ("scripture", "wesley")
 
@@ -189,7 +191,7 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
     groups = parse_tools(tools)
     by_name = {d["name"]: d for d in TOOL_DEFS}
     base = make_handlers(corpus)
-    names = [n for g in groups if g not in ("kb", "rag") for n in GROUPS[g]]
+    names = [n for g in groups if g not in ("kb", "rag", "reference") for n in GROUPS[g]]
     defs, handlers = [by_name[n] for n in names], {n: base[n] for n in names}
     meta: dict = {"tools": groups}
     addendum = ""
@@ -209,4 +211,9 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
         meta.update(base_kb.meta())
     elif kb:
         raise ValueError("--kb given but neither the kb nor the rag tool group is switched on")
+    if "reference" in groups:  # Bible dictionaries, looked up by program
+        from . import reference
+        defs += reference.TOOL_DEFS
+        handlers.update(reference.make_handlers())
+        addendum += reference.SYSTEM_ADDENDUM
     return ToolSet(groups, defs, handlers, system_prompt(groups) + addendum, meta)
