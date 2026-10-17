@@ -40,7 +40,9 @@ RESEARCH_SCRIPTURE = """你是講道預備的釋經研究助理，為牧者整�
 [A1] 一個要點（一兩句）。出處：書卷 章:節
 [A2] ……
 最多 10 點。每點都要有出處，而且只寫工具查到的內容能支持的事；查不到就寫「查不到」，不要憑記憶補。
-摘要中不要抄整段經文，只寫要點和出處。"""
+摘要中不要抄整段經文，只寫要點和出處。
+若下面附有程式整理的【原文逐詞表】，從中挑 2 到 4 個對理解這段經文最關鍵的原文詞放進要點，
+寫出原文、音譯和字義，出處寫「原文 G0026」或「原文 H2617」；只用表中的資料，不要自己補充表外的原文知識。"""
 
 RESEARCH_TRADITION = """你是講道預備的神學研究助理，從循道衛理（衛斯理）傳統為牧者整理一份研究摘要，不寫講章。
 用工具查衛斯理對指定經文的註釋，以及相關的循道衛理文獻；只用查到的原文。
@@ -151,10 +153,16 @@ def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = 
     req = request_text(passage, theme, audience, length, notes)
     t0 = time.perf_counter()
     stages: dict = {}
+    # The word study is built by the program (no tokens): the passage's content words and the
+    # original words the theme's Chinese words translate. Only the scripture researcher reads it.
+    from ..common import original
+    word_table = original.render(original.word_study(passage) + original.theme_words(theme))
 
     def research(kind):
         if kind == "A":
-            return _agent(client, rl.model, RESEARCH_SCRIPTURE, req, "scripture", None, rl.max_tokens, rl.effort)
+            prompt = req + ("\n\n【原文逐詞表】（程式從帶 Strong's 編號的和合本與 STEPBible 辭典整理）\n" + word_table
+                            if word_table else "")
+            return _agent(client, rl.model, RESEARCH_SCRIPTURE, prompt, "scripture", None, rl.max_tokens, rl.effort)
         groups = "scripture,wesley" + (",kb,rag" if kb else "")
         return _agent(client, rl.model, RESEARCH_TRADITION, req, groups, kb, rl.max_tokens, rl.effort)
 
@@ -195,7 +203,7 @@ def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = 
     last_check = stages.get("recheck") or stages["check"]
     return {"kind": "sermon", "model": rl.model, "prompt": req, "final_text": final.get("final_text"),
             "outcome": final.get("outcome", "completed"), "steps": steps, "script": final.get("script", "hant"),
-            "briefs": briefs, "revised": "revise" in stages,
+            "briefs": briefs, "word_study": word_table, "revised": "revise" in stages,
             "check_summary": {"unsupported": len(last_check["model"]["unsupported"]),
                               "partial": len(last_check["model"]["partial"]),
                               "claims": last_check["model"]["claims"],

@@ -459,6 +459,8 @@ Ask as you would in Bible study, in English or Chinese. The assistant looks up t
     <div class="card"><div class="card-title">回答 · Answer</div><div class="card-content" id="answerText"></div></div>
     <div class="card hidden" id="briefsCard"><div class="card-title">研究摘要（講章所根據的要點）</div>
       <details><summary class="help">點開查看</summary><div class="card-content" id="briefsText"></div></details></div>
+    <div class="card hidden" id="wordCard"><div class="card-title">原文逐詞表（程式整理）</div>
+      <details><summary class="help">點開查看</summary><pre class="card-content" id="wordText" style="white-space:pre-wrap;font-size:13px"></pre></details></div>
     <div class="card hidden" id="checkCard"><div class="card-title">查核結果</div><div class="card-content help" id="checkText"></div></div>
     <div class="card"><div class="card-title" id="scoreTitle">評分</div><div class="help" id="anchors"></div><div class="dimensions" id="dimensions"></div></div>
     <div class="card" id="problemsCard"><div class="card-title">主要問題（可複選；沒有就不用選）</div><div class="problem-chips" id="problems"></div></div>
@@ -736,6 +738,8 @@ function load(id) {
     document.getElementById('briefsCard').classList.toggle('hidden', !it.briefs);
     document.getElementById('checkCard').classList.toggle('hidden', !it.check_summary);
     if (it.briefs) document.getElementById('briefsText').textContent = it.briefs;
+    document.getElementById('wordCard').classList.toggle('hidden', !it.word_study);
+    if (it.word_study) document.getElementById('wordText').textContent = it.word_study;
     if (it.check_summary) {
       const c = it.check_summary;
       document.getElementById('checkText').textContent = '查核了 ' + c.claims + ' 條事實陳述：沒有根據 ' + c.unsupported +

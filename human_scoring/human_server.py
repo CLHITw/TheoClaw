@@ -223,7 +223,7 @@ class Store:
                  for s in t["steps"] for c in s["tool_calls"]]
         prev = self.done(r["name"]).get(item_id)
         chat = item_id in self.owner
-        extra = {k: t[k] for k in ("kind", "briefs", "check_summary", "revised") if k in t}
+        extra = {k: t[k] for k in ("kind", "briefs", "word_study", "check_summary", "revised") if k in t}
         return {**extra, "id": item_id, "chat": chat,
                 "position": None if chat else r["order"].index(item_id) + 1, "total": len(r["order"]),
                 "prompt": t["prompt"], "tools": calls, "answer": t.get("final_text") or "（沒有回答）",

@@ -4,6 +4,8 @@ __pycache__/
 *.egg-info/
 knowledge/
 data/_raw/
+# 原文資料（STEPBible CC BY、信望愛 FDL），由 scripts/build_original.py 產生，只打包給伺服器
+data/original/
 .env
 
 # 評分紀錄：只公開兩組主要對比、prompt v2 的跑次和校準報告（評審者為 claude 與 LLM 評審）
