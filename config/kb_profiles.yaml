@@ -53,6 +53,11 @@ profiles:
     sources:
       - {file: 02_John_Wesley_Plain_Account_of_Christian_Perfection.pdf, name: plain-account-of-christian-perfection.pdf}
 
+  methodist:
+    description: 正式的循道衛理知識庫（牧者模式）。分階段編：第一階段只有標準講道集；之後在這裡加來源再執行同一個 build，只會編新加的檔案。
+    sources:
+      - {file: 01_John_Wesley_Standard_Sermons.pdf, name: standard-sermons.pdf}
+
   wesley-sermons:
     description: 衛斯理標準講道（1,281 頁，費用最高，最後再編）
     sources:
