@@ -18,41 +18,53 @@ time" (pass^k), with tokens and cost per answer.
 
 **The problem.** A domain-specific, nondeterministic agent for people who cannot check its
 sources themselves: a wrong verse or an invented Wesley quotation in a Bible study is worse
-than no answer. Unit tests do not tell whether it works; the question is how to know, with
-how much evidence, and at what cost.
+than no answer. Unit tests cannot say whether such a system works; the project is about how
+to find out, with how much evidence, and at what cost.
 
-**What was built** (Python, 144 tests, no agent framework):
+**How it is built** (Python, no agent framework):
 
-- *The agent:* a hand-written tool loop; scripture is never written by the model but filled
-  in by the program from a lookup; a multi-agent sermon pipeline (two research agents, a
-  writer, deterministic and model checks, one revision) and a step-by-step workspace for pastors.
-- *Evals:* tasks run N times with pass@k / pass^k; injected tool faults; rule graders that
-  are themselves tested against fake models; a groundedness evaluator (RAGAS / FActScore
-  style) and a citation-precision check (ALCE style), with a blind sheet for a person to check the checker.
-- *Decisions:* `evals decide`, a two-stage bootstrap non-inferiority test with margins fixed
-  in advance and a simulation of how much data a decision needs.
-- *Judges:* `evals judge`, measuring an LLM judge's position, length and self-preference bias
-  against blind human scores.
-- *Production:* a web app on a VPS (systemd, Cloudflare tunnel, MySQL) where members ask
-  and score answers, private per person; `evals monitor` compares the automatic checks with
-  their scores, measures coverage of the test suite, and turns low-scored answers into
-  draft regression tasks.
+- *Agent:* a hand-written tool loop over the Anthropic Messages format, with LiteLLM for other
+  providers. Tools come in groups (scripture, Wesley's notes, compiled wiki, search, pastors'
+  references) and the system prompt is assembled from the groups that are on.
+- *Scripture is never written by the model:* it writes a placeholder, and the program fills
+  in the verse from the lookup tool. Every fill is traced like a tool call.
+- *Knowledge:* Methodist sources compiled into a wiki with OpenKB (PageIndex for long PDFs)
+  plus BM25 search over the source text; hymns split by program, one hymn per passage.
+- *Sermon pipeline (multi-agent, plain code):* two research agents in parallel, a writer that
+  sees only their briefs, deterministic and model checks, one revision; and a step-by-step
+  workspace where each request is answered and checked on its own.
+- *Web app:* members and pastors ask, follow up and score answers, privately per person;
+  storage behind one interface (plain files or MySQL); deployed with systemd and a Cloudflare
+  tunnel.
 
-**What the numbers said:**
+**How it is tested:**
 
-- Cheaper model kept: 270 blind-scored answers, not worse on any human metric, 5× cheaper,
-  yet the pre-registered rule said "wait" on one metric whose interval was too wide; the
-  sample-size simulation gives the data needed (about 108 tasks × 3 runs).
-- Rule graders are a floor, not quality: Cohen's kappa ≈ 0 against the human verdict.
-- The LLM judge's main bias is answer length (the longer answer wins 65%), not self-preference.
-- How a long PDF is ingested mattered more than compiling it: wiki + search beat plain RAG on
-  faithfulness (92% vs 88%) and citation precision (91% vs 85%).
-- Giving lay members the Methodist knowledge base: faithfulness 67% → 92% (+25.5 pp, 95%
-  interval +10.8 to +42.3), at $0.010 per answer.
+- *Regression tasks* run N times; reports give pass@k and pass^k, tokens and cost per answer.
+- *Rule graders* (scripture word for word against three Bible texts, leaked internal words)
+  are themselves tested against deliberately bad fake models.
+- *Fault injection:* a tool can fail, return nothing, or silently return the wrong verse.
+- *Groundedness* (RAGAS / FActScore style: atomic statements checked against what the agent
+  retrieved) and *citation precision* (ALCE style), with a blind sheet for a person to check
+  the checker.
+- *Human scoring:* blind scoring of eval runs, and live answers scored by the people who asked.
+- *LLM judge:* measured against human scores for position, length and self-preference bias.
+- *Decisions:* a two-stage bootstrap non-inferiority test with margins fixed in advance, and a
+  simulation of how much data a decision needs.
+- *Production monitoring:* live answers are traced like eval runs; the same checks run on
+  them, are compared with people's scores, and low-scored answers become draft regression tasks.
 
-**What is not solved yet:** live monitoring has few human scores so far (7 answers scored), too few to say
-whether the automatic flags catch what people dislike; coverage is measured by question
-category only; one reference rater for the model comparison.
+**Design methods:** measure before deciding (every change of model, retrieval or prompt went
+through an experiment with its cost stated first); deterministic code where a rule must
+hold, a grader to report what it misses; everything reproducible (task, prompt and tool
+hashes, knowledge-base fingerprint in each run); privacy treated like a pastoral
+conversation; only public-domain or openly licensed sources.
+
+**First results** (small samples, so preliminary; details in "Findings so far" below): a cheaper
+model was not worse on 270 blind-scored answers but the pre-registered rule still said
+"wait"; rule graders and human verdicts barely agree (kappa ≈ 0); the LLM judge favours
+longer answers; wiki plus search beat plain retrieval; giving lay members the Methodist
+sources made their answers far more checkable. Live data so far is too small to judge the
+monitoring.
 
 ## What this project tries to answer
 
