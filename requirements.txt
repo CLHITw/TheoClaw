@@ -4,5 +4,7 @@ pyyaml>=6
 opencc-python-reimplemented>=0.1.7
 pypdf>=4
 pytest>=8
+sqlalchemy>=2.0,<3     # the online server's database (human_scoring/db.py)
+pymysql>=1.1           # ... MySQL driver on the server
 # for compiling knowledge bases (theoclaw.kb.compile), in the same environment:
 # openkb

@@ -89,11 +89,17 @@ def load_ratings(run_dir: Path) -> list[dict]:
     return list(latest.values())
 
 
+def rating_record(item: Item, rater: str, scores: dict, verdict: bool | None, comment: str, *,
+                  blind: bool, rubric: dict, extra: dict | None = None) -> dict:
+    """One rating as stored, in a human/<rater>.jsonl file or the online server's database."""
+    return {"task_id": item.key[0], "run_index": item.key[1], "rater": rater, "scores": scores,
+            "verdict": verdict, "comment": comment, "blind": blind, "rubric_sha": rubric["sha"],
+            "rated_at": time.strftime("%Y-%m-%d %H:%M:%S"), **(extra or {})}
+
+
 def save_rating(item: Item, rater: str, scores: dict, verdict: bool | None, comment: str, *,
                 blind: bool, rubric: dict, extra: dict | None = None) -> dict:
-    rec = {"task_id": item.key[0], "run_index": item.key[1], "rater": rater, "scores": scores,
-           "verdict": verdict, "comment": comment, "blind": blind, "rubric_sha": rubric["sha"],
-           "rated_at": time.strftime("%Y-%m-%d %H:%M:%S"), **(extra or {})}
+    rec = rating_record(item, rater, scores, verdict, comment, blind=blind, rubric=rubric, extra=extra)
     folder = item.run_dir / "human"
     folder.mkdir(exist_ok=True)
     with open(folder / f"{_safe_name(rater)}.jsonl", "a", encoding="utf-8") as f:

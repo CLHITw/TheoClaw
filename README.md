@@ -400,18 +400,26 @@ grader and a person disagree, one of them is wrong: that is how graders get fixe
 
 ### Online scoring for pastors
 
-`human_scoring/human_server.py` is a small web server (standard library only) for
-raters who will not use a terminal:
+`human_scoring/human_server.py` is a small web server (standard library HTTP, SQLAlchemy for
+storage) for raters who will not use a terminal:
 
 - **Blind scoring.** Each rater gets a secret link and a shuffled list of answers from
   the runs being compared. Model and task id are hidden. They score the rubric and tick
   any of 11 problem types (invented source, misquoted scripture, off-tradition, …).
-  Ratings are saved as `runs/<run>/human/<rater>.jsonl`, the same format as `human rate`,
-  so `report`, `decide` and `judge analyze` read them directly.
+  Ratings are saved in the database (below); `db.py export` writes them as
+  `runs/<run>/human/<rater>.jsonl`, the same format as `human rate`, so `report`, `decide`
+  and `judge analyze` read them directly.
 - **Ask mode (`--chat`).** Raters ask their own questions. The agent (deepseek-flash)
   answers with the same tools, and they score the answer on the same rubric. Every
-  question is traced to `runs/pastor-chat/`, with a daily limit per rater and an overall
-  budget.
+  question is traced in full, with a daily limit per rater and an overall budget.
+- **Storage (`human_scoring/db.py`).** Links, users, questions and answers (with every tool
+  call), ratings, sermon projects and research costs live in one database: MySQL on the
+  server (`THEOCLAW_DB=mysql+pymysql://…` in `.env`), a SQLite file anywhere else. Each row
+  keeps the full record as JSON plus the columns one queries by (asker, time, conversation,
+  score). On start the server imports the earlier file-based data once (safe to repeat);
+  `db.py export <folder>` writes the file layout the eval tools read, and `deploy/export.sh`
+  packs that export on the server for download. Tested by importing the data pulled from
+  the server and exporting it again: answers, ratings, projects and costs came back identical.
 - **Deployment.** `human_scoring/deploy/` packs the app, installs it as a systemd
   service on a small Ubuntu server, and exposes it through a Cloudflare quick tunnel
   (no domain needed).

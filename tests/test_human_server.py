@@ -6,10 +6,22 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("human_server", ROOT / "human_scoring" / "human_server.py")
 hs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hs)
+
+
+@pytest.fixture(autouse=True)
+def own_database(tmp_path, monkeypatch):
+    """Every test its own SQLite database, never the project's or the server's."""
+    monkeypatch.setenv("THEOCLAW_DB", f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
+
+
+def _ratings(rater=None):
+    return sorted(hs.DB().ratings(rater=rater), key=lambda r: r["rated_at"])
 
 
 def _run(tmp_path, name, n=3):
@@ -26,7 +38,7 @@ def _run(tmp_path, name, n=3):
     return d
 
 
-def test_blind_items_full_tools_and_ratings_on_disk(tmp_path):
+def test_blind_items_full_tools_and_ratings_saved(tmp_path):
     a, b = _run(tmp_path, "a"), _run(tmp_path, "b")
     path = tmp_path / "assignment.json"
     data = hs.prepare([str(a), str(b)], ["王牧師"], None, None, path)
@@ -42,8 +54,7 @@ def test_blind_items_full_tools_and_ratings_on_disk(tmp_path):
     assert store.rate(code, {"id": it["id"], "scores": dims, "verdict": None}) == "請選擇總評"
     assert "還沒有評分" in store.rate(code, {"id": it["id"], "scores": {}, "verdict": True})
     assert store.rate(code, {"id": it["id"], "scores": dims, "verdict": False, "problems": ["shallow", "bogus"]}) is None
-    rec = [json.loads(x) for p in (a, b) if (p / "human" / "王牧師.jsonl").exists()
-           for x in (p / "human" / "王牧師.jsonl").read_text(encoding="utf-8").splitlines()]
+    rec = _ratings("王牧師")
     assert len(rec) == 1 and rec[0]["problems"] == ["shallow"] and rec[0]["blind"] and rec[0]["verdict"] is False
     assert hs.Store(path).state(code)["done"] == [it["id"]]  # survives a restart (any rubric)
     assert store.item(code, it["id"])["previous"]["verdict"] is False
@@ -63,8 +74,10 @@ def test_default_rubric_is_one_score_0_to_10(tmp_path):
     assert "無效" in store.rate(code, {"id": item, "scores": {"overall": True}})
     assert store.rate(code, {"id": item, "scores": {"overall": 6}}) is None  # verdict from the score, none sent
     assert store.rate(code, {"id": item, "scores": {"overall": 7}, "verdict": False}) is None  # client verdict ignored
-    rec = [json.loads(x) for x in (a / "human" / "信徒1.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert [(r["scores"]["overall"], r["verdict"]) for r in rec] == [(6, False), (7, True)]
+    with hs.DB().engine.connect() as c:  # every rating kept, the latest one counts
+        rows = [r.data for r in c.execute(hs.db_mod.select(hs.db_mod.ratings.c.data).order_by(hs.db_mod.ratings.c.id))]
+    assert [(r["scores"]["overall"], r["verdict"]) for r in rows] == [(6, False), (7, True)]
+    assert [r["scores"]["overall"] for r in _ratings("信徒1")] == [7]
 
 
 def test_http_requires_code(tmp_path):
@@ -108,7 +121,7 @@ def test_chat_mode_limits_and_saving(tmp_path):
     assert store.item(codes[1], j["item"]) is None and store.item(codes[0], j["item"])["chat"]
     dims = {d["key"]: 5 for d in store.rubric["dimensions"]}
     assert store.rate(codes[0], {"id": j["item"], "scores": dims, "verdict": True}) is None
-    rec = json.loads((chat_dir / "human" / "牧者1.jsonl").read_text(encoding="utf-8"))
+    [rec] = _ratings("牧者1")
     assert rec["mode"] == "own" and rec["blind"] is False
     again = hs.Store(path, chat={"model": "deepseek-flash", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=chat_dir)
     assert [q["rated"] for q in again.state(codes[0])["chat"]["questions"]] == [True]
@@ -163,7 +176,7 @@ def test_group_link_is_private_per_person(tmp_path):
         assert store.state(code, other)["chat"]["questions"] == []
         assert store.item(code, item, other) is None and store.rate(code, {"id": item, "scores": {"overall": 3}}, other) == "找不到這一題"
     assert store.rate(code, {"id": item, "scores": {"overall": 8}}, tom1) is None
-    rec = json.loads(next((chat_dir / "human").glob("*.jsonl")).read_text(encoding="utf-8"))
+    [rec] = _ratings()
     assert rec["rater"].startswith("查經班·小明#") and "k" * 20 not in json.dumps(rec)  # a hash, not the key
     personal = next(c for c, r in store.raters.items() if not r.get("group"))
     assert store.item(personal, item) is None  # a pastor's personal link cannot see it either
@@ -186,11 +199,11 @@ def test_denomination_recorded_with_question_and_rating(tmp_path):
     j = store.ask(code, "What is grace?", runner=fake, nick="Tom", denomination="聖公會 Anglican")
     store.ask(code, "Another?", runner=fake, nick="Tom", denomination="made up")
     time.sleep(0.3)
-    traces = [json.loads(x) for x in (chat_dir / "traces.jsonl").read_text(encoding="utf-8").splitlines()]
+    traces = hs.DB().answers()
     assert sorted(str(t["denomination"]) for t in traces) == ["None", "聖公會 Anglican"]
     item = store.job(code, j["job"], "Tom")["item"]
     assert store.rate(code, {"id": item, "scores": {"overall": 7}, "denomination": "聖公會 Anglican"}, "Tom") is None
-    rec = json.loads(next((chat_dir / "human").glob("*.jsonl")).read_text(encoding="utf-8"))
+    [rec] = _ratings()
     assert rec["denomination"] == "聖公會 Anglican"
 
 
@@ -308,3 +321,32 @@ def test_lay_tools_use_the_methodist_kb_and_never_the_pastor_tools(tmp_path):
         ts = hs.Store(path, chat={"model": "deepseek-flash", "kb": hs.METHODIST_KB}, chat_dir=tmp_path / "c2")._lay_tools()
         assert "kb" in ts.meta["tools"] and "rag" in ts.meta["tools"]
         assert "reference" not in ts.meta["tools"] and "original" not in ts.meta["tools"]
+
+
+def test_database_import_is_idempotent_and_export_round_trips(tmp_path):
+    db = hs.DB()
+    chat = tmp_path / "pastor-chat"
+    (chat / "human").mkdir(parents=True)
+    (chat / "projects").mkdir()
+    traces = [{"task_id": f"chat-1-{i}", "run_index": 0, "kind": "question", "asked_by": "查經班·小明#ab", "asked_at": f"2026101{i}-1",
+               "prompt": "問", "final_text": "答", "outcome": "completed", "steps": [], "cost_usd": 0.01} for i in range(3)]
+    (chat / "traces.jsonl").write_text("".join(json.dumps(t, ensure_ascii=False) + "\n" for t in traces), encoding="utf-8")
+    ratings = [{"task_id": "chat-1-0", "run_index": 0, "rater": "查經班·小明#ab", "scores": {"overall": s}, "verdict": True,
+                "comment": "", "rated_at": f"2026-10-1{s} 10:00:00"} for s in (6, 8)]  # the same answer rated twice
+    (chat / "human" / "x.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in ratings), encoding="utf-8")
+    (chat / "projects" / "abc.json").write_text(json.dumps({"id": "abc", "owner": "牧者1", "passage": "羅 8", "created": "1", "board": []}),
+                                              encoding="utf-8")
+    (chat / "costs.jsonl").write_text(json.dumps({"by": "牧者1", "kind": "sermon_start", "cost_usd": 0.02, "project": "abc", "at": "1"}) + "\n",
+                                      encoding="utf-8")
+    assign = tmp_path / "assignment.json"
+    assign.write_text(json.dumps({"items": [], "raters": {"c1": {"name": "查經班", "group": True, "role": "lay", "order": []}}}), encoding="utf-8")
+    first = hs.db_mod.import_files(db, assign, chat, [])
+    assert first == {"links": 1, "answers": 3, "ratings": 2, "projects": 1, "costs": 1}
+    assert set(hs.db_mod.import_files(db, assign, chat, []).values()) == {0}  # a second import adds nothing
+    assert [r["scores"]["overall"] for r in db.ratings()] == [8]  # the latest rating counts
+    out = hs.db_mod.export_files(db, tmp_path / "out")
+    back = tmp_path / "out" / "runs" / "pastor-chat"
+    assert [json.loads(x)["task_id"] for x in (back / "traces.jsonl").read_text(encoding="utf-8").splitlines()] == [t["task_id"] for t in traces]
+    assert len((back / "human" / "查經班·小明#ab.jsonl").read_text(encoding="utf-8").splitlines()) == 2  # both kept
+    assert json.loads((back / "projects" / "abc.json").read_text(encoding="utf-8"))["passage"] == "羅 8"
+    assert out["answers"] == 3 and db.stats()["users"] == 1

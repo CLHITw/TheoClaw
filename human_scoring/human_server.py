@@ -14,8 +14,11 @@
 評分人看不到模型、任務編號或來源，順序每人各自打亂；可隨時離開，下次從未評的題目繼續。
 
 提問模式（serve --chat）：評分人用同一條連結自己提問，agent 當場回答（預設 deepseek-flash），
-再用同一套標準評分。問題與回答存到 runs/pastor-chat/（與評測同一格式），評分存在它的 human/。
-每人每天有題數上限，總花費超過上限就停止回答。這個模式要在 .env 放 DEEPSEEK_API_KEY。
+再用同一套標準評分。每人每天有題數上限，總花費超過上限就停止回答。這個模式要在 .env 放 DEEPSEEK_API_KEY。
+
+所有資料（連結、提問與回答、評分、講章、花費、使用者）存在資料庫：伺服器上是 MySQL（.env 的
+THEOCLAW_DB），其他地方是 SQLite 檔。啟動時會把舊的檔案（assignment.json、runs/pastor-chat/、
+runs/*/human/）匯入一次；評測工具要的檔案格式用 `python human_scoring/db.py export <資料夾>` 匯出。
 """
 
 from __future__ import annotations
@@ -38,8 +41,10 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from theoclaw.evals.human import (Item, calibration_sample, load_items, load_ratings,  # noqa: E402
-                                  load_rubric, save_rating)
+from theoclaw.evals.human import (Item, calibration_sample, load_items,  # noqa: E402
+                                  load_rubric, rating_record)
+from human_scoring import db as db_mod  # noqa: E402
+from human_scoring.db import DB, import_files, run_key  # noqa: E402
 
 RUBRIC_10 = ROOT / "config" / "human_rubric_10.yaml"   # 預設：一個 0–10 分；--rubric 可換回五項評分
 ASSIGNMENT = HERE / "assignment.json"   # 評分名單與連結代碼；不要外流
@@ -118,27 +123,39 @@ def prepare(run_dirs: list[str], raters: list[str], sample: int | None, flagged_
 ROLES = ("lay", "pastor")  # 平信徒連結只能提問；牧者連結另有講道預備，也只有它用得到牧者參考資料
 
 
-def add_group(name: str, path: Path = ASSIGNMENT, role: str = "lay") -> str:
-    """Add (or find) a shared group link in the assignment; returns its code."""
+def add_group(name: str, path: Path = ASSIGNMENT, role: str = "lay", db: DB | None = None) -> str:
+    """Add (or find) a shared group link in the assignment (and the database); returns its code."""
     if role not in ROLES:
         raise ValueError(f"role must be one of {ROLES}")
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
-    for code, r in data["raters"].items():
+    for code, r in {**data["raters"], **(db.links() if db is not None else {})}.items():
         if r.get("group") and r["name"] == name:
             return code
     code = secrets.token_urlsafe(9)
     data["raters"][code] = {"name": name, "order": [], "group": True, "role": role}
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    if db is not None:
+        db.put_link(code, data["raters"][code])
     return code
 
 
 class Store:
-    """The assignment plus the items it names, loaded once; ratings go straight to disk."""
+    """Links, answers, ratings, sermon projects and costs in the database; the blind-scoring
+    answers (packaged eval runs) and the questions asked here are also held in memory."""
 
     def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path = CHAT_DIR,
-                 rubric: Path = RUBRIC_10):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        self.raters = data["raters"]
+                 rubric: Path = RUBRIC_10, db: DB | None = None):
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
+        self.db = db or DB(sqlite_file=chat_dir / "theoclaw.db")
+        # files from before the database (and links added with `prepare`/`group`): brought in, once
+        run_dirs = sorted({_abs(e["run_dir"]) for e in data["items"]})
+        imported = import_files(self.db, path, chat_dir, run_dirs)
+        if any(imported.values()):
+            sys.stderr.write(f"imported into the database: {imported}\n")
+        for code, entry in data["raters"].items():  # a re-run `prepare` changes a rater's order
+            if not entry.get("group"):
+                self.db.put_link(code, entry)
+        self.raters = self.db.links()
         self.rubric = load_rubric(rubric)
         self.items: dict[str, Item] = {}
         # Items are keyed by the id written in the assignment, not recomputed: Item.item_id hashes
@@ -155,13 +172,19 @@ class Store:
         self.chat_dir = chat_dir
         self.jobs: dict[str, dict] = {}
         self.owner: dict[str, str] = {}  # chat item id -> rater name
-        if (chat_dir / "traces.jsonl").exists():
-            for it in load_items([chat_dir]):
+        for rec in self.db.answers():
+            if rec.get("outcome") != "api_error":
+                it = Item(chat_dir, rec)
                 self.items[it.item_id] = it
-                self.owner[it.item_id] = it.trace.get("asked_by", "")
+                self.owner[it.item_id] = rec.get("asked_by", "")
+        self._by_key = {(run_key(it.run_dir, chat_dir), *it.key): i for i, it in self.items.items()}
 
     def rater(self, code: str) -> dict | None:
-        return self.raters.get(code or "")
+        r = self.raters.get(code or "")
+        if r is None and code:  # a link added on the server (`group`) since this process started
+            self.raters = self.db.links()
+            r = self.raters.get(code)
+        return r
 
     def who(self, code: str, nick=None) -> dict | None:
         """The rater behind a request. A personal link is the rater. On a group link a person
@@ -192,10 +215,10 @@ class Store:
     def done(self, name: str) -> dict[str, dict]:
         """item id -> latest rating by this rater."""
         out = {}
-        for item_id, it in self.items.items():
-            for r in load_ratings(it.run_dir):
-                if r["rater"] == name and (r["task_id"], r["run_index"]) == it.key:
-                    out[item_id] = r
+        for r in self.db.ratings(rater=name):
+            item_id = self._by_key.get((r["_run_dir"], r["task_id"], r["run_index"]))
+            if item_id:
+                out[item_id] = r
         return out
 
     def state(self, code: str, nick: str | None = None) -> dict:
@@ -276,8 +299,10 @@ class Store:
         extra = {"problems": problems, "via": "human_server", "mode": mode}
         if body.get("denomination") in DENOMINATIONS:
             extra["denomination"] = body["denomination"]
+        rec = rating_record(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric, extra=extra)
         with self.lock:
-            save_rating(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric, extra=extra)
+            self.db.add_rating(run_key(item.run_dir, self.chat_dir), rec)
+            self.db.touch_user(r, extra.get("denomination"))
         return None
 
     # ------------------------------------------------------------ chat mode
@@ -292,8 +317,7 @@ class Store:
         return [self.items[i].trace for i in self.owner]
 
     def _costs(self) -> list[dict]:
-        path = self.chat_dir / "costs.jsonl"
-        return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()] if path.exists() else []
+        return self.db.costs()
 
     def _spent(self) -> float:
         return sum(t.get("cost_usd") or 0.0 for t in self._chat_traces()) + sum(c["cost_usd"] for c in self._costs())
@@ -413,21 +437,14 @@ class Store:
 
     # ------------------------------------------------------------ sermon workspace (pastors)
 
-    def _projects_dir(self) -> Path:
-        return self.chat_dir / "projects"
-
     def _project(self, r: dict, pid: str) -> dict | None:
         if not PROJECT_ID.match(pid or ""):
             return None
-        path = self._projects_dir() / f"{pid}.json"
-        if not path.is_file():
-            return None
-        p = json.loads(path.read_text(encoding="utf-8"))
-        return p if p.get("owner") == r["name"] else None
+        p = self.db.project(pid)
+        return p if p and p.get("owner") == r["name"] else None
 
     def _save_project(self, p: dict) -> None:
-        self._projects_dir().mkdir(parents=True, exist_ok=True)
-        (self._projects_dir() / f"{p['id']}.json").write_text(json.dumps(p, ensure_ascii=False), encoding="utf-8")
+        self.db.save_project(p)
 
     def _ws_rater(self, code: str, nick: str | None) -> tuple[dict | None, str | None]:
         if not self.chat or not self.chat.get("sermon_daily_limit"):
@@ -450,13 +467,8 @@ class Store:
         r, err = self._ws_rater(code, nick)
         if err:
             return {"error": err}
-        out = []
-        if self._projects_dir().is_dir():
-            for path in self._projects_dir().glob("*.json"):
-                p = json.loads(path.read_text(encoding="utf-8"))
-                if p.get("owner") == r["name"]:
-                    out.append({"id": p["id"], "passage": p["passage"], "theme": p.get("theme", ""),
-                                "created": p["created"], "board": len(p.get("board", []))})
+        out = [{"id": p["id"], "passage": p["passage"], "theme": p.get("theme", ""),
+                "created": p["created"], "board": len(p.get("board", []))} for p in self.db.projects(r["name"])]
         return {"projects": sorted(out, key=lambda x: x["created"], reverse=True),
                 "starts_left": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
 
@@ -513,10 +525,7 @@ class Store:
 
     def _log_cost(self, name: str, kind: str, usd: float, pid: str) -> None:
         """Research has no trace of its own; its cost still counts against the budget and the daily limit."""
-        self.chat_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.chat_dir / "costs.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps({"by": name, "kind": kind, "cost_usd": usd, "project": pid,
-                                "at": time.strftime("%Y%m%d-%H%M%S")}, ensure_ascii=False) + "\n")
+        self.db.add_cost({"by": name, "kind": kind, "cost_usd": usd, "project": pid, "at": time.strftime("%Y%m%d-%H%M%S")})
 
     def _ws_run(self, code: str, body: dict, nick: str | None, kind: str, runner=None) -> dict:
         r, err = self._ws_rater(code, nick)
@@ -615,6 +624,14 @@ class Store:
                 "conv": j.get("conv"),
                 "elapsed": int(time.time() - j["started"])}
 
+    def _user(self, name: str) -> dict:
+        """group, nickname and role from a recorded name such as 查經班·小明#1a2b3c4d."""
+        if GROUP_SEP not in name:
+            return {"name": name, "role": "pastor"}
+        group, nick = name.split(GROUP_SEP, 1)
+        role = next((r.get("role", "lay") for r in self.raters.values() if r.get("group") and r["name"] == group), "lay")
+        return {"name": name, "group": group, "nick": nick.split("#")[0], "role": role}
+
     def _lay_tools(self):
         """Lay members' tools: scripture and Wesley's notes, plus the Methodist knowledge base when it
         is on this server. Built once (the search index takes a moment) and shared by all questions."""
@@ -654,17 +671,12 @@ class Store:
             rec = {"task_id": f"chat-{stamp}-{job}", "run_index": 0, "asked_by": name, "asked_at": stamp,
                    "denomination": denomination, "kind": rec.get("kind", "question"), **rec}
             with self.lock:
-                self.chat_dir.mkdir(parents=True, exist_ok=True)
-                cfg = self.chat_dir / "config.json"
-                if not cfg.exists():
-                    cfg.write_text(json.dumps({"kind": "pastor-chat", "model": rec.get("model"), "n": 1,
-                                               "label": "pastor-chat", "toolset": rec.get("toolset")},
-                                              ensure_ascii=False, indent=2), encoding="utf-8")
-                with open(self.chat_dir / "traces.jsonl", "a", encoding="utf-8") as f:
-                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                self.db.add_answer(rec)
+                self.db.touch_user(self._user(name), denomination, stamp)
                 it = Item(self.chat_dir, rec)
                 self.items[it.item_id] = it
                 self.owner[it.item_id] = name
+                self._by_key[(run_key(it.run_dir, self.chat_dir), *it.key)] = it.item_id
                 if rec.get("outcome") == "api_error" or not rec.get("final_text"):
                     self.jobs[job].update(status="error", error="模型服務暫時無法使用，請稍後再試"
                                           + ("（伺服器沒有設定金鑰）" if "API key" in str(rec.get("error")) else ""))
@@ -829,13 +841,14 @@ def main(argv=None):
         for code, r in data["raters"].items():
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
     elif a.cmd == "group":
-        code = add_group(a.name, role=a.role)
+        code = add_group(a.name, role=a.role, db=DB(sqlite_file=CHAT_DIR / "theoclaw.db"))
         print(f"團體連結（{a.name}，{'牧者' if a.role == 'pastor' else '平信徒'}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
                  "kb": a.kb} if a.chat else None)
         store = Store(chat=chat, rubric=Path(a.rubric))
+        print(f"資料庫：{store.db.url}")
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
         print(f"{len(store.items)} 個回答、{len(store.raters)} 位評分人{note}。"
