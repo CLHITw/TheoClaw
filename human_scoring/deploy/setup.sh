@@ -50,8 +50,15 @@ fi
 install -m 644 "$APP/human_scoring/deploy/theoclaw-scoring.service" /etc/systemd/system/
 install -m 644 "$APP/human_scoring/deploy/theoclaw-tunnel.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now theoclaw-scoring theoclaw-tunnel
+systemctl enable --now theoclaw-scoring
 systemctl restart theoclaw-scoring
+# 固定網域（.env 有 THEOCLAW_URL，通道由 Cloudflare 後台建立、以 cloudflared 服務執行）時，
+# 不再需要臨時通道；否則照舊用臨時通道（trycloudflare 網址）
+if grep -q '^THEOCLAW_URL=' "$APP/.env"; then
+  systemctl disable --now theoclaw-tunnel 2>/dev/null || true
+else
+  systemctl enable --now theoclaw-tunnel
+fi
 systemctl disable --now theoclaw-scoring-db theoclaw-tunnel-db 2>/dev/null || true   # the short-lived test pair
 
 sleep 8
