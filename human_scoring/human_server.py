@@ -642,6 +642,26 @@ class Store:
                 "conv": j.get("conv"),
                 "elapsed": int(time.time() - j["started"])}
 
+    def recover(self, code: str, token: str, nick=None) -> dict:
+        """A one-time recovery link (made with `recover-link`) gives the person on this browser the
+        records they made under an earlier key: questions, ratings, sermons."""
+        r = self.who(code, nick)
+        if r is None:
+            return {"error": "請先輸入您的稱呼"}
+        if not r.get("group") or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token or ""):
+            return {"error": "找回連結無效"}
+        with self.lock:
+            old = self.db.take_recover_token(hashlib.sha256(token.encode()).hexdigest(), r["name"])
+            if old is None or not old.startswith(r["group"] + GROUP_SEP):
+                return {"error": "找回連結無效或已用過"}
+            moved = self.db.rename_identity(old, r["name"])
+            for i, owner in list(self.owner.items()):
+                if owner == old:
+                    self.owner[i] = r["name"]
+                    self.items[i].trace["asked_by"] = r["name"]
+        sys.stderr.write(f"recovered {moved} records for a group member\n")
+        return {"ok": True, "moved": moved}
+
     def _user(self, name: str) -> dict:
         """group, nickname and role from a recorded name such as 查經班·小明#1a2b3c4d."""
         if GROUP_SEP not in name:
@@ -805,7 +825,7 @@ def make_handler(store: Store):
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
             nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
             if u.path not in ("/api/rate", "/api/ask", "/api/sermon", "/api/sermon/start", "/api/sermon/turn",
-                              "/api/sermon/assemble", "/api/sermon/board"):
+                              "/api/sermon/assemble", "/api/sermon/board", "/api/recover"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
@@ -814,6 +834,9 @@ def make_handler(store: Store):
                 body = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError:
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+            if u.path == "/api/recover":
+                out = store.recover(code, str(body.get("token") or ""), nick)
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             if u.path == "/api/ask":
                 out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"),
                                 conv=body.get("conv") or None, lang=body.get("lang"))
@@ -830,6 +853,13 @@ def make_handler(store: Store):
             self._json({"error": err} if err else {"ok": True}, HTTPStatus.BAD_REQUEST if err else HTTPStatus.OK)
 
     return Handler
+
+
+def _cli_storage():
+    """The storage the running server uses: the database when .env names one, else the files."""
+    if os.environ.get("THEOCLAW_DB"):
+        return DB()
+    return FileStore(ASSIGNMENT, CHAT_DIR)
 
 
 def main(argv=None):
@@ -849,6 +879,12 @@ def main(argv=None):
     p.add_argument("name", help="團體名稱，例如 查經班、牧者")
     p.add_argument("--role", choices=ROLES, default="lay", help="lay = 平信徒（只能提問）；pastor = 牧者（另有講道預備）")
     p.add_argument("--base-url", default="http://localhost:8765")
+    p = sub.add_parser("people", help="列出某個團體連結的使用者（暱稱、最後使用時間、問了幾題；不顯示內容）")
+    p.add_argument("group", help="團體名稱，例如 查經班")
+    p = sub.add_parser("recover-link", help="為一位使用者做一次性的找回連結（換了網址或瀏覽器後找回以前的對話）")
+    p.add_argument("name", help="people 列出的完整名稱，例如 查經班·小明#1a2b3c4d")
+    p.add_argument("--days", type=int, default=7, help="幾天內有效（預設 7 天）")
+    p.add_argument("--base-url", default=None, help="預設用 .env 的 THEOCLAW_URL")
     p = sub.add_parser("serve", help="啟動評分伺服器")
     p.add_argument("--host", default="127.0.0.1", help="預設只聽本機；經通道對外，不要直接開 0.0.0.0")
     p.add_argument("--port", type=int, default=8765)
@@ -870,6 +906,27 @@ def main(argv=None):
         print(f"已選 {len(data['items'])} 個回答，寫入 {ASSIGNMENT}（含連結代碼，不要外流）")
         for code, r in data["raters"].items():
             print(f"  {r['name']}: {a.base_url.rstrip('/')}/?t={code}")
+    elif a.cmd in ("people", "recover-link"):
+        db = _cli_storage()
+        if a.cmd == "people":
+            rows = db.identities(a.group)
+            print(f"「{a.group}」的使用者（最近用過的在前）：" if rows else f"「{a.group}」還沒有使用者")
+            for p_ in rows:
+                print(f"  {p_['name']}　最後使用 {p_['last_seen'] or '-'}　問了 {p_['answers']} 題")
+            print("要為某人做找回連結：python human_scoring/human_server.py recover-link \"<上面的完整名稱>\"")
+        else:
+            group = a.name.split(GROUP_SEP, 1)[0]
+            code = next((c for c, r in db.links().items() if r.get("group") and r["name"] == group), None)
+            if code is None or GROUP_SEP not in a.name:
+                raise SystemExit(f"找不到團體「{group}」；名稱要像 people 列出的那樣，例如 查經班·小明#1a2b3c4d")
+            if a.name not in {p_["name"] for p_ in db.identities(group)}:
+                raise SystemExit(f"「{group}」沒有「{a.name}」這位使用者；請照 people 列出的完整名稱複製")
+            token = secrets.token_urlsafe(18)
+            expires = time.strftime("%Y%m%d-%H%M%S", time.localtime(time.time() + a.days * 86400))
+            db.add_recover_token(hashlib.sha256(token.encode()).hexdigest(), a.name, group, expires)
+            base = (a.base_url or os.environ.get("THEOCLAW_URL") or "http://localhost:8765").rstrip("/")
+            print(f"一次性找回連結（{a.days} 天內有效，用一次就失效；只私下發給本人）：")
+            print(f"  {base}/?t={code}#recover={token}")
     elif a.cmd == "group":
         code = add_group(a.name, role=a.role)  # the database server reads it in at its next start
         print(f"團體連結（{a.name}，{'牧者' if a.role == 'pastor' else '平信徒'}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")

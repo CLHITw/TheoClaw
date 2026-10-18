@@ -638,6 +638,23 @@ function fail(msg) {
   document.getElementById('progressInfo').textContent = '';
 }
 
+// A one-time recovery link (#recover=…, made by the person running the server): after the
+// person has entered their nickname, their earlier records are moved to this browser's identity.
+let pendingRecover = '';
+if (location.hash.startsWith('#recover=')) {
+  pendingRecover = location.hash.slice(9);
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
+function doRecover() {
+  const token = pendingRecover;
+  pendingRecover = '';
+  return api('/api/recover', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({token: token})})
+    .then(r => { showToast(r.error ? r.error : '已找回以前的紀錄（' + r.moved + ' 筆）'); })
+    .catch(() => showToast('找回失敗，請檢查網路'));
+}
+
 // On a temporary address, go to the fixed one (same link code), taking this browser's
 // nickname and key along after "#" so nothing the person asked before is lost.
 function moveToHome() {
@@ -654,7 +671,10 @@ function moveToHome() {
 
 function init() {
   if (!code) { fail('請使用負責人寄給您的專屬連結開啟本頁。'); return; }
-  moveToHome().then(moved => { if (!moved) start(); });
+  moveToHome().then(moved => {
+    if (moved) return;
+    if (pendingRecover && nick) doRecover().then(start); else start();
+  });
 }
 
 function start() {
@@ -1345,6 +1365,8 @@ const EN = {
   '回答超時，請稍後再試，或把問題問得具體一點': 'The answer took too long; please try again, or make the question more specific',
   '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
   '請選擇總評': 'Please choose a verdict',
+  '找回連結無效': 'This recovery link is not valid', '找回連結無效或已用過': 'This recovery link is not valid or has been used',
+  '找回失敗，請檢查網路': 'Recovery failed; please check your connection',
   // dialogs
   '這一段的標題（例如：引言、第一點、例證、結語）': 'A title for this paragraph (e.g. Introduction, Point 1, Illustration, Conclusion)',
   '段落': 'Paragraph', '新標題': 'New title', '修改這一段（可直接改寫）': 'Edit this paragraph', '刪除這一段？': 'Delete this paragraph?',
@@ -1356,6 +1378,7 @@ const EN_PATTERNS = [
   [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' question' : ' questions') + (b ? ', ' + b + ' not scored' : '') + (c || '')],
   [/^講稿板 (\d+) 段( · .+)?$/, (m, a, c) => a + ' on the draft board' + (c || '')],
   [/^今天還可以開 (\d+) 篇新講章。$/, 'You can start $1 more sermons today.'],
+  [/^已找回以前的紀錄（(\d+) 筆）$/, 'Your earlier records are back ($1)'],
   [/^對話：/, 'Conversation: '],
   [/^助手正在查經文並撰寫回答……已等 (\d+) 秒（通常 20 秒到一分鐘），請不要關閉頁面。$/, 'The assistant is looking up scripture and writing… $1 s so far (usually 20 s to a minute). Please keep this page open.'],
   [/^正在研究經文、原文和衛斯理傳統……（已 (\d+) 秒，約需 1 分鐘）$/, 'Researching the passage, the original language and the Wesleyan tradition… ($1 s; about a minute)'],

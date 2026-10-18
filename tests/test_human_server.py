@@ -377,3 +377,33 @@ def test_language_recorded_and_old_databases_get_the_column(tmp_path, storage):
         again = hs.DB()
         with again.engine.connect() as c:
             assert c.execute(text("select lang from answers")).scalar() == "zh"  # added, earlier rows Chinese
+
+
+def test_one_time_recovery_link_moves_records_to_the_new_browser(tmp_path, storage):
+    import hashlib
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed", "steps": [],
+                      "usage_total": {}, "cost_usd": 0.001}
+    old, new, other = ("小明", "o" * 20), ("小明", "n" * 20), ("小華", "x" * 20)
+    store.ask(code, "以前問過的問題", runner=fake, nick=old)
+    time.sleep(0.3)
+    item = store.state(code, old)["chat"]["questions"][0]["id"]
+    assert store.rate(code, {"id": item, "scores": {"overall": 8}}, old) is None
+    old_name = store.who(code, old)["name"]
+    assert [p["name"] for p in store.db.identities("查經班")][:1] == [old_name] or storage == "files"
+    token = "t" * 24
+    store.db.add_recover_token(hashlib.sha256(token.encode()).hexdigest(), old_name, "查經班", "29991231-000000")
+    assert store.state(code, new)["chat"]["questions"] == []          # a new browser sees nothing yet
+    assert "error" in store.recover(code, "bad-token-xxxxxxxxxxxx", new)
+    out = store.recover(code, token, new)
+    assert out["ok"] and out["moved"] >= 2
+    st = store.state(code, new)
+    assert [q["id"] for q in st["chat"]["questions"]] == [item] and st["done"] == [] and item in store.done(store.who(code, new)["name"])
+    assert store.state(code, old)["chat"]["questions"] == []           # the old identity is empty now
+    assert "error" in store.recover(code, token, other)                # one use only
+    again = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
+    assert [q["id"] for q in again.state(code, new)["chat"]["questions"]] == [item]   # survives a restart

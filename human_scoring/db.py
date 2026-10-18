@@ -121,6 +121,17 @@ costs = Table(
     Column("at", String(20)),
     **_opts)
 
+recover_tokens = Table(
+    "recover_tokens", meta,                           # one-time links that give a person back their records
+    Column("token_hash", String(ID), primary_key=True),  # sha256 of the token; the token itself is never stored
+    Column("old_name", String(NAME), nullable=False),
+    Column("group_name", String(NAME)),
+    Column("created", String(20)),
+    Column("expires", String(20)),
+    Column("used_by", String(NAME)),                  # the identity it was used for (empty until used)
+    Column("used_at", String(20)),
+    **_opts)
+
 
 def db_url(sqlite_file: Path = SQLITE_FILE) -> str:
     try:
@@ -272,6 +283,58 @@ class DB:
         with self.engine.connect() as c:
             return [{"by": r.by_name, "kind": r.kind, "cost_usd": float(r.cost_usd or 0), "project": r.project, "at": r.at}
                     for r in c.execute(select(costs).order_by(costs.c.id))]
+
+    # ---- identities: recovery after a browser lost its key
+    def identities(self, group: str) -> list[dict]:
+        """The people on a group link: name, nickname, first and last use, number of answers. No content."""
+        with self.engine.connect() as c:
+            count = dict(c.execute(select(answers.c.asked_by, func.count()).group_by(answers.c.asked_by)).all())
+            rows = c.execute(select(users).where(users.c.group_name == group).order_by(users.c.last_seen.desc())).all()
+        return [{"name": r.name, "nick": r.nick, "first_seen": r.first_seen, "last_seen": r.last_seen,
+                 "answers": count.get(r.name, 0)} for r in rows]
+
+    def add_recover_token(self, token_hash: str, old_name: str, group: str, expires: str) -> None:
+        with self.engine.begin() as c:
+            c.execute(insert(recover_tokens).values(token_hash=token_hash, old_name=old_name, group_name=group,
+                                                    created=_stamp(), expires=expires))
+
+    def take_recover_token(self, token_hash: str, new_name: str) -> str | None:
+        """The old name a valid, unused, unexpired token gives back; marks it used."""
+        with self.engine.begin() as c:
+            r = c.execute(select(recover_tokens).where(recover_tokens.c.token_hash == token_hash)).first()
+            if r is None or r.used_by or (r.expires or "") < _stamp():
+                return None
+            c.execute(update(recover_tokens).where(recover_tokens.c.token_hash == token_hash)
+                      .values(used_by=new_name, used_at=_stamp()))
+            return r.old_name
+
+    def rename_identity(self, old: str, new: str) -> int:
+        """Every record of ``old`` becomes ``new``'s (questions, ratings, sermons, costs, the user row)."""
+        if old == new:
+            return 0
+        n = 0
+        with self.engine.begin() as c:
+            for r in c.execute(select(answers.c.task_id, answers.c.data).where(answers.c.asked_by == old)).all():
+                c.execute(update(answers).where(answers.c.task_id == r.task_id)
+                          .values(asked_by=new, data={**r.data, "asked_by": new}))
+                n += 1
+            for r in c.execute(select(ratings.c.id, ratings.c.data).where(ratings.c.rater == old)).all():
+                c.execute(update(ratings).where(ratings.c.id == r.id).values(rater=new, data={**r.data, "rater": new}))
+                n += 1
+            for r in c.execute(select(projects.c.id, projects.c.data).where(projects.c.owner == old)).all():
+                c.execute(update(projects).where(projects.c.id == r.id).values(owner=new, data={**r.data, "owner": new}))
+                n += 1
+            c.execute(update(costs).where(costs.c.by_name == old).values(by_name=new))
+            o = c.execute(select(users).where(users.c.name == old)).first()
+            if o is not None:
+                cur = c.execute(select(users).where(users.c.name == new)).first()
+                if cur is None:
+                    c.execute(update(users).where(users.c.name == old).values(name=new))
+                else:
+                    c.execute(update(users).where(users.c.name == new).values(
+                        first_seen=min(x for x in (o.first_seen, cur.first_seen) if x) if (o.first_seen or cur.first_seen) else None))
+                    c.execute(delete(users).where(users.c.name == old))
+        return n
 
     # ---- summary
     def stats(self) -> dict:

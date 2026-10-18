@@ -105,6 +105,73 @@ class FileStore:
     def costs(self) -> list[dict]:
         return _jsonl(self.chat_dir / "costs.jsonl")
 
+    # ---- identities: recovery after a browser lost its key
+    def identities(self, group: str) -> list[dict]:
+        seen: dict[str, dict] = {}
+        for rec in self.answers():
+            name = rec.get("asked_by") or ""
+            if name.startswith(group + "·"):
+                p = seen.setdefault(name, {"name": name, "nick": name.split("·", 1)[1].split("#")[0],
+                                           "first_seen": rec.get("asked_at"), "last_seen": rec.get("asked_at"), "answers": 0})
+                p["answers"] += 1
+                p["last_seen"] = max(p["last_seen"] or "", rec.get("asked_at") or "")
+        return sorted(seen.values(), key=lambda p: p["last_seen"] or "", reverse=True)
+
+    def _tokens(self) -> dict:
+        path = self.chat_dir / "recover_tokens.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def _save_tokens(self, t: dict) -> None:
+        self.chat_dir.mkdir(parents=True, exist_ok=True)
+        (self.chat_dir / "recover_tokens.json").write_text(json.dumps(t, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def add_recover_token(self, token_hash: str, old_name: str, group: str, expires: str) -> None:
+        t = self._tokens()
+        t[token_hash] = {"old_name": old_name, "group_name": group, "expires": expires, "used_by": None}
+        self._save_tokens(t)
+
+    def take_recover_token(self, token_hash: str, new_name: str) -> str | None:
+        import time
+        t = self._tokens()
+        r = t.get(token_hash)
+        if r is None or r["used_by"] or r["expires"] < time.strftime("%Y%m%d-%H%M%S"):
+            return None
+        r["used_by"] = new_name
+        self._save_tokens(t)
+        return r["old_name"]
+
+    def rename_identity(self, old: str, new: str) -> int:
+        """Every record of ``old`` becomes ``new``'s, rewriting the files."""
+        from theoclaw.evals.human import _safe_name
+        if old == new:
+            return 0
+        n = 0
+        rows = self.answers()
+        for rec in rows:
+            if rec.get("asked_by") == old:
+                rec["asked_by"] = new
+                n += 1
+        if n:
+            (self.chat_dir / "traces.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                                                       encoding="utf-8")
+        for d in self.dirs.values():
+            src = d / "human" / f"{_safe_name(old)}.jsonl"
+            if src.exists():
+                recs = [{**r, "rater": new} for r in _jsonl(src)]
+                with open(d / "human" / f"{_safe_name(new)}.jsonl", "a", encoding="utf-8") as f:
+                    f.write("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs))
+                src.unlink()
+                n += len(recs)
+        for p in self.projects(old):
+            self.save_project({**p, "owner": new})
+            n += 1
+        costs = self.costs()
+        if any(c["by"] == old for c in costs):
+            (self.chat_dir / "costs.jsonl").write_text(
+                "".join(json.dumps({**c, "by": new} if c["by"] == old else c, ensure_ascii=False) + "\n" for c in costs),
+                encoding="utf-8")
+        return n
+
     def stats(self) -> dict:
         return {"links": len(self.links()), "answers": len(self.answers()), "ratings": len(self.all_ratings()),
                 "sermon_projects": len(self.projects()), "costs": len(self.costs())}
