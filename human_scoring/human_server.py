@@ -28,6 +28,7 @@ import argparse
 import hashlib
 import re
 import json
+import os
 import random
 import secrets
 import sys
@@ -757,6 +758,14 @@ def make_handler(store: Store):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if u.path == "/home.json":  # the fixed address (THEOCLAW_URL), so a temporary one can send people there
+                body = json.dumps({"url": os.environ.get("THEOCLAW_URL", "").strip().rstrip("/")}).encode()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if u.path == "/zhmap.json":  # 繁 -> 簡 for the page's switch; no code needed, it holds no data
                 body = zh_map()
                 self.send_response(HTTPStatus.OK)
@@ -826,6 +835,8 @@ def make_handler(store: Store):
 def main(argv=None):
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    from theoclaw.llm.env import load_env
+    load_env()  # .env: THEOCLAW_URL, THEOCLAW_DB, API keys
     ap = argparse.ArgumentParser(description="TheoClaw 線上人工評分")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("prepare", help="選出要評的回答，給每位評分人一條專屬連結")

@@ -581,6 +581,23 @@ Ask as you would in Bible study, in English or Chinese, and keep asking follow-u
 const code = new URLSearchParams(location.search).get('t') || '';
 let state = null, pos = 0, item = null, scores = {}, verdict = null, problems = new Set();
 const NICK_KEY = 'theoclaw_nick_' + code;
+// Arriving from a temporary address (a link sent before the fixed one existed): the old page
+// passed this browser's nickname, private key and language after "#", which is never sent to
+// the server; keep them here so the person's earlier conversations are still theirs.
+(function () {
+  if (!location.hash.startsWith('#move=')) return;
+  try {
+    const m = JSON.parse(decodeURIComponent(location.hash.slice(6)));
+    // Not used this link on this address yet: the person is who they were on the old one.
+    if (m.k && !localStorage.getItem(NICK_KEY)) {
+      localStorage.setItem('theoclaw_device', m.k);
+      if (m.n) localStorage.setItem(NICK_KEY, m.n);
+      if (m.d) localStorage.setItem(NICK_KEY + '_denom', m.d);
+    }
+    if (m.l && !localStorage.getItem('theoclaw_script')) localStorage.setItem('theoclaw_script', m.l);
+  } catch (e) { /* nothing to keep */ }
+  history.replaceState(null, '', location.pathname + location.search);
+})();
 let nick = '', denom = '', deviceKey = '';
 try {
   deviceKey = localStorage.getItem('theoclaw_device') || '';
@@ -621,8 +638,26 @@ function fail(msg) {
   document.getElementById('progressInfo').textContent = '';
 }
 
+// On a temporary address, go to the fixed one (same link code), taking this browser's
+// nickname and key along after "#" so nothing the person asked before is lost.
+function moveToHome() {
+  if (!/\.trycloudflare\.com$/.test(location.hostname)) return Promise.resolve(false);
+  return fetch('/home.json').then(r => r.json()).then(h => {
+    if (!h.url || new URL(h.url).host === location.host) return false;
+    let lang = '';
+    try { lang = localStorage.getItem('theoclaw_script') || ''; } catch (e) {}
+    const carry = {k: deviceKey, n: nick, d: denom, l: lang};
+    location.replace(h.url + location.pathname + location.search + '#move=' + encodeURIComponent(JSON.stringify(carry)));
+    return true;
+  }).catch(() => false);
+}
+
 function init() {
   if (!code) { fail('請使用負責人寄給您的專屬連結開啟本頁。'); return; }
+  moveToHome().then(moved => { if (!moved) start(); });
+}
+
+function start() {
   api('/api/state').then(s => {
     if (s.error) { fail(s.error); return; }
     if (s.need_name) {

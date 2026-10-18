@@ -52,13 +52,10 @@ install -m 644 "$APP/human_scoring/deploy/theoclaw-tunnel.service" /etc/systemd/
 systemctl daemon-reload
 systemctl enable --now theoclaw-scoring
 systemctl restart theoclaw-scoring
-# 固定網域（.env 有 THEOCLAW_URL，通道由 Cloudflare 後台建立、以 cloudflared 服務執行）時，
-# 不再需要臨時通道；否則照舊用臨時通道（trycloudflare 網址）
-if grep -q '^THEOCLAW_URL=' "$APP/.env"; then
-  systemctl disable --now theoclaw-tunnel 2>/dev/null || true
-else
-  systemctl enable --now theoclaw-tunnel
-fi
+# 臨時通道（trycloudflare 網址）一直保留、不重啟：已經發出去的舊連結繼續有效。
+# 有固定網域（.env 的 THEOCLAW_URL，通道由 Cloudflare 後台建立）時，從舊連結進來的人
+# 會被頁面帶到固定網址，暱稱和先前的對話都跟著過去。
+systemctl enable --now theoclaw-tunnel
 systemctl disable --now theoclaw-scoring-db theoclaw-tunnel-db 2>/dev/null || true   # the short-lived test pair
 
 sleep 8
