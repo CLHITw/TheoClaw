@@ -443,6 +443,20 @@
 <div class="container">
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
 
+  <div id="enterCard" class="card hidden">
+    <div class="card-title">歡迎使用 TheoClaw 查經與講道助手</div>
+    <div class="help">一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。</div>
+    <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
+      <button class="btn" onclick="enterAs('lay')">我是信徒</button>
+      <button class="btn btn-secondary" onclick="showPastorCode()">我是牧者</button>
+    </div>
+    <div id="pastorCodeBox" class="hidden" style="margin-top:12px">
+      <div class="help">請輸入團契碼（向負責人索取）</div>
+      <input class="ask-input" id="pastorCode" maxlength="64" autocomplete="off" style="min-height:auto;height:40px">
+      <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="enterAs('pastor')">進入牧者模式</button></div>
+    </div>
+  </div>
+
   <div id="nameCard" class="card hidden">
     <div class="card-title">請先輸入您的稱呼 · Please enter your name</div>
     <div class="help">用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。<br>
@@ -669,8 +683,28 @@ function moveToHome() {
   }).catch(() => false);
 }
 
+// The front page (no link code): members go straight in; pastors give the fellowship code.
+function showPastorCode() {
+  document.getElementById('pastorCodeBox').classList.remove('hidden');
+  document.getElementById('pastorCode').focus();
+}
+
+function enterAs(role) {
+  const pc = role === 'pastor' ? document.getElementById('pastorCode').value.trim() : '';
+  if (role === 'pastor' && !pc) { showToast('請輸入團契碼'); return; }
+  fetch('/api/enter', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role: role, code: pc})})
+    .then(r => r.json())
+    .then(r => { if (r.error) { showToast(r.error); return; } location.href = '/?t=' + encodeURIComponent(r.t); })
+    .catch(() => showToast('無法連線，請稍後再試'));
+}
+
 function init() {
-  if (!code) { fail('請使用負責人寄給您的專屬連結開啟本頁。'); return; }
+  if (!code) {
+    document.getElementById('enterCard').classList.remove('hidden');
+    document.getElementById('progressInfo').textContent = '';
+    return;
+  }
   moveToHome().then(moved => {
     if (moved) return;
     if (pendingRecover && nick) doRecover().then(start); else start();
@@ -1365,6 +1399,14 @@ const EN = {
   '回答超時，請稍後再試，或把問題問得具體一點': 'The answer took too long; please try again, or make the question more specific',
   '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
   '請選擇總評': 'Please choose a verdict',
+  '歡迎使用 TheoClaw 查經與講道助手': 'Welcome to TheoClaw, a Bible-study and sermon assistant',
+  '一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。':
+    'A Bible-study and sermon-preparation assistant in the Methodist tradition: scripture is looked up word for word by the program, and Wesley is quoted only from his own texts. Only you can see your questions.',
+  '我是信徒': 'I am a church member', '我是牧者': 'I am a pastor', '請輸入團契碼（向負責人索取）': 'Please enter the fellowship code (ask the organiser)',
+  '進入牧者模式': 'Enter as a pastor', '請輸入團契碼': 'Please enter the fellowship code', '團契碼不正確': 'The fellowship code is not correct',
+  '嘗試太多次，請一小時後再試': 'Too many tries; please try again in an hour', '牧者入口尚未開放': 'The pastors’ entrance is not open yet',
+  '信徒入口尚未開放': 'The members’ entrance is not open yet', '請選擇信徒或牧者': 'Please choose member or pastor',
+  '無法連線，請稍後再試': 'Cannot connect; please try again later',
   '找回連結無效': 'This recovery link is not valid', '找回連結無效或已用過': 'This recovery link is not valid or has been used',
   '找回失敗，請檢查網路': 'Recovery failed; please check your connection',
   // dialogs

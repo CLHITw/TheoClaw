@@ -407,3 +407,22 @@ def test_one_time_recovery_link_moves_records_to_the_new_browser(tmp_path, stora
     assert "error" in store.recover(code, token, other)                # one use only
     again = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
     assert [q["id"] for q in again.state(code, new)["chat"]["questions"]] == [item]   # survives a restart
+
+
+def test_front_page_members_go_in_pastors_need_the_fellowship_code(tmp_path, monkeypatch):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    lay = hs.add_group("查經班", path)
+    pastor = hs.add_group("牧者", path, role="pastor")
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
+    monkeypatch.delenv("THEOCLAW_PASTOR_CODE", raising=False)
+    assert store.enter("lay") == {"t": lay}
+    assert "error" in store.enter("pastor", "anything", "1.2.3.4")          # no code set: closed
+    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", "grace2026")
+    assert store.enter("pastor", " grace2026 ", "1.2.3.4") == {"t": pastor}
+    assert "不正確" in store.enter("pastor", "wrong", "5.6.7.8")["error"]
+    for _ in range(store.ENTER_TRIES):
+        store.enter("pastor", "wrong", "9.9.9.9")
+    assert "太多次" in store.enter("pastor", "grace2026", "9.9.9.9")["error"]  # locked out for an hour
+    assert store.enter("pastor", "grace2026", "1.1.1.1") == {"t": pastor}     # others are not

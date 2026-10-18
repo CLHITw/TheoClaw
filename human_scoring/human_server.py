@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import hmac
 import json
 import os
 import random
@@ -184,6 +185,7 @@ class Store:
         self.chat = chat  # {"model", "daily_limit", "budget_usd"} or None
         self.chat_dir = chat_dir
         self.jobs: dict[str, dict] = {}
+        self._enter_fails: dict[str, list[float]] = {}  # address -> times of wrong fellowship codes (memory only)
         self.owner: dict[str, str] = {}  # chat item id -> rater name
         for rec in self.db.answers():
             if rec.get("outcome") != "api_error":
@@ -642,6 +644,42 @@ class Store:
                 "conv": j.get("conv"),
                 "elapsed": int(time.time() - j["started"])}
 
+    ENTER_TRIES = 8   # wrong fellowship codes from one address in an hour before it is turned away
+
+    def enter(self, role: str, passcode: str = "", client: str = "") -> dict:
+        """The front page: members go in on the lay group's link; pastors give the fellowship code
+        (THEOCLAW_PASTOR_CODE in .env) and go in on the pastors' group link. Which groups:
+        THEOCLAW_LAY_GROUP / THEOCLAW_PASTOR_GROUP, else the first group link of each role."""
+        self.raters = self.db.links()
+        groups = [(c, r) for c, r in self.raters.items() if r.get("group")]
+
+        def group_code(want_role: str, env: str) -> str | None:
+            name = os.environ.get(env, "").strip()
+            for c, r in groups:
+                if (r["name"] == name) if name else (r.get("role", "lay") == want_role):
+                    return c
+            return None
+
+        if role == "lay":
+            code = group_code("lay", "THEOCLAW_LAY_GROUP")
+            return {"t": code} if code else {"error": "信徒入口尚未開放"}
+        if role != "pastor":
+            return {"error": "請選擇信徒或牧者"}
+        secret = os.environ.get("THEOCLAW_PASTOR_CODE", "").strip()
+        code = group_code("pastor", "THEOCLAW_PASTOR_GROUP")
+        if not secret or not code:
+            return {"error": "牧者入口尚未開放"}
+        now = time.time()
+        with self.lock:
+            tries = self._enter_fails.setdefault(client, [])
+            tries[:] = [t for t in tries if now - t < 3600]
+            if len(tries) >= self.ENTER_TRIES:
+                return {"error": "嘗試太多次，請一小時後再試"}
+            if not hmac.compare_digest((passcode or "").strip().encode(), secret.encode()):
+                tries.append(now)
+                return {"error": "團契碼不正確"}
+        return {"t": code}
+
     def recover(self, code: str, token: str, nick=None) -> dict:
         """A one-time recovery link (made with `recover-link`) gives the person on this browser the
         records they made under an earlier key: questions, ratings, sermons."""
@@ -820,6 +858,17 @@ def make_handler(store: Store):
         def do_POST(self):
             u = urlparse(self.path)
             q = parse_qs(u.query)
+            if u.path == "/api/enter":  # the front page: no link code yet
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 4096:
+                    return self._json({"error": "資料過大"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except json.JSONDecodeError:
+                    return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+                client = self.headers.get("CF-Connecting-IP") or self.client_address[0]
+                out = store.enter(str(body.get("role") or ""), str(body.get("code") or ""), client)
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
