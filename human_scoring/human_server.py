@@ -69,6 +69,7 @@ MAX_BODY = 64 * 1024
 DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
+PASTOR_CODE = "1893"       # 團契碼：首頁進入牧者模式要輸入的碼（.env 的 THEOCLAW_PASTOR_CODE 可覆寫）
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
 _KEY = re.compile(r"^[A-Za-z0-9_-]{16,64}$")  # a random key each browser makes once and keeps
@@ -648,7 +649,7 @@ class Store:
 
     def enter(self, role: str, passcode: str = "", client: str = "") -> dict:
         """The front page: members go in on the lay group's link; pastors give the fellowship code
-        (THEOCLAW_PASTOR_CODE in .env) and go in on the pastors' group link. Which groups:
+        (PASTOR_CODE, or THEOCLAW_PASTOR_CODE in .env) and go in on the pastors' group link. Which groups:
         THEOCLAW_LAY_GROUP / THEOCLAW_PASTOR_GROUP, else the first group link of each role."""
         self.raters = self.db.links()
         groups = [(c, r) for c, r in self.raters.items() if r.get("group")]
@@ -665,7 +666,7 @@ class Store:
             return {"t": code} if code else {"error": "信徒入口尚未開放"}
         if role != "pastor":
             return {"error": "請選擇信徒或牧者"}
-        secret = os.environ.get("THEOCLAW_PASTOR_CODE", "").strip()
+        secret = os.environ.get("THEOCLAW_PASTOR_CODE", "").strip() or PASTOR_CODE
         code = group_code("pastor", "THEOCLAW_PASTOR_GROUP")
         if not secret or not code:
             return {"error": "牧者入口尚未開放"}

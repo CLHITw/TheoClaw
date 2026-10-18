@@ -4,7 +4,7 @@
 # 第一次安裝後，請建立 /opt/theoclaw/.env，內容一行：DEEPSEEK_API_KEY=你的金鑰（提問模式需要），
 # 然後 sudo systemctl restart theoclaw-scoring。
 # 再次執行本腳本是更新程式：已有的評分（runs/*/human/、runs/pastor-chat/）與 .env 都會保留。
-# 首頁（不帶代碼的網址）讓人選信徒或牧者：牧者要輸入 .env 的 THEOCLAW_PASTOR_CODE（團契碼）。
+# 首頁（不帶代碼的網址）讓人選信徒或牧者：牧者要輸入團契碼（human_server.PASTOR_CODE；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）。
 # 資料存在 MySQL：.env 有一行 THEOCLAW_DB=mysql+pymysql://theoclaw:密碼@localhost/theoclaw?charset=utf8mb4
 # （沒有就用 runs/pastor-chat/theoclaw.db 這個 SQLite 檔）。啟動時會把舊檔案裡還沒進資料庫的資料匯入（不重複）。
 set -euo pipefail

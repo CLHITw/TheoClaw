@@ -418,8 +418,8 @@ def test_front_page_members_go_in_pastors_need_the_fellowship_code(tmp_path, mon
     store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
     monkeypatch.delenv("THEOCLAW_PASTOR_CODE", raising=False)
     assert store.enter("lay") == {"t": lay}
-    assert "error" in store.enter("pastor", "anything", "1.2.3.4")          # no code set: closed
-    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", "grace2026")
+    assert store.enter("pastor", hs.PASTOR_CODE, "1.2.3.4") == {"t": pastor}  # the built-in fellowship code
+    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", "grace2026")                     # .env overrides it
     assert store.enter("pastor", " grace2026 ", "1.2.3.4") == {"t": pastor}
     assert "不正確" in store.enter("pastor", "wrong", "5.6.7.8")["error"]
     for _ in range(store.ENTER_TRIES):
