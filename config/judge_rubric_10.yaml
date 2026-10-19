@@ -1,0 +1,30 @@
+# 評審專用版（只給 LLM 評審看，線上評分頁仍用 human_rubric_10.yaml）。
+# 和使用者版同一個 0–10 分尺度、同一條 7 分可用線；差別是把分數錨點和「語句通順」寫進題目，
+# 因為評審的提示只顯示題目文字，原版的錨點沒有傳給評審；使用者第一輪的低分評語主要是語句不通順。
+# Judge-only copy of the live 0-10 rubric: same scale and usable line (7+), with the anchors and a
+# readability check written into the question, since the judge prompt shows only question text.
+
+scale: {min: 0, max: 10}
+allow_na: false
+
+dimensions:
+  - key: overall
+    name: 整體分數 · Overall
+    question: >-
+      這個回答對提問者的查經或預備有多大幫助？
+      0–3 不能用：有明顯錯誤、答非所問，或讓人誤解；
+      4–6 有可用的部分，但要大改才能用；
+      7–8 小改就能用；
+      9–10 可以直接拿到團契或講道預備用。
+      除了內容是否正確、有依據，也要看中文是否通順自然：
+      句子不通、用詞生硬或像直譯、前後語氣不連貫、讀者要重寫才能拿去用，都算要大改，最多給 6 分。
+
+anchors:
+  - {range: "0–3", meaning: 不能用：有明顯錯誤、答非所問，或讓人誤解}
+  - {range: "4–6", meaning: 有可用的部分，但要大改才能用（包括語句不通順）}
+  - {range: "7–8", meaning: 小改就能用}
+  - {range: "9–10", meaning: 可以直接拿到團契或講道預備用}
+
+verdict:
+  auto_min: 7
+  question: 這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）
