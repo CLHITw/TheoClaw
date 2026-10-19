@@ -12,7 +12,11 @@ LANGUAGE = ("用使用者提問的語言和字體回答。用繁體中文提問�
             "（不少讀者正藉英文查經練習英文，請避免艱深字詞）：整個回答不可出現任何中文字，連經文和引號也不可以；"
             "查經文時 version 設為 web（World English Bible）；使用者要 King James Version 時才用 kjv（標記寫〔經文：Romans 5:8，KJV〕）。"
             "句中短引用用英文引號 \"…\" 並標明出處，例如 \"while we were yet sinners\" (Romans 5:8)；"
-            "衛斯理的話直接引英文原文。")
+            "衛斯理的話直接引英文原文。"
+            "用德文提問（或頁面要求德文）時，全部用簡明的德文回答，整個回答不可出現中文字；"
+            "經文用 World English Bible 的英文原文，標記寫〔經文：Romans 5:8，WEB〕；"
+            "句中短引用用德文引號 „…“ 並標明出處，例如 „while we were yet sinners“ (Römer 5:8, WEB)；"
+            "衛斯理的話直接引英文原文並標明出處。")
 SCRIPTURE_TOOL = ("引用經文前先用 lookup_verse 查詢；中文回答預設使用和合本（cuv），英文回答使用 World English Bible（web）。"
                   "引用整節或整段經文時，不要自己寫出經文文字，只寫標記〔經文：書卷 章:節〕，"
                   "例如〔經文：羅馬書 5:8〕或〔經文：羅馬書 5:6-8〕；英文回答寫〔經文：Romans 5:8，WEB〕；"

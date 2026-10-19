@@ -89,11 +89,46 @@ def load_ratings(run_dir: Path) -> list[dict]:
     return list(latest.values())
 
 
+FAST_MAX_S = 2.0     # a rating sooner than this after the answer appeared: too fast to have read it
+SAME_STREAK = 3      # this many identical 0-10 scores in a row by one rater: likely not reading
+
+
+def confidence_marks(ratings: list[dict]) -> dict[tuple, set[str]]:
+    """Suspicion flags per (rater, task_id, run_index): 'too_fast' and/or 'same_streak'.
+    Analysis only — the stored records are never changed or dropped."""
+    def key(r: dict) -> tuple:
+        return r.get("rater", ""), r.get("task_id", ""), r.get("run_index", 0)
+
+    marks: dict[tuple, set[str]] = {}
+    by_rater: dict[str, list[dict]] = defaultdict(list)
+    for r in ratings:
+        by_rater[r.get("rater", "")].append(r)
+    for rs in by_rater.values():
+        rs.sort(key=lambda r: str(r.get("rated_at", "")))
+        run: list[dict] = []
+        last: object = object()
+        for r in rs + [None]:                      # None flushes the final run
+            overall = None if r is None else (r.get("scores") or {}).get("overall")
+            if r is None or overall != last:
+                if len(run) >= SAME_STREAK:
+                    for x in run:
+                        marks.setdefault(key(x), set()).add("same_streak")
+                run = []
+                last = overall
+            if r is not None and overall is not None:
+                run.append(r)
+            e = None if r is None else r.get("elapsed_s")
+            if isinstance(e, (int, float)) and not isinstance(e, bool) and e < FAST_MAX_S:
+                marks.setdefault(key(r), set()).add("too_fast")
+    return marks
+
+
 def rating_record(item: Item, rater: str, scores: dict, verdict: bool | None, comment: str, *,
                   blind: bool, rubric: dict, extra: dict | None = None) -> dict:
     """One rating as stored, in a human/<rater>.jsonl file or the online server's database."""
     return {"task_id": item.key[0], "run_index": item.key[1], "rater": rater, "scores": scores,
             "verdict": verdict, "comment": comment, "blind": blind, "rubric_sha": rubric["sha"],
+            "lang": item.trace.get("lang") or "zh",  # the language the rated answer was given in
             "rated_at": time.strftime("%Y-%m-%d %H:%M:%S"), **(extra or {})}
 
 

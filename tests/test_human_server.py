@@ -2,9 +2,11 @@ import importlib.util
 import json
 import threading
 import time
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 
@@ -39,6 +41,11 @@ def _run(tmp_path, name, n=3):
                                 ensure_ascii=False))
     (d / "traces.jsonl").write_text("\n".join(lines), encoding="utf-8")
     return d
+
+
+def _consent(store, code, nick=None):
+    """Chat writes are gated on the training-use consent; tests opt in explicitly."""
+    store.db.record_consent(store.who(code, nick))
 
 
 def test_blind_items_full_tools_and_ratings_saved(tmp_path):
@@ -109,6 +116,8 @@ def test_chat_mode_limits_and_saving(tmp_path):
     codes = list(hs.prepare([str(a)], ["牧者1", "牧者2"], None, None, path)["raters"])
     chat_dir = tmp_path / "pastor-chat"
     store = hs.Store(path, chat={"model": "deepseek-flash", "daily_limit": 1, "budget_usd": 1.0}, chat_dir=chat_dir)
+    _consent(store, codes[0])
+    _consent(store, codes[1])
     fake = lambda q: {"model": "deepseek-flash", "prompt": q, "final_text": "答案", "outcome": "completed",
                       "steps": [], "usage_total": {}, "cost_usd": 0.01}
     assert "error" in store.ask(codes[0], "x")  # too short
@@ -165,6 +174,8 @@ def test_group_link_is_private_per_person(tmp_path):
     assert "稱呼" in store.ask(code, "問題", nick=("", "k" * 20))["error"]
     fake = lambda q: {"model": "m", "prompt": q, "final_text": "答案", "outcome": "completed",
                       "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    for nick in (tom1, tom2, mary):
+        _consent(store, code, nick)
     j = store.ask(code, "我最近很軟弱，該讀哪段經文？", runner=fake, nick=tom1)
     for _ in range(50):
         if store.job(code, j["job"], tom1)["status"] != "running":
@@ -185,7 +196,7 @@ def test_group_link_is_private_per_person(tmp_path):
     assert code in hs.prepare([str(a)], ["牧者1"], None, None, path)["raters"]  # re-preparing keeps the group link
     store.ask(code, "第二題", runner=fake, nick=mary)
     time.sleep(0.2)
-    assert "團契" in store.ask(code, "第三題", runner=fake, nick=("小李", "l" * 20))["error"]  # group daily limit 2
+    assert "團契" in store.ask(code, "第三題", runner=fake, nick=mary)["error"]  # group daily limit 2
 
 
 def test_denomination_recorded_with_question_and_rating(tmp_path):
@@ -198,6 +209,7 @@ def test_denomination_recorded_with_question_and_rating(tmp_path):
     assert "無宗派 Non-denominational" in store.state(code)["denominations"]
     fake = lambda q: {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
                       "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    _consent(store, code, "Tom")
     j = store.ask(code, "What is grace?", runner=fake, nick="Tom", denomination="聖公會 Anglican")
     store.ask(code, "Another?", runner=fake, nick="Tom", denomination="made up")
     time.sleep(0.3)
@@ -257,6 +269,7 @@ def test_sermon_workspace_start_turns_board_and_assemble(tmp_path):
     lay = hs.add_group("查經班", path)
     store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "sermon_daily_limit": 2},
                      chat_dir=tmp_path / "chat")
+    _consent(store, pastors, "王牧師")
     assert "牧者" in store.ws_start(lay, {"passage": "路加福音 15"}, "小明")["error"]
     start = lambda f, owner, model, kb: {"id": "a1b2c3d4e5f6", "owner": owner, "created": "20261017-100000",
                                           "passage": f["passage"], "theme": f["theme"], "request": "經文：" + f["passage"],
@@ -292,6 +305,8 @@ def test_follow_up_questions_carry_the_conversation(tmp_path):
     code = hs.add_group("查經班", path)
     store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
     me, other = ("小明", "k" * 20), ("小華", "m" * 20)
+    _consent(store, code, me)
+    _consent(store, code, other)
     seen = []
 
     def fake(prompt):
@@ -363,20 +378,28 @@ def test_language_recorded_and_old_databases_get_the_column(tmp_path, storage):
     seen = []
     fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
                                         "steps": [], "usage_total": {}, "cost_usd": 0.001}
-    store.ask(code, "什麼是恩典？", runner=fake, nick=("Eden", "e" * 20), lang="en")
+    nick = ("Eden", "e" * 20)
+    _consent(store, code, nick)
+    store.ask(code, "什麼是恩典？", runner=fake, nick=nick, lang="en")
     time.sleep(0.3)
     assert seen[0].endswith("(Please answer in English.)")
     [rec] = store.db.answers()
     assert rec["lang"] == "en" and rec["prompt"] == "什麼是恩典？"  # recorded as asked
+    item = store.state(code, nick)["chat"]["questions"][0]["id"]
+    assert store.rate(code, {"id": item, "scores": {"overall": 8}}, nick) is None
+    assert store.db.ratings()[0]["lang"] == "en"  # the rating knows the answer was English
     if storage == "db":
         from sqlalchemy import text
         with store.db.engine.begin() as c:
             assert c.execute(text("select lang from users")).scalar() == "en"
-            c.execute(text("DROP INDEX ix_answers_lang"))
-            c.execute(text("ALTER TABLE answers DROP COLUMN lang"))  # a database made before the column existed
+            assert c.execute(text("select lang from ratings")).scalar() == "en"
+            for table in ("answers", "ratings"):
+                c.execute(text(f"DROP INDEX ix_{table}_lang"))
+                c.execute(text(f"ALTER TABLE {table} DROP COLUMN lang"))  # a database made before the column existed
         again = hs.DB()
         with again.engine.connect() as c:
             assert c.execute(text("select lang from answers")).scalar() == "zh"  # added, earlier rows Chinese
+            assert c.execute(text("select lang from ratings")).scalar() == "zh"
 
 
 def test_one_time_recovery_link_moves_records_to_the_new_browser(tmp_path, storage):
@@ -389,6 +412,7 @@ def test_one_time_recovery_link_moves_records_to_the_new_browser(tmp_path, stora
     fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed", "steps": [],
                       "usage_total": {}, "cost_usd": 0.001}
     old, new, other = ("小明", "o" * 20), ("小明", "n" * 20), ("小華", "x" * 20)
+    _consent(store, code, old)
     store.ask(code, "以前問過的問題", runner=fake, nick=old)
     time.sleep(0.3)
     item = store.state(code, old)["chat"]["questions"][0]["id"]
@@ -415,14 +439,368 @@ def test_front_page_members_go_in_pastors_need_the_fellowship_code(tmp_path, mon
     hs.prepare([str(a)], ["牧者1"], None, None, path)
     lay = hs.add_group("查經班", path)
     pastor = hs.add_group("牧者", path, role="pastor")
+    monkeypatch.delenv("THEOCLAW_PASTOR_CODE", raising=False)  # the seed is then the built-in code
     store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
-    monkeypatch.delenv("THEOCLAW_PASTOR_CODE", raising=False)
     assert store.enter("lay") == {"t": lay}
-    assert store.enter("pastor", hs.PASTOR_CODE, "1.2.3.4") == {"t": pastor}  # the built-in fellowship code
-    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", "grace2026")                     # .env overrides it
+    assert store.enter("pastor", hs.PASTOR_CODE, "1.2.3.4") == {"t": pastor}  # the seeded fellowship
+    store.db.put_fellowship("grace2026", "恩典團契", "pastor")                # more fellowships at runtime
     assert store.enter("pastor", " grace2026 ", "1.2.3.4") == {"t": pastor}
+    store.db.put_fellowship("m2026", "青年團契", "member")                    # a member-role code works too
+    assert store.enter("member", "m2026", "1.2.3.4") == {"t": lay}
     assert "不正確" in store.enter("pastor", "wrong", "5.6.7.8")["error"]
     for _ in range(store.ENTER_TRIES):
         store.enter("pastor", "wrong", "9.9.9.9")
     assert "太多次" in store.enter("pastor", "grace2026", "9.9.9.9")["error"]  # locked out for an hour
     assert store.enter("pastor", "grace2026", "1.1.1.1") == {"t": pastor}     # others are not
+
+
+def test_german_questions_are_answered_in_german(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me = ("Eden", "e" * 20)
+    _consent(store, code, me)
+    seen = []
+    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "Antwort", "outcome": "completed",
+                                        "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    store.ask(code, "Was ist Gnade?", runner=fake, nick=me, lang="de")
+    time.sleep(0.3)
+    assert seen[0].endswith("(Bitte antworten Sie auf Deutsch.)")
+    [rec] = store.db.answers()
+    assert rec["lang"] == "de" and rec["prompt"] == "Was ist Gnade?"  # recorded as asked
+
+
+def test_consent_gate_blocks_chat_writes_until_given(tmp_path, monkeypatch):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    lay = hs.add_group("查經班", path)
+    pastors = hs.add_group("牧者", path, role="pastor")
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0, "sermon_daily_limit": 2},
+                     chat_dir=tmp_path / "chat")
+    me = ("小明", "k" * 20)
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    assert "同意" in store.ask(lay, "我還沒有同意", runner=fake, nick=me)["error"]
+    start = lambda f, owner, model, kb: {"id": "abc123def456", "owner": owner, "created": "20261018-100000",
+                                          "passage": f["passage"], "theme": f.get("theme"), "request": f["passage"],
+                                          "briefs": "", "word_study": "", "board": [], "turns": [],
+                                          "research_cost_usd": 0.01}
+    assert "同意" in store.ws_start(pastors, {"passage": "約翰福音 3"}, "王牧師", start)["error"]
+    assert store.state(lay, me)["consented"] is False
+    _consent(store, lay, me)
+    _consent(store, pastors, "王牧師")
+    assert store.state(lay, me)["consented"] is True
+    job = store.ask(lay, "同意之後就能提問", runner=fake, nick=me)["job"]
+    _wait(store, lay, job, me)
+    item = store.job(lay, job, me)["item"]
+    monkeypatch.setattr(store.db, "consented", lambda name: False)  # the same gate guards a chat rating
+    assert "同意" in store.rate(lay, {"id": item, "scores": {"overall": 8}}, me)
+    monkeypatch.undo()
+    assert store.rate(lay, {"id": item, "scores": {"overall": 8}}, me) is None
+
+
+def test_google_login_binds_this_browser_then_merges_another(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    dev_a, dev_b = ("小明", "k" * 20), ("小明", "z" * 20)  # same nickname, two browsers
+    _consent(store, code, dev_a)
+    _consent(store, code, dev_b)
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    store.ask(code, "瀏覽器一問的", runner=fake, nick=dev_a)
+    time.sleep(0.3)
+    name_a, name_b = store.who(code, dev_a)["name"], store.who(code, dev_b)["name"]
+    assert name_a != name_b  # two devices are two identities until an account binds them
+    sub_hash = hs.google_sub_hash("sub-xyz", store.google_salt())
+    name, err, moved = store.bind_google(sub_hash, name_a)  # first login: this device becomes the account
+    assert err is None and name == name_a and moved == 0
+    cookie = store.issue_session(sub_hash)
+    assert store.session_account(cookie)["name"] == name_a
+    assert store.session_account("tampered-value") is None
+    store.ask(code, "瀏覽器二問的", runner=fake, nick=dev_b)
+    time.sleep(0.3)
+    name, err, moved = store.bind_google(sub_hash, name_b)  # the same Google account on device two
+    assert err is None and name == name_a and moved >= 1        # the anonymous records merge over
+    assert store.session_account(store.issue_session(sub_hash))["name"] == name_a
+    prompts = [q["prompt"] for q in store.state(code, dev_a)["chat"]["questions"]]
+    assert prompts == ["瀏覽器一問的", "瀏覽器二問的"]
+
+
+def test_consent_survives_a_merge_into_an_existing_account(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    dev_a, dev_b = ("小明", "k" * 20), ("小明", "z" * 20)
+    name_a, name_b = store.who(code, dev_a)["name"], store.who(code, dev_b)["name"]
+    store.db.touch_user(store._user(name_a))  # the account already exists, without consent
+    sub_hash = hs.google_sub_hash("sub-1", store.google_salt())
+    store.db.put_google_account(sub_hash, name_a)
+    _consent(store, code, dev_b)
+    assert store.db.consented(name_a) is False
+    name, err, moved = store.bind_google(sub_hash, name_b)  # this browser's records merge into it
+    assert err is None and name == name_a
+    assert store.db.consented(name_a) is True  # the merged browser's consent is kept
+    assert store.db.consented(name_b) is False
+
+
+def test_returning_google_account_logs_in_without_a_nickname(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    name = store.who(code, ("小明", "k" * 20))["name"]
+    sub_hash = hs.google_sub_hash("sub-1", store.google_salt())
+    store.db.put_google_account(sub_hash, name)
+    logged_in, err, moved = store.bind_google(sub_hash, "")
+    assert err is None and logged_in == name and moved == 0
+    assert store.session_account(store.issue_session(sub_hash))["name"] == name
+
+
+def test_first_google_login_without_a_nickname_creates_no_account(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    sub_hash = hs.google_sub_hash("sub-new", store.google_salt())
+    assert store.bind_google(sub_hash, "") == (None, "newname", 0)
+    assert store.db.google_account(sub_hash) is None
+
+
+def _get(base, path, cookies=None):
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    header = "; ".join(f"{k}={v}" for k, v in (cookies or {}).items())
+    req = urllib.request.Request(base + path, headers={"Cookie": header} if header else {})
+    try:
+        urllib.request.build_opener(NoRedirect).open(req)
+    except urllib.error.HTTPError as e:
+        return e
+    raise AssertionError("expected a redirect")
+
+
+def _cookie_value(response, name):
+    for c in response.headers.get_all("Set-Cookie") or []:
+        if c.startswith(name + "=") and "Max-Age=0" not in c:
+            return c.split(";", 1)[0].split("=", 1)[1]
+    raise AssertionError(f"{name} not set")
+
+
+def _serve(store):
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), hs.make_handler(store))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+def test_first_google_login_asks_for_a_name_then_binds_without_google_again(tmp_path, monkeypatch):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    store.google = {"client_id": "123456789012-abc_DEF.apps.googleusercontent.com", "client_secret": "secret"}
+    monkeypatch.setattr(hs, "exchange_google_code", lambda *a, **k: "token")
+    monkeypatch.setattr(hs, "fetch_google_sub", lambda token: "sub-new")
+    srv, base = _serve(store)
+    try:
+        step = _get(base, f"/auth/google/start?t={code}")  # no nickname needed to start
+        assert step.code == 303 and step.headers["Location"].startswith(hs.GOOGLE_AUTH_URL + "?")
+        state = parse_qs(urlparse(step.headers["Location"]).query)["state"][0]
+        back = _get(base, f"/auth/google/callback?state={state}&code=abc",
+                    cookies={hs.LOGIN_COOKIE: state})
+        assert back.code == 303
+        params = parse_qs(urlparse(back.headers["Location"]).query)
+        assert params["t"] == [code] and params["auth_error"] == ["newname"]
+        sub_hash = hs.google_sub_hash("sub-new", store.google_salt())
+        assert store.db.google_account(sub_hash) is None  # no nameless account is created
+        pending = _cookie_value(back, hs.GOOGLE_PENDING_COOKIE)
+        done = _get(base, "/auth/google/start?" + urlencode({"t": code, "u": "小明", "k": "k" * 20}),
+                    cookies={hs.GOOGLE_PENDING_COOKIE: pending})
+        assert done.code == 303 and done.headers["Location"] == f"/?t={code}"
+        session = _cookie_value(done, hs.SESSION_COOKIE)
+        name = store.who(code, ("小明", "k" * 20))["name"]
+        assert store.session_account(session)["name"] == name
+        cookies = done.headers.get_all("Set-Cookie") or []
+        assert any(c.startswith(f"{hs.GOOGLE_PENDING_COOKIE}=;") and "Max-Age=0" in c for c in cookies)
+    finally:
+        srv.shutdown()
+
+
+def test_returning_google_account_is_recognised_through_the_pending_cookie(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    store.google = {"client_id": "123456789012-abc_DEF.apps.googleusercontent.com", "client_secret": "secret"}
+    name = store.who(code, ("小明", "k" * 20))["name"]
+    sub_hash = hs.google_sub_hash("sub-old", store.google_salt())
+    store.db.put_google_account(sub_hash, name)
+    srv, base = _serve(store)
+    try:
+        pending = store.google_pending_value(sub_hash, code)
+        done = _get(base, f"/auth/google/start?t={code}", cookies={hs.GOOGLE_PENDING_COOKIE: pending})
+        assert done.code == 303 and done.headers["Location"] == f"/?t={code}"
+        assert store.session_account(_cookie_value(done, hs.SESSION_COOKIE))["name"] == name
+    finally:
+        srv.shutdown()
+
+
+def test_logout_clears_the_session_cookie_and_returns_to_the_link(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    name = store.who(code, ("小明", "k" * 20))["name"]
+    store.db.put_google_account(hs.google_sub_hash("sub-1", store.google_salt()), name)
+    session = store.issue_session(hs.google_sub_hash("sub-1", store.google_salt()))
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), hs.make_handler(store))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    try:
+        req = urllib.request.Request(base + f"/auth/logout?t={code}",
+                                     headers={"Cookie": f"{hs.SESSION_COOKIE}={session}"})
+        try:
+            urllib.request.build_opener(NoRedirect).open(req)
+            assert False
+        except urllib.error.HTTPError as e:
+            assert e.code == 303
+            assert e.headers["Location"] == f"/?t={code}"
+            cookies = e.headers.get_all("Set-Cookie") or []
+            assert any(c.startswith(f"{hs.SESSION_COOKIE}=;") and "Max-Age=0" in c for c in cookies)
+    finally:
+        srv.shutdown()
+
+
+def test_quick_skip_and_elapsed_recorded_with_ratings(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me = ("小明", "k" * 20)
+    _consent(store, code, me)
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    job = store.ask(code, "一個問題", runner=fake, nick=me)["job"]
+    _wait(store, code, job, me)
+    item = store.job(code, job, me)["item"]
+    mine = lambda: store.db.ratings(rater=store.who(code, me)["name"])[-1]
+    assert store.rate(code, {"id": item, "quick": "up", "elapsed": 1.5}, me) is None
+    rec = mine()
+    assert rec["method"] == "quick" and rec["quick"] == "up" and rec["verdict"] is True and rec["elapsed_s"] == 1.5
+    assert store.rate(code, {"id": item, "quick": "down", "elapsed": 999999}, me) is None  # clamped to a day
+    assert mine()["elapsed_s"] == 86400.0 and mine()["verdict"] is False
+    assert store.rate(code, {"id": item, "skip": True}, me) is None  # a skip: no opinion, still recorded
+    rec = mine()
+    assert rec["method"] == "skip" and rec["verdict"] is None and rec["scores"] == {}
+    assert store.rate(code, {"id": item, "scores": {"overall": 7}}, me) is None  # detailed still works
+    rec = mine()
+    assert rec["method"] == "detailed" and rec["scores"] == {"overall": 7} and rec["elapsed_s"] is None
+    assert store.rate(code, {"id": item, "comment": "這句讀不懂"}, me) is None  # a note on its own: no score needed
+    rec = mine()
+    assert rec["method"] == "note" and rec["scores"] == {} and rec["verdict"] is None and rec["comment"] == "這句讀不懂"
+    store.rate(code, {"id": item, "comment": "順帶一提", "quick": "up"}, me)  # a note typed next to a quick tap is kept
+    rec = mine()
+    assert rec["method"] == "quick" and rec["comment"] == "順帶一提" and rec["verdict"] is True
+    assert store.rate(code, {"id": item, "skip": True, "comment": "不想說"}, me) is None  # a skip keeps no comment
+    assert mine()["comment"] == ""
+
+
+def test_state_offers_google_login_once_a_name_is_needed(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    pastors = hs.add_group("牧者", path, role="pastor")
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    store.google = None
+    assert store.state(code)["google"] is False  # no login entry anywhere when not set up
+    store.google = {"client_id": "id", "client_secret": "secret"}
+    st = store.state(code)
+    assert st["need_name"] and st["google"] is True  # the name card offers the optional login
+    assert st["pastor"] is False and store.state(pastors)["pastor"] is True
+    assert store.state(code, ("小明", "k" * 20))["google"] is True
+    assert store.state(code, ("小明", "k" * 20))["pastor"] is False
+    assert store.state(pastors, ("小明", "k" * 20))["pastor"] is True
+    url = store.begin_google_login("查經班·小明#abc", "https://theoclaw.app/auth/google/callback", code)
+    pending = store.take_pending(parse_qs(urlparse(url).query)["state"][0])
+    assert pending["code"] == code and pending["bind"] == "查經班·小明#abc"  # back to the same link
+
+
+def test_signed_in_member_switches_to_pastor_mode_with_all_their_questions(tmp_path):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    lay = hs.add_group("查經班", path)
+    pastors = hs.add_group("牧者", path, role="pastor")
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0, "sermon_daily_limit": 5},
+                     chat_dir=tmp_path / "chat")
+    me = ("小明", "k" * 20)
+    _consent(store, lay, me)
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    job = store.ask(lay, "平信徒時問的", runner=fake, nick=me)["job"]
+    _wait(store, lay, job, me)
+    name = store.who(lay, me)["name"]
+    store.db.put_google_account(hs.google_sub_hash("sub-1", store.google_salt()), name)
+    store.set_session(name)  # the Google account, now visiting either link
+    member = store.state(lay, me)
+    preacher = store.state(pastors, me)
+    assert member["pastor"] is False and "sermon" not in member["chat"]
+    assert preacher["pastor"] is True and preacher["chat"]["sermon"]
+    assert [q["prompt"] for q in preacher["chat"]["questions"]] == ["平信徒時問的"]  # the same account's records
+
+
+def test_env_passcode_seeds_the_first_fellowship(tmp_path, monkeypatch):
+    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", " seed42 ")
+    store = hs.Store(tmp_path / "assignment.json", chat_dir=tmp_path / "chat")  # any Store seeds it once
+    assert store.db.fellowship("seed42")["role"] == "pastor"
+    monkeypatch.setenv("THEOCLAW_PASTOR_CODE", "other99")
+    again = hs.Store(tmp_path / "assignment.json", chat_dir=tmp_path / "chat")  # existing rows stay
+    assert again.db.fellowship("other99") is None
+
+
+def test_google_config_cleans_pasted_invisible_characters(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "\u200b123456789012-abc_DEF-123.apps.googleusercontent.com\ufeff")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", " GOCSPX-test ")
+    cfg = hs.google_config()
+    assert cfg["client_id"] == "123456789012-abc_DEF-123.apps.googleusercontent.com"
+    assert cfg["client_secret"] == "GOCSPX-test"
+    assert hs.google_id_problem(cfg["client_id"]) == ""
+    assert hs.google_id_problem("GOCSPX-test")   # the secret pasted into the ID line
+    assert hs.google_id_problem("123456789012-abc")  # copied without the ending
+
+
+def test_google_check_separates_unknown_client_from_unregistered_redirect(monkeypatch):
+    import io
+    import urllib.error
+
+    def failing(body):
+        def open_(req, timeout=0):
+            raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, io.BytesIO(body))
+        return open_
+
+    cid = "123456789012-abc_DEF-123.apps.googleusercontent.com"
+    monkeypatch.setattr(hs.urllib.request, "urlopen",
+                        failing(b"Error 401: invalid_client. The OAuth client was not found."))
+    state, msg = hs.google_client_check(cid, "https://theoclaw.app/auth/google/callback")
+    assert state == "client" and "不認識" in msg
+    monkeypatch.setattr(hs.urllib.request, "urlopen", failing(b"Error 400: redirect_uri_mismatch"))
+    state, msg = hs.google_client_check(cid, "https://theoclaw.app/auth/google/callback")
+    assert state == "redirect" and "重新導向" in msg

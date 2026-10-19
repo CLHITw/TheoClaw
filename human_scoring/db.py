@@ -59,7 +59,8 @@ users = Table(
     Column("nick", String(64)),
     Column("role", String(16)),
     Column("denomination", String(64)),
-    Column("lang", String(8)),                        # zh / en: the page language they last used
+    Column("lang", String(8)),                        # zh / en / de: the page language they last used
+    Column("consent_at", String(20)),                 # when they agreed to training use of their questions
     Column("first_seen", String(20)),
     Column("last_seen", String(20)),
     **_opts)
@@ -96,6 +97,9 @@ ratings = Table(
     Column("verdict", Boolean),
     Column("comment", Text),
     Column("mode", String(16)),                        # blind / own / group
+    Column("lang", String(8), index=True),             # zh / en: the language the rated answer was given in
+    Column("method", String(16)),                      # quick / detailed / note / skip (NULL: a rating from before the field)
+    Column("elapsed_s", Number),                       # seconds from the answer showing to the rating
     Column("rated_at", String(20)),
     Column("data", Json, nullable=False),              # scores, problems, rubric hash, denomination
     **_opts)
@@ -130,6 +134,22 @@ recover_tokens = Table(
     Column("expires", String(20)),
     Column("used_by", String(NAME)),                  # the identity it was used for (empty until used)
     Column("used_at", String(20)),
+    **_opts)
+
+fellowships = Table(
+    "fellowships", meta,                              # the codes typed on the front page to get in
+    Column("code", String(16), primary_key=True),
+    Column("name", String(191)),                      # which fellowship it belongs to (display only)
+    Column("role", String(16), nullable=False, default="pastor"),  # member / pastor: which entrance it opens
+    Column("created", String(20)),
+    **_opts)
+
+google_accounts = Table(
+    "google_accounts", meta,                          # cross-device sync; nothing but a hash of the Google sub
+    Column("sub_hash", String(64), primary_key=True),  # HMAC-SHA256 of the sub with THEOCLAW_GOOGLE_SALT; the sub itself is never stored
+    Column("name", String(NAME), nullable=False, index=True),  # canonical rater name (bound at first login)
+    Column("created", String(20)),
+    Column("last_login", String(20)),
     **_opts)
 
 
@@ -218,6 +238,52 @@ class DB:
                     vals["lang"] = lang
                 c.execute(update(users).where(users.c.name == r["name"]).values(**vals))
 
+    def consented(self, name: str) -> bool:
+        with self.engine.connect() as c:
+            r = c.execute(select(users.c.consent_at).where(users.c.name == name)).first()
+            return bool(r and r.consent_at)
+
+    def record_consent(self, r: dict) -> None:
+        self.touch_user(r)  # the full rater dict: group and nickname are kept from the start
+        with self.engine.begin() as c:
+            c.execute(update(users).where(users.c.name == r["name"]).values(consent_at=_stamp()))
+
+    # ---- fellowships
+    def fellowships(self) -> dict[str, dict]:
+        with self.engine.connect() as c:
+            return {r.code: {"code": r.code, "name": r.name, "role": r.role}
+                    for r in c.execute(select(fellowships))}
+
+    def fellowship(self, code: str) -> dict | None:
+        return self.fellowships().get(code or "")
+
+    def put_fellowship(self, code: str, name: str = "", role: str = "pastor") -> None:
+        code = (code or "").strip()
+        if not code or len(code) > 16:
+            raise ValueError("團契碼要在 1 到 16 字之間")
+        if role not in ("member", "pastor"):
+            raise ValueError("role 要 member 或 pastor")
+        with self.engine.begin() as c:
+            if c.execute(select(fellowships.c.code).where(fellowships.c.code == code)).first():
+                c.execute(update(fellowships).where(fellowships.c.code == code).values(name=name, role=role))
+            else:
+                c.execute(insert(fellowships).values(code=code, name=name, role=role, created=_stamp()))
+
+    # ---- Google accounts (cross-device sync; only the salted hash of the Google sub is kept)
+    def google_account(self, sub_hash: str) -> dict | None:
+        with self.engine.connect() as c:
+            r = c.execute(select(google_accounts).where(google_accounts.c.sub_hash == (sub_hash or ""))).first()
+            return {"sub_hash": r.sub_hash, "name": r.name, "created": r.created, "last_login": r.last_login} if r else None
+
+    def put_google_account(self, sub_hash: str, name: str) -> None:
+        with self.engine.begin() as c:
+            if c.execute(select(google_accounts.c.sub_hash).where(google_accounts.c.sub_hash == sub_hash)).first():
+                c.execute(update(google_accounts).where(google_accounts.c.sub_hash == sub_hash)
+                          .values(name=name, last_login=_stamp()))
+            else:
+                c.execute(insert(google_accounts).values(sub_hash=sub_hash, name=name,
+                                                         created=_stamp(), last_login=_stamp()))
+
     # ---- answers
     def add_answer(self, rec: dict) -> None:
         with self.engine.begin() as c:
@@ -229,12 +295,13 @@ class DB:
 
     # ---- ratings
     def add_rating(self, run_dir: str, rec: dict) -> None:
+        rec = {**rec, "lang": rec.get("lang") or "zh"}   # old ratings were of Chinese answers
         with self.engine.begin() as c:
             c.execute(insert(ratings).values(**_rating_row(run_dir, rec)))
 
     def ratings(self, run_dir: str | None = None, rater: str | None = None) -> list[dict]:
         """Latest rating per (run, rater, task, run index), as the old files were read."""
-        q = select(ratings.c.run_dir, ratings.c.data).order_by(ratings.c.id)
+        q = select(ratings.c.run_dir, ratings.c.lang, ratings.c.data).order_by(ratings.c.id)
         if run_dir is not None:
             q = q.where(ratings.c.run_dir == run_dir)
         if rater is not None:
@@ -242,14 +309,15 @@ class DB:
         latest: dict[tuple, dict] = {}
         with self.engine.connect() as c:
             for r in c.execute(q):
-                d = r.data
+                d = _rating_data(r)
                 latest[(r.run_dir, d["rater"], d["task_id"], d["run_index"])] = {**d, "_run_dir": r.run_dir}
         return list(latest.values())
 
     def all_ratings(self) -> list[tuple[str, dict]]:
         """Every rating ever given, oldest first, as (run_dir, rating)."""
         with self.engine.connect() as c:
-            return [(r.run_dir, r.data) for r in c.execute(select(ratings.c.run_dir, ratings.c.data).order_by(ratings.c.id))]
+            return [(r.run_dir, _rating_data(r)) for r in c.execute(
+                select(ratings.c.run_dir, ratings.c.lang, ratings.c.data).order_by(ratings.c.id))]
 
     # ---- sermon projects
     def project(self, pid: str) -> dict | None:
@@ -332,7 +400,10 @@ class DB:
                     c.execute(update(users).where(users.c.name == old).values(name=new))
                 else:
                     c.execute(update(users).where(users.c.name == new).values(
-                        first_seen=min(x for x in (o.first_seen, cur.first_seen) if x) if (o.first_seen or cur.first_seen) else None))
+                        first_seen=min(x for x in (o.first_seen, cur.first_seen) if x) if (o.first_seen or cur.first_seen) else None,
+                        consent_at=cur.consent_at or o.consent_at,
+                        denomination=cur.denomination or o.denomination,
+                        lang=cur.lang or o.lang))
                     c.execute(delete(users).where(users.c.name == old))
         return n
 
@@ -360,8 +431,15 @@ def _rating_row(run_dir: str, rec: dict) -> dict:
     overall = scores.get("overall")
     return {"run_dir": run_dir, "task_id": rec["task_id"], "run_index": rec.get("run_index", 0), "rater": rec["rater"],
             "overall": overall if isinstance(overall, (int, float)) else None, "verdict": rec.get("verdict"),
-            "comment": rec.get("comment"), "mode": rec.get("mode"),
+            "comment": rec.get("comment"), "mode": rec.get("mode"), "lang": rec.get("lang") or "zh",
+            "method": rec.get("method"),
+            "elapsed_s": rec.get("elapsed_s") if isinstance(rec.get("elapsed_s"), (int, float)) else None,
             "rated_at": rec.get("rated_at"), "data": rec}
+
+
+def _rating_data(row) -> dict:
+    """The full record, with the language column filling in for rows made before it existed."""
+    return {**row.data, "lang": row.data.get("lang") or row.lang or "zh"}
 
 
 # ---------------------------------------------------------------- moving the old files in and out

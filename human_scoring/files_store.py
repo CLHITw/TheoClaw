@@ -44,6 +44,63 @@ class FileStore:
     def touch_user(self, r: dict, denomination: str | None = None, at: str | None = None, lang: str | None = None) -> None:
         pass  # the files have no users table; who asked is in each answer and rating
 
+    # ---- consent (training use of questions): one stamp per name
+    def _consents(self) -> dict:
+        path = self.chat_dir / "consents.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def consented(self, name: str) -> bool:
+        return bool(self._consents().get(name))
+
+    def record_consent(self, r: dict) -> None:
+        import time
+        c = self._consents()
+        c.setdefault(r["name"], time.strftime("%Y%m%d-%H%M%S"))
+        self.chat_dir.mkdir(parents=True, exist_ok=True)
+        (self.chat_dir / "consents.json").write_text(json.dumps(c, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    # ---- fellowships (the codes typed on the front page)
+    def _fellowships(self) -> dict:
+        path = self.chat_dir / "fellowships.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def fellowships(self) -> dict[str, dict]:
+        return self._fellowships()
+
+    def fellowship(self, code: str) -> dict | None:
+        return self._fellowships().get(code or "")
+
+    def put_fellowship(self, code: str, name: str = "", role: str = "pastor") -> None:
+        import time
+        code = (code or "").strip()
+        if not code or len(code) > 16:
+            raise ValueError("團契碼要在 1 到 16 字之間")
+        if role not in ("member", "pastor"):
+            raise ValueError("role 要 member 或 pastor")
+        f = self._fellowships()
+        if code not in f:
+            f[code] = {"code": code, "name": name, "role": role, "created": time.strftime("%Y%m%d-%H%M%S")}
+            self.chat_dir.mkdir(parents=True, exist_ok=True)
+            (self.chat_dir / "fellowships.json").write_text(
+                json.dumps(f, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    # ---- Google accounts (cross-device sync; only the salted hash of the Google sub is kept)
+    def _accounts(self) -> dict:
+        path = self.chat_dir / "google_accounts.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def google_account(self, sub_hash: str) -> dict | None:
+        return self._accounts().get(sub_hash or "")
+
+    def put_google_account(self, sub_hash: str, name: str) -> None:
+        import time
+        a = self._accounts()
+        a[sub_hash] = {"sub_hash": sub_hash, "name": name, "created": a.get(sub_hash, {}).get("created")
+                       or time.strftime("%Y%m%d-%H%M%S"), "last_login": time.strftime("%Y%m%d-%H%M%S")}
+        self.chat_dir.mkdir(parents=True, exist_ok=True)
+        (self.chat_dir / "google_accounts.json").write_text(
+            json.dumps(a, ensure_ascii=False, indent=1), encoding="utf-8")
+
     # ---- answers
     def add_answer(self, rec: dict) -> None:
         self.chat_dir.mkdir(parents=True, exist_ok=True)
@@ -170,6 +227,11 @@ class FileStore:
             (self.chat_dir / "costs.jsonl").write_text(
                 "".join(json.dumps({**c, "by": new} if c["by"] == old else c, ensure_ascii=False) + "\n" for c in costs),
                 encoding="utf-8")
+        consents = self._consents()
+        if old in consents:  # the agreement follows the person into the account
+            consents.setdefault(new, consents.pop(old))
+            (self.chat_dir / "consents.json").write_text(
+                json.dumps(consents, ensure_ascii=False, indent=1), encoding="utf-8")
         return n
 
     def stats(self) -> dict:

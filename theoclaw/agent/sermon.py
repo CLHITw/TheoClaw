@@ -76,6 +76,16 @@ plain English, sources in English (e.g. "Romans 5:8", "Wesley's Notes, Romans 5:
 Keep the [A1] / [B1] numbering. Original-language words: the Greek or Hebrew word, transliteration
 and meaning. Where the instructions say 查不到, write "not found"."""
 
+GERMAN_BRIEF = """
+
+Write the whole brief in German for a German-speaking pastor: the heading in German
+("## Predigttext-Recherche" or "## Wesley und die methodistische Tradition"), the points in
+plain German, sources as usual (e.g. "Römer 5,8", "Wesleys Anmerkungen, Römer 5,8", "ISBE: GRACE").
+Keep the [A1] / [B1] numbering. Scripture quotations stay in English (World English Bible),
+with the German reference in brackets, e.g. "while we were yet sinners" (Römer 5,8, WEB).
+Original-language words: the Greek or Hebrew word, transliteration and meaning in German.
+Where the instructions say 查不到, write "nicht gefunden"."""
+
 _POINT = re.compile(r"\[([AB]\d{1,2})\]")
 
 
@@ -164,12 +174,12 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
     # The word study is built by the program (no tokens): the passage's content words and the
     # original words the theme's Chinese words translate. Only the scripture researcher reads it.
     from ..common import original
-    if lang == "en" and original.available_en():  # from the tagged Greek and Hebrew, with English renderings
+    if lang in ("en", "de") and original.available_en():  # from the tagged Greek and Hebrew, with English renderings
         word_table = original.render(original.word_study_en(passage), lang="en")
     else:
         word_table = original.render(original.word_study(passage) + original.theme_words(theme), lang=lang)
 
-    extra = ENGLISH_BRIEF if lang == "en" else ""
+    extra = ENGLISH_BRIEF if lang == "en" else (GERMAN_BRIEF if lang == "de" else "")
 
     def one(kind):
         if kind == "A":

@@ -4,20 +4,61 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TheoClaw</title>
+<meta id="metaTheme" name="theme-color" content="#f8f7f4">
+<script>
+  (function () {
+    var m = null; try { m = localStorage.getItem('theoclaw_theme'); } catch (e) {}
+    var dark = m === 'dark' || (m !== 'light' && window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+  })();
+</script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f8f7f4;
     --card: #ffffff;
     --border: #e0ddd5;
     --text: #2d2a26;
     --text-light: #6b6560;
     --accent: #4a6741;
+    --accent-solid: #4a6741;
     --accent-hover: #3d5536;
     --accent-light: #e8f0e5;
     --danger: #c0392b;
     --success: #27ae60;
+    --code-bg: #f5f3ef;
+    --ok-bg: #e8f5e9;
+    --bad-bg: #fdeaea;
+    --toast-bg: #2d2a26;
+    --toast-text: #ffffff;
+    --backdrop: rgba(0,0,0,0.3);
     --shadow: 0 1px 3px rgba(0,0,0,0.08);
     --radius: 8px;
+  }
+
+  /* Dark: the device's setting by default, or the page's own choice (the header picker).
+     Warm dark greys are easier on the eyes than pure black. */
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #151411;
+    --card: #1e1c18;
+    --border: #35312a;
+    --text: #e7e2d8;
+    --text-light: #a69e91;
+    --accent: #a5cb9b;
+    --accent-solid: #4d7445;
+    --accent-hover: #54804a;
+    --accent-light: #242e21;
+    --danger: #e08a7e;
+    --success: #7fce94;
+    --code-bg: #26231f;
+    --ok-bg: #1f2e22;
+    --bad-bg: #33211f;
+    --toast-bg: #3a352e;
+    --toast-text: #f3efe6;
+    --backdrop: rgba(0,0,0,0.55);
+    --shadow: 0 1px 3px rgba(0,0,0,0.45);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,6 +99,36 @@
     font-size: 0.85rem;
     color: var(--text-light);
   }
+  .mode-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-light);
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
+  .lang-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    cursor: pointer;
+  }
+  .lang-pick svg {
+    width: 18px;
+    height: 18px;
+    color: var(--text-light);
+    flex: none;
+  }
+  .lang-pick select {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 6px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+  }
   .progress-bar {
     width: 100%;
     max-width: 200px;
@@ -97,7 +168,7 @@
   .btn {
     display: inline-block;
     padding: 10px 24px;
-    background: var(--accent);
+    background: var(--accent-solid);
     color: #fff;
     border: none;
     border-radius: var(--radius);
@@ -152,7 +223,7 @@
 
   /* Tool calls */
   .tool-call {
-    background: #f5f3ef;
+    background: var(--code-bg);
     border-left: 3px solid var(--border);
     padding: 8px 12px;
     margin: 6px 0;
@@ -196,13 +267,14 @@
   }
   .dim-btn:hover { border-color: var(--accent); color: var(--accent); }
   .dim-btn.active {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: #fff;
-    border-color: var(--accent);
+    border-color: var(--accent-solid);
   }
   .dim-btn.na.active {
     background: var(--text-light);
     border-color: var(--text-light);
+    color: var(--card);
   }
 
   /* Verdict */
@@ -222,12 +294,12 @@
   }
   .verdict-btn:hover { border-color: var(--accent); }
   .verdict-btn.active-yes {
-    background: #e8f5e9;
+    background: var(--ok-bg);
     border-color: var(--success);
     color: var(--success);
   }
   .verdict-btn.active-no {
-    background: #fdeaea;
+    background: var(--bad-bg);
     border-color: var(--danger);
     color: var(--danger);
   }
@@ -241,6 +313,7 @@
     border-radius: var(--radius);
     font-size: 0.95rem;
     background: var(--card);
+    color: var(--text);
     cursor: pointer;
     margin-top: 8px;
   }
@@ -255,6 +328,8 @@
     border-radius: var(--radius);
     font-size: 0.95rem;
     font-family: inherit;
+    background: var(--card);
+    color: var(--text);
     resize: vertical;
     min-height: 60px;
     margin-top: 8px;
@@ -281,6 +356,8 @@
     font-size: 0.95rem;
     width: 200px;
     max-width: 100%;
+    background: var(--card);
+    color: var(--text);
   }
   .rater-input:focus { outline: none; border-color: var(--accent); }
 
@@ -300,8 +377,8 @@
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%) translateY(100px);
-    background: var(--text);
-    color: #fff;
+    background: var(--toast-bg);
+    color: var(--toast-text);
     padding: 10px 20px;
     border-radius: var(--radius);
     font-size: 0.9rem;
@@ -359,17 +436,18 @@
   .problem-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .chip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card);
           cursor: pointer; font-size: 0.85rem; }
-  .chip.active { background: #fdeaea; border-color: var(--danger); color: var(--danger); }
+  .chip.active { background: var(--bad-bg); border-color: var(--danger); color: var(--danger); }
   details.tool-call summary { cursor: pointer; }
   details.tool-call pre { white-space: pre-wrap; margin-top: 6px; font-family: inherit; }
   .nav { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .help { font-size: 0.85rem; color: var(--text-light); }
   .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .tab { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
-         cursor: pointer; font-size: 0.95rem; }
-  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+         color: var(--text); cursor: pointer; font-size: 0.95rem; }
+  .tab.active { background: var(--accent-solid); color: #fff; border-color: var(--accent-solid); }
   .ask-input { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border);
-               border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px; }
+               border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px;
+               background: var(--card); color: var(--text); }
   .rich { white-space: pre-wrap; line-height: 1.75; }
   .rich .rh { display: inline-block; font-weight: 700; font-size: 1.03em; margin-top: 4px; color: var(--text); }
   .rich strong { font-weight: 700; }
@@ -383,6 +461,17 @@
   .turn:not([open]) > summary .ask::before { content: "▸ "; }
   .rate-panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; }
   .rate-panel .dim-btn { min-width: 34px; }
+  /* One-tap rating under every answer: thumbs or a direct 0-10. */
+  .quick-rate { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .quick-rate .q-label { font-size: 0.85rem; color: var(--text-light); }
+  .q-thumb { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: var(--radius);
+             padding: 5px 12px; font-size: 0.88rem; cursor: pointer; }
+  .q-thumb:hover { border-color: var(--accent); }
+  .q-thumb.active { background: var(--accent-solid); border-color: var(--accent-solid); color: #fff; }
+  .q-score { background: var(--accent-light); border-radius: var(--radius); padding: 4px 8px; display: inline-flex;
+             gap: 4px; align-items: center; flex-wrap: wrap; }
+  .q-score .q-label { color: var(--accent); font-weight: 600; }
+  .quick-rate .dim-btn { width: 30px; height: 30px; font-size: 0.8rem; }
   /* Sidebar: past conversations / sermons. A column on wide screens, a drawer on phones. */
   .sidebar { position: fixed; left: 0; top: var(--hdr, 60px); bottom: 0; width: 260px; z-index: 90;
              background: var(--card); border-right: 1px solid var(--border); overflow-y: auto;
@@ -409,25 +498,106 @@
     .sidebar { top: 0; width: 82%; max-width: 320px; z-index: 200; transform: translateX(-100%);
                transition: transform 0.2s; box-shadow: var(--shadow); }
     .sidebar.open { transform: none; }
-    #sbBackdrop.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 150; }
+    #sbBackdrop.open { display: block; position: fixed; inset: 0; background: var(--backdrop); z-index: 150; }
   }
   .q-list { list-style: none; margin-top: 8px; }
   .q-list li { padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.9rem; }
   .q-list li:hover { color: var(--accent); }
-  .saved-tag { background: #e8f5e9; color: var(--success); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; }
+  .saved-tag { background: var(--ok-bg); color: var(--success); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; }
+  /* Theme picker: 跟隨系統 / 白天 / 黑夜 */
+  .theme-wrap { position: relative; }
+  .theme-menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 70;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 4px; min-width: 140px;
+    display: flex; flex-direction: column;
+  }
+  .theme-menu button {
+    background: none; border: 0; padding: 8px 10px; text-align: left; cursor: pointer;
+    color: var(--text); font-size: 0.9rem; border-radius: 6px; white-space: nowrap;
+  }
+  .theme-menu button:hover { background: var(--accent-light); }
+  .theme-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+  .theme-menu button::before { content: ""; display: inline-block; width: 1em; margin-right: 4px; }
+  .theme-menu button[aria-checked="true"]::before { content: "✓"; }
+  /* Account: the first character of the nickname opens sign-in / sign-out */
+  .header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .acct-wrap { position: relative; flex: none; }
+  .avatar {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer;
+    background: var(--accent-solid); color: #fff; border: 1px solid var(--border);
+    font-size: 0.95rem; font-weight: 600; line-height: 1;
+  }
+  .avatar.synced { box-shadow: 0 0 0 2px var(--accent-light); }
+  .avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sync-dot {
+    position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--success); border: 2px solid var(--card);
+  }
+  .acct-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 80;
+    min-width: 232px; max-width: calc(100vw - 32px);
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 6px;
+  }
+  .acct-head { padding: 8px 10px 6px; }
+  .acct-name { font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct-sub { font-size: 0.8rem; color: var(--text-light); margin-top: 2px; }
+  .acct-item {
+    display: block; width: 100%; text-align: left; background: none; border: 0;
+    border-radius: 6px; padding: 9px 10px; font-size: 0.9rem; color: var(--text); cursor: pointer;
+  }
+  .acct-item:hover { background: var(--accent-light); }
+  .acct-note { padding: 6px 10px 8px; font-size: 0.78rem; color: var(--text-light); line-height: 1.45; }
+  ::placeholder { color: var(--text-light); opacity: 0.9; }
 </style>
 </head>
 <body>
 
 <header class="header">
   <div class="header-inner">
-    <div style="display:flex;align-items:center"><button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw</h1></div>
+    <div class="header-left">
+      <div id="acctWrap" class="acct-wrap">
+        <button id="avatarBtn" class="avatar" onclick="toggleAcctMenu()" aria-haspopup="true" aria-expanded="false" title="帳號 · Account">
+          <span id="avatarChar" aria-hidden="true">?</span><span id="syncDot" class="sync-dot" hidden></span>
+        </button>
+        <div id="acctMenu" class="acct-menu hidden" role="menu">
+          <div class="acct-head">
+            <div id="acctName" class="acct-name notr">訪客</div>
+            <div id="acctSub" class="acct-sub">進入後可登入 Google</div>
+          </div>
+          <button id="acctLogin" class="acct-item hidden" type="button" role="menuitem" onclick="accountLogin()">用 Google 登入</button>
+          <button id="acctLogout" class="acct-item hidden" type="button" role="menuitem" onclick="logout()">退出登錄</button>
+          <div id="acctNote" class="acct-note hidden">只儲存帳號編號，不存電郵、姓名或頭像。</div>
+          <div id="acctHint" class="acct-note hidden"></div>
+        </div>
+      </div>
+      <button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw<span id="h1Sep" class="hidden"> · </span><span id="h1Label"></span></h1>
+      <span id="modeBadge" class="mode-badge hidden">傳道模式</span>
+    </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <div class="progress-info" id="progressInfo">載入中…</div>
-      <select id="langSel" class="notr" onchange="setLang(this.value)" title="Language · 語言"
-              style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 6px;background:var(--card);color:var(--text)">
-        <option value="hant">繁體</option><option value="hans">&#31616;&#20307;</option><option value="en">English</option>
-      </select>
+      <div class="progress-info" id="progressInfo"></div>
+      <label class="lang-pick" title="Language · 語言">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <select id="langSel" class="notr" onchange="setLang(this.value)" aria-label="Language · 語言">
+          <option value="hant">繁體</option><option value="hans">&#31616;&#20307;</option><option value="en">English</option><option value="de">Deutsch</option>
+        </select>
+      </label>
+      <div id="themeWrap" class="theme-wrap">
+        <button id="themeBtn" class="notr" onclick="toggleThemeMenu()" title="顯示模式 · Theme" aria-haspopup="true" aria-expanded="false"
+                style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;cursor:pointer;color:var(--text);font-size:16px;line-height:1">◐</button>
+        <div id="themeMenu" class="theme-menu hidden" role="menu">
+          <button type="button" role="menuitemradio" data-mode="auto" aria-checked="false" onclick="setThemeMode('auto')">跟隨系統</button>
+          <button type="button" role="menuitemradio" data-mode="light" aria-checked="false" onclick="setThemeMode('light')">白天</button>
+          <button type="button" role="menuitemradio" data-mode="dark" aria-checked="false" onclick="setThemeMode('dark')">黑夜</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -442,6 +612,21 @@
 
 <div class="container">
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
+
+  <div id="consentOverlay" class="hidden" style="position:fixed;inset:0;background:var(--backdrop);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px">
+    <div class="card" style="max-width:540px;width:100%">
+      <div class="card-title">開始之前 · Before you start</div>
+      <div class="card-content help">
+        為了改進這個助手，您的提問與評分可能用於訓練與品質分析：只作為改進 agent 的資料，不向任何人透露您的對話內容；每位使用者仍然只能看到自己的內容。
+        <div style="margin-top:10px">Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像；不登入也能照常用，只是記錄只留在這一部裝置上。</div>
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-top:12px">
+          <input type="checkbox" id="consentCheck" onchange="document.getElementById('consentBtn').disabled = !this.checked" style="margin-top:3px">
+          <span>我同意按上述方式使用我的提問與評分。<br>I agree to my questions and scores being used this way.</span>
+        </label>
+      </div>
+      <div class="actions"><button class="btn" id="consentBtn" disabled onclick="giveConsent()">同意並繼續 · Agree and continue</button></div>
+    </div>
+  </div>
 
   <div id="enterCard" class="card hidden">
     <div class="card-title">歡迎使用 TheoClaw 查經與講道助手</div>
@@ -458,18 +643,35 @@
   </div>
 
   <div id="nameCard" class="card hidden">
-    <div class="card-title">請先輸入您的稱呼 · Please enter your name</div>
-    <div class="help">用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。<br>
-    A nickname is fine (no full name needed); this device will remember it. Please use the same name each time.</div>
-    <div class="help" style="margin-top:6px">🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。
-    · Your questions are private: only you, on this device, can see them.</div>
-    <input class="ask-input" id="nameInput" maxlength="20" style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom">
-    <!-- 宗派選擇暫時不顯示：目前只有循道衛理的資料，預設循道衛理；補上其他宗派的內容後再打開 -->
-    <div class="hidden">
-      <div class="help" style="margin-top:10px">您所屬的宗派（只作統計，回答目前以循道衛理立場為主）· Your church tradition (for statistics only; answers currently take a Methodist perspective)</div>
-      <select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select>
+    <div class="card-title">開始之前 · Before you start</div>
+    <div class="card-content help">
+      為了改進這個助手，您的提問與評分可能用於訓練與品質分析：只作為改進 agent 的資料，不向任何人透露您的對話內容；每位使用者仍然只能看到自己的內容。
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-top:12px">
+        <input type="checkbox" id="joinConsent" onchange="updateJoin()" style="margin-top:3px">
+        <span>我同意按上述方式使用我的提問與評分。</span>
+      </label>
     </div>
-    <div class="actions"><button class="btn" onclick="setName()">開始 · Start</button></div>
+    <div id="joinNameBox" style="margin-top:12px">
+      <div class="help">您的稱呼（暱稱即可，不必用全名；這部裝置會記住）</div>
+      <input class="ask-input" id="nameInput" maxlength="20" autocomplete="off"
+             style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom" oninput="updateJoin()">
+    </div>
+    <!-- 宗派選擇暫時不顯示：目前只有循道衛理的資料，預設循道衛理；補上其他宗派的內容後再打開 -->
+    <div class="hidden"><select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select></div>
+    <div id="joinFixedName" class="help hidden" style="margin-top:10px">
+      <span>目前使用的稱呼：</span><strong id="joinFixedWho" class="notr"></strong>
+    </div>
+    <div id="joinChoices" class="hidden" style="margin-top:14px">
+      <div class="help">選擇進入方式：</div>
+      <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="joinAnon" type="button" onclick="joinAnonymous()">匿名進入</button>
+        <button class="btn btn-secondary" id="joinGoogleBtn" type="button" onclick="joinWithGoogle()">用 Google 登入</button>
+      </div>
+      <div id="joinGoogleNote" class="help" style="margin-top:8px">
+        Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像。已有帳號不必先填稱呼，會直接用回之前的稱呼；第一次使用會在登入後請您建立稱呼。不登入也能照常用，只是記錄只留在這一部裝置上。
+      </div>
+      <div id="joinGoogleOff" class="help hidden" style="margin-top:8px">Google 登入目前未開放。</div>
+    </div>
   </div>
 
   <div id="introBox" class="card hidden">
@@ -613,6 +815,9 @@ const NICK_KEY = 'theoclaw_nick_' + code;
   history.replaceState(null, '', location.pathname + location.search);
 })();
 let nick = '', denom = '', deviceKey = '';
+let accountNick = '';  // the signed-in Google account's nickname; '' when anonymous
+let googleOn = false;  // whether the server has a Google client configured
+let joinFixed = '';    // a name already resolved by the server (not editable in the join card)
 try {
   deviceKey = localStorage.getItem('theoclaw_device') || '';
   if (!deviceKey) {
@@ -630,19 +835,80 @@ function api(path, opts) {
     .then(r => r.json());
 }
 
-function setName() {
-  const v = document.getElementById('nameInput').value.trim();
-  if (!v || v.length > 20 || /[<>&"'\/·]/.test(v)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
-  nick = v;
-  denom = document.getElementById('denomSelect').value;
-  try { localStorage.setItem(NICK_KEY, v); localStorage.setItem(NICK_KEY + '_denom', denom); } catch (e) { /* lasts until the page closes */ }
-  document.getElementById('nameCard').classList.add('hidden');
-  init();
+// ---- join card: consent, nickname, then 匿名進入 or Google
+function validNick(v) { return !!v && v.length <= 20 && !/[<>&"'\/\\·#\x00-\x1f]/.test(v); }
+
+function updateJoin() {
+  const consent = document.getElementById('joinConsent').checked;
+  const typed = document.getElementById('nameInput').value.trim();
+  const ok = consent && (!!joinFixed || validNick(typed));
+  const googleOk = consent && (!!joinFixed || !typed || validNick(typed));
+  document.getElementById('joinChoices').classList.toggle('hidden', !consent);
+  document.getElementById('joinAnon').disabled = !ok;
+  document.getElementById('joinGoogleBtn').disabled = !googleOk || !googleOn;
 }
 
+function showJoinCard(fixedName) {
+  joinFixed = fixedName || '';
+  document.getElementById('nameCard').classList.remove('hidden');
+  document.getElementById('joinNameBox').classList.toggle('hidden', !!joinFixed);
+  document.getElementById('joinFixedName').classList.toggle('hidden', !joinFixed);
+  if (joinFixed) document.getElementById('joinFixedWho').textContent = joinFixed;
+  document.getElementById('joinGoogleBtn').classList.toggle('hidden', !googleOn);
+  document.getElementById('joinGoogleNote').classList.toggle('hidden', !googleOn);
+  document.getElementById('joinGoogleOff').classList.toggle('hidden', googleOn);
+  updateJoin();
+  if (!joinFixed) document.getElementById('nameInput').focus();
+}
+
+function saveJoinName() {
+  const v = joinFixed || document.getElementById('nameInput').value.trim();
+  if (!joinFixed && !validNick(v)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return ''; }
+  if (!joinFixed) nick = v;
+  const sel = document.getElementById('denomSelect');
+  if (sel && sel.value) denom = sel.value;
+  try {
+    if (nick) localStorage.setItem(NICK_KEY, nick);
+    localStorage.setItem(NICK_KEY + '_denom', denom);
+  } catch (e) { /* lasts until the page closes */ }
+  return v;
+}
+
+function submitJoin(google) {
+  if (!document.getElementById('joinConsent').checked) return;
+  const typed = joinFixed ? '' : document.getElementById('nameInput').value.trim();
+  if (typed && !validNick(typed)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
+  if (!google && !joinFixed && !typed) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
+  const named = !!joinFixed || !!typed;
+  if (named) {
+    const name = saveJoinName();
+    if (!name) return;
+  }
+  const go = () => {
+    if (!google) {
+      document.getElementById('nameCard').classList.add('hidden');
+      renderAccount();
+      start();
+      return;
+    }
+    // No nickname is needed for Google: a returning account keeps its previous one.
+    let url = '/auth/google/start?t=' + encodeURIComponent(code) + '&k=' + encodeURIComponent(deviceKey);
+    const u = typed || nick;
+    if (u) url += '&u=' + encodeURIComponent(u);
+    location.href = url;
+  };
+  if (google && !named) { go(); return; }  // consent is recorded after a first-time account picks its name
+  api('/api/consent', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+    .then(r => { if (r.error) { showToast(r.error); return; } go(); })
+    .catch(() => showToast('無法連線，請稍後再試'));
+}
+
+function joinAnonymous() { submitJoin(false); }
+function joinWithGoogle() { submitJoin(true); }
+
 function changeName() {
-  try { localStorage.removeItem(NICK_KEY); } catch (e) {}
-  nick = '';
+  try { localStorage.removeItem(NICK_KEY); localStorage.removeItem(NICK_KEY + '_denom'); } catch (e) {}
+  nick = ''; denom = '';
   location.reload();
 }
 
@@ -699,10 +965,91 @@ function enterAs(role) {
     .catch(() => showToast('無法連線，請稍後再試'));
 }
 
+// ---- header avatar and account menu: the first character of the nickname
+function avatarLetter(s) {
+  const ch = Array.from((s || '').trim())[0] || '';
+  return ch ? ch.toUpperCase() : '?';
+}
+
+function renderAccount() {
+  const signedIn = !!accountNick;
+  const name = accountNick || nick;
+  document.getElementById('avatarChar').textContent = avatarLetter(name);
+  document.getElementById('syncDot').hidden = !signedIn;
+  document.getElementById('avatarBtn').classList.toggle('synced', signedIn);
+  document.getElementById('avatarBtn').title = T('帳號 · Account');
+  document.getElementById('acctName').textContent = name || T('訪客');
+  document.getElementById('acctSub').textContent = T(signedIn ? '已登入 · 記錄會跨裝置同步'
+    : (nick ? '匿名 · 記錄只在這一部裝置' : '進入後可登入 Google'));
+  document.getElementById('acctLogin').classList.toggle('hidden', !(googleOn && code && nick && !signedIn));
+  document.getElementById('acctLogout').classList.toggle('hidden', !signedIn);
+  document.getElementById('acctNote').classList.toggle('hidden', signedIn || !googleOn);
+  let hint = '';
+  if (!signedIn) {
+    if (!code) hint = '先選擇進入方式，之後可在這裡登入。';
+    else if (!nick) hint = '完成下方的進入步驟後，可在這裡登入。';
+    else if (!googleOn) hint = 'Google 登入目前未開放。';
+    else hint = '登入後，這部裝置先前的記錄會帶到您的帳號。';
+  }
+  const h = document.getElementById('acctHint');
+  h.textContent = T(hint);
+  h.classList.toggle('hidden', !hint);
+}
+
+function acctMenuOpen(show) {
+  const menu = document.getElementById('acctMenu');
+  if (!menu) return;
+  menu.classList.toggle('hidden', !show);
+  document.getElementById('avatarBtn').setAttribute('aria-expanded', show ? 'true' : 'false');
+  if (show) themeMenuOpen(false);
+}
+
+function toggleAcctMenu() {
+  const menu = document.getElementById('acctMenu');
+  acctMenuOpen(menu.classList.contains('hidden'));
+}
+
+function accountLogin() {
+  acctMenuOpen(false);
+  if (!code || !nick) return;
+  location.href = '/auth/google/start?t=' + encodeURIComponent(code) +
+    '&u=' + encodeURIComponent(nick) + '&k=' + encodeURIComponent(deviceKey);
+}
+
+function logout() {
+  acctMenuOpen(false);
+  try { localStorage.removeItem(NICK_KEY); localStorage.removeItem(NICK_KEY + '_denom'); } catch (e) {}
+  nick = ''; denom = ''; accountNick = '';
+  location.href = '/auth/logout' + (code ? '?t=' + encodeURIComponent(code) : '');
+}
+
+function giveConsent() {
+  if (!document.getElementById('consentCheck').checked) return;
+  api('/api/consent', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+    .then(r => {
+      if (r.error) { showToast(r.error); return; }
+      document.getElementById('consentOverlay').classList.add('hidden');
+      start();
+    })
+    .catch(() => showToast('無法連線，請稍後再試'));
+}
+
 function init() {
+  const ae = new URLSearchParams(location.search).get('auth_error');
+  if (ae) {
+    history.replaceState(null, '', location.pathname + (code ? '?t=' + encodeURIComponent(code) : ''));
+    showToast(({disabled: '未開放 Google 登入', link: '連結無效，請重新進入', name: '請先輸入稱呼，再登入 Google',
+                newname: '這是第一次用 Google 登入：請填寫您的稱呼，再按一次「用 Google 登入」完成（不用再登入 Google）。',
+                state: '登入逾時或已用過，請再試一次', denied: '已取消登入', failed: '登入失敗，請再試一次'})[ae] || '登入失敗，請再試一次');
+  }
   if (!code) {
     document.getElementById('enterCard').classList.remove('hidden');
     document.getElementById('progressInfo').textContent = '';
+    fetch('/api/session').then(r => r.json()).then(s => {
+      googleOn = !!s.google;
+      accountNick = s.nick || s.account || '';
+      renderAccount();
+    }).catch(() => {});
     return;
   }
   moveToHome().then(moved => {
@@ -711,20 +1058,41 @@ function init() {
   });
 }
 
+function setHeader(label, pastor) {
+  document.getElementById('h1Sep').classList.toggle('hidden', !label);
+  document.getElementById('h1Label').textContent = label || '';
+  document.getElementById('modeBadge').classList.toggle('hidden', !pastor);
+}
+
 function start() {
   api('/api/state').then(s => {
     if (s.error) { fail(s.error); return; }
+    googleOn = !!s.google;
     if (s.need_name) {
-      document.querySelector('.header h1').textContent = 'TheoClaw · ' + s.group;
+      setHeader(s.group, s.pastor);
       const sel = document.getElementById('denomSelect');
-      sel.innerHTML = '';
-      s.denominations.forEach(d => { const o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
-      sel.value = s.denominations.find(d => d.startsWith('循道衛理')) || s.denominations[0];
-      document.getElementById('nameCard').classList.remove('hidden');
+      if (sel) {
+        sel.innerHTML = '';
+        s.denominations.forEach(d => { const o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
+        sel.value = s.denominations.find(d => d.startsWith('循道衛理')) || s.denominations[0];
+      }
+      accountNick = '';
+      renderAccount();
+      showJoinCard('');
+      return;
+    }
+    accountNick = s.account ? s.rater : '';
+    if (s.consented === false) {  // must agree before asking or rating
+      if (s.account) document.getElementById('consentOverlay').classList.remove('hidden');
+      else showJoinCard(s.rater);
+      renderAccount();
       return;
     }
     state = s;
-    document.querySelector('.header h1').textContent = 'TheoClaw · ' + s.rater;
+    renderAccount();
+    document.getElementById('nameCard').classList.add('hidden');
+    document.getElementById('consentOverlay').classList.add('hidden');
+    setHeader(s.rater, s.pastor);
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
     const r = s.rubric, simple = r.verdict.auto_min !== undefined;
     document.getElementById('scoreTitle').textContent = '評分 · Score（' + r.scale.min + '–' + r.scale.max + '，' + r.scale.max + ' 最好 · best' +
@@ -826,7 +1194,7 @@ function refreshAsk() {
     const info = document.getElementById('askInfo');
     info.textContent = c.open
       ? '今天還可以問 ' + c.remaining_today + ' 題。' : '本次測試的提問額度已用完，謝謝您的參與。';
-    if (nick) {
+    if (nick && !accountNick) {
       const a = document.createElement('a');
       a.href = '#'; a.textContent = '（以「' + nick + '」記錄；不是你？按這裡更換）';
       a.onclick = (e) => { e.preventDefault(); changeName(); };
@@ -1029,6 +1397,84 @@ function wsCheckText(c) {
   return parts.join('。');
 }
 
+// When each answer first became visible, for "how long did the rater look before scoring".
+const shownAt = {};
+function elapsedOf(id) { const t0 = shownAt[id]; return t0 ? Math.max(0, Math.round((Date.now() - t0) / 100) / 10) : null; }
+
+function markRated(t, tag) {
+  t.rated = true;
+  if (tag) tag.textContent = tag.textContent.replace('未評分', '✓ 已評分');
+}
+
+// One rating module per answer: a one-tap bar before scoring. Once scored the bar disappears and
+// only a "✓ 已評分（修改）" button remains; clicking it reopens the detailed panel (score and note).
+// 提意見 opens a note-only box: an opinion or an awkward sentence, without a score. A note already
+// written travels with a later tap, so the saved record keeps score and comment together.
+function quickRateBar(t, tag, panel, onRated) {
+  const wrap = document.createElement('div');
+  const bar = document.createElement('div'); bar.className = 'quick-rate';
+  const noteBtn = document.createElement('button'); noteBtn.className = 'btn btn-secondary btn-sm';
+  noteBtn.style.marginTop = '6px'; noteBtn.textContent = '提意見 ▾';
+  const notePanel = document.createElement('div'); notePanel.className = 'rate-panel hidden';
+  const done = document.createElement('button'); done.className = 'btn btn-secondary btn-sm hidden';
+  done.textContent = '✓ 已評分（修改）';
+  const showDone = () => { bar.classList.add('hidden'); noteBtn.classList.add('hidden');
+    notePanel.classList.add('hidden'); done.classList.remove('hidden'); };
+  wrap.appendChild(bar); wrap.appendChild(noteBtn); wrap.appendChild(notePanel); wrap.appendChild(done);
+  const send = (body) => api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({...body, comment: t.noteText || '', id: t.id, elapsed: elapsedOf(t.id)})})
+    .then(r => { if (r.error) { showToast(r.error); return false; } markRated(t, tag); return true; });
+  const mk = (label, cls, body, active) => {
+    const b = document.createElement('button'); b.className = cls; b.textContent = label;
+    if (active) b.classList.add('active');
+    b.onclick = () => { b.disabled = true; send(body).then(ok => { b.disabled = false;
+      if (ok) { t.myRating = {quick: body.quick}; if (onRated) onRated(); else showDone(); } }); };
+    return b;
+  };
+  const draw = () => {
+    const mine = t.myRating || {};
+    bar.innerHTML = '';
+    const lab = document.createElement('span'); lab.className = 'q-label'; lab.textContent = '這個回答有幫助嗎？';
+    bar.appendChild(lab);
+    bar.appendChild(mk('👍 有幫助', 'q-thumb', {quick: 'up'}, mine.quick === 'up'));
+    bar.appendChild(mk('👎 不太行', 'q-thumb', {quick: 'down'}, mine.quick === 'down'));
+    const sc = document.createElement('span'); sc.className = 'q-score';
+    const sl = document.createElement('span'); sl.className = 'q-label'; sl.textContent = '打分 0–10';
+    sc.appendChild(sl);
+    for (let v = 0; v <= 10; v++) sc.appendChild(mk(String(v), 'dim-btn', {quick: 'score', scores: {overall: v}}, mine.quick === v));
+    bar.appendChild(sc);
+  };
+  draw();
+  noteBtn.onclick = () => {
+    if (!notePanel.classList.contains('hidden')) { notePanel.classList.add('hidden'); return; }
+    notePanel.classList.remove('hidden');
+    if (notePanel.childElementCount) return;
+    const h = document.createElement('div'); h.className = 'help';
+    h.textContent = '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。';
+    const ta = document.createElement('textarea'); ta.className = 'comment-input';
+    ta.placeholder = '例如：這一句讀不懂、用詞不自然、太長或太淺……';
+    ta.value = t.noteText || '';
+    const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = '儲存意見';
+    save.onclick = () => {
+      const v = ta.value.trim();
+      if (!v) { showToast('請先寫下您的意見'); return; }
+      save.disabled = true;
+      api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({comment: v, id: t.id, elapsed: elapsedOf(t.id)})})
+        .then(r => { save.disabled = false;
+          if (r.error) { showToast(r.error); return; }
+          t.noteText = v; noteBtn.textContent = '✓ 已留言';
+          notePanel.classList.add('hidden'); showToast('已儲存意見'); })
+        .catch(() => { save.disabled = false; showToast('儲存失敗，請檢查網路'); });
+    };
+    const act = document.createElement('div'); act.className = 'actions'; act.appendChild(save);
+    notePanel.appendChild(h); notePanel.appendChild(ta); notePanel.appendChild(act);
+  };
+  if (panel) done.onclick = () => wsRatePanel(t, panel, done, tag); else noteBtn.classList.add('hidden');
+  if (t.rated) showDone(); else if (t.noteText) noteBtn.textContent = '✓ 已留言';
+  return wrap;
+}
+
 // Collapsible turns: the newest (or the one asked for) open, each scored in place.
 // onAdd: the sermon workspace's "add to the draft" action; null elsewhere.
 function renderTurns(box, turns, openId, onAdd) {
@@ -1036,6 +1482,7 @@ function renderTurns(box, turns, openId, onAdd) {
   box.innerHTML = turns.length ? '' : '<div class="help">還沒有對話。</div>';
   const last = turns.length ? turns[turns.length - 1].id : null;
   turns.forEach(t => {
+    if (!shownAt[t.id]) shownAt[t.id] = Date.now();
     const d = document.createElement('details');
     d.className = 'turn'; d.dataset.id = t.id;
     d.open = openId ? t.id === openId : (wasOpen.size ? wasOpen.has(t.id) : t.id === last);
@@ -1056,12 +1503,10 @@ function renderTurns(box, turns, openId, onAdd) {
       add.onclick = () => onAdd(t);
       act.appendChild(add);
     }
-    const rate = document.createElement('button'); rate.className = 'btn btn-secondary btn-sm';
-    rate.textContent = t.rated ? '✓ 已評分（修改）' : '評分';
     const panel = document.createElement('div'); panel.className = 'rate-panel hidden';
-    rate.onclick = () => wsRatePanel(t, panel, rate, tag);
-    act.appendChild(rate);
-    d.appendChild(act); d.appendChild(panel);
+    if (act.children.length) d.appendChild(act);
+    d.appendChild(quickRateBar(t, tag, panel));
+    d.appendChild(panel);
     box.appendChild(d);
   });
 }
@@ -1096,12 +1541,14 @@ function wsRatePanel(t, panel, button, tag) {
     if (score === null) { showToast('請選一個分數'); return; }
     save.disabled = true;
     api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: t.id, scores: {overall: score}, comment: note.value.trim(), denomination: denom})})
+      body: JSON.stringify({id: t.id, scores: {overall: score}, comment: note.value.trim(), denomination: denom,
+                            elapsed: elapsedOf(t.id)})})
       .then(r => {
         save.disabled = false;
         if (r.error) { showToast(r.error); return; }
         t.rated = true; button.textContent = '✓ 已評分（修改）';
         tag.textContent = tag.textContent.replace('未評分', '✓ 已評分');
+        t.noteText = note.value.trim();
         panel.classList.add('hidden'); showToast('已儲存評分');
       }).catch(() => { save.disabled = false; showToast('儲存失敗，請檢查網路'); });
   };
@@ -1191,6 +1638,7 @@ function show(i) {
 }
 
 function load(id) {
+  shownAt[id] = Date.now();
   api('/api/item?id=' + encodeURIComponent(id)).then(it => {
     if (it.error) { showToast(it.error); return; }
     item = it;
@@ -1291,7 +1739,7 @@ function save() {
   const btn = document.getElementById('saveBtn'); btn.disabled = true;
   api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems], denomination: denom,
-                          comment: document.getElementById('commentInput').value.trim()})})
+                          comment: document.getElementById('commentInput').value.trim(), elapsed: elapsedOf(item.id)})})
     .then(r => {
       btn.disabled = false;
       if (r.error) { showToast(r.error); return; }
@@ -1306,15 +1754,23 @@ function save() {
     .catch(() => { btn.disabled = false; showToast('儲存失敗，請檢查網路後再按一次'); });
 }
 
-// Language: Traditional (as written), Simplified (a character map from the server, OpenCC 繁 -> 簡) or English
-// (the dictionary below); applied to every text the page shows, including what is drawn later,
-// and remembered on this device. A visitor whose browser is not set to Chinese starts in English.
+// Language: Traditional (as written), Simplified (a character map from the server, OpenCC 繁 -> 簡),
+// English or German (the dictionaries below); applied to every text the page shows, including what
+// is drawn later, and remembered on this device. The first visit follows the browser's language.
 let zhMap = null, zhMode = 'hant';
 const zhOriginal = new WeakMap();
+function detectLang() {
+  const ls = [navigator.language].concat(navigator.languages || []);
+  for (const l of ls) {
+    if (/^zh/i.test(l || '')) return 'hant';
+    if (/^de/i.test(l || '')) return 'de';
+    if (/^en/i.test(l || '')) return 'en';
+  }
+  return 'en';
+}
 try {
-  zhMode = localStorage.getItem('theoclaw_script') ||
-    (/^zh/i.test(navigator.language || '') ? 'hant' : 'en');
-} catch (e) { zhMode = /^zh/i.test(navigator.language || '') ? 'hant' : 'en'; }
+  zhMode = localStorage.getItem('theoclaw_script') || detectLang();
+} catch (e) { zhMode = detectLang(); }
 
 function toHans(t) { let o = ''; for (const c of t) o += zhMap[c] || c; return o; }
 
@@ -1322,7 +1778,7 @@ function toHans(t) { let o = ''; for (const c of t) o += zhMap[c] || c; return o
 // Exact strings first, then patterns for the ones built with numbers; a "中文 · English" label
 // shows its English half.
 const EN = {
-  '載入中…': 'Loading…', '評分指定題目': 'Score assigned answers', '對話並評分': 'Chat & score', '講道預備': 'Sermon preparation',
+  '評分指定題目': 'Score assigned answers', '對話並評分': 'Chat & score', '講道預備': 'Sermon preparation',
   '說明': 'About', '過去的對話': 'Past conversations', '我的對話': 'My conversations', '我的講章': 'My sermons',
   '＋ 新對話': '＋ New conversation', '＋ 新講章': '＋ New sermon', '還沒有': 'Nothing yet', '還沒有對話': 'No conversations yet',
   '還沒有對話。': 'No conversation yet.', '還沒有講章': 'No sermons yet',
@@ -1358,6 +1814,41 @@ const EN = {
     'e.g. What is the Greek word behind “compassion” in 15:20? / Write an introduction of about 300 words starting from “coming home”. / Give an example for point two that young people can relate to.',
   '還沒有段落。在下面的對話裡，把滿意的回答按「加入講稿」。': 'No paragraphs yet. In the conversation below, press “Add to draft” on the replies you like.',
   '加入講稿': 'Add to draft', '評分': 'Score', '✓ 已評分': '✓ Scored', '✓ 已評分（修改）': '✓ Scored (change)', '未評分': 'Not scored',
+  '提意見 ▾': 'Comment ▾', '✓ 已留言': '✓ Commented', '儲存意見': 'Save comment',
+  '已儲存意見': 'Comment saved', '請先寫下您的意見': 'Please write your comment first',
+  '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。': 'Any comments, or a sentence that reads oddly? Write or paste it here; no score needed.',
+  '這個回答有幫助嗎？': 'Was this answer helpful?', '👍 有幫助': '👍 Helpful', '👎 不太行': '👎 Not really', '打分 0–10': 'Score 0–10',
+  '跟隨系統': 'Follow system', '白天': 'Light', '黑夜': 'Dark',
+  '帳號 · Account': 'Account',
+  '訪客': 'Guest',
+  '進入後可登入 Google': 'Sign in with Google after entering',
+  '用 Google 登入': 'Sign in with Google',
+  '退出登錄': 'Sign out',
+  '只儲存帳號編號，不存電郵、姓名或頭像。': 'Only your account number is stored — never your email, name or avatar.',
+  '已登入 · 記錄會跨裝置同步': 'Signed in · records sync across devices',
+  '匿名 · 記錄只在這一部裝置': 'Anonymous · records stay on this device',
+  '先選擇進入方式，之後可在這裡登入。': 'Choose how to enter first; you can sign in here afterwards.',
+  '完成下方的進入步驟後，可在這裡登入。': 'Finish the steps below, then you can sign in here.',
+  'Google 登入目前未開放。': 'Google sign-in is not available yet.',
+  '登入後，這部裝置先前的記錄會帶到您的帳號。': 'After signing in, this device’s earlier records move to your account.',
+  '您的稱呼（暱稱即可，不必用全名；這部裝置會記住）': 'Your name (a nickname is fine — no full name needed; this device will remember it)',
+  '目前使用的稱呼：': 'Current name:',
+  '選擇進入方式：': 'Choose how to enter:',
+  '匿名進入': 'Continue anonymously',
+  '查經班': 'Bible Class', '牧者': 'Pastors', '傳道模式': 'Preach Mode',
+  'Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像。已有帳號不必先填稱呼，會直接用回之前的稱呼；第一次使用會在登入後請您建立稱呼。不登入也能照常用，只是記錄只留在這一部裝置上。':
+    'Google login is only for cross-device sync: we store only your account number — never your email, name or avatar. Returning accounts need no name first: your previous name is used. First-time users are asked to choose a name after signing in. You can use everything without logging in; the records just stay on this one device.',
+  'Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像；不登入也能照常用，只是記錄只留在這一部裝置上。':
+    'Google login is only for cross-device sync: we store only your account number — never your email, name or avatar. You can use everything without logging in; the records just stay on this one device.',
+  '為了改進這個助手，您的提問與評分可能用於訓練與品質分析：只作為改進 agent 的資料，不向任何人透露您的對話內容；每位使用者仍然只能看到自己的內容。':
+    'To improve this assistant, your questions and scores may be used for training and quality analysis: only to improve the agent, and never disclosed to anyone. Every user can still see only their own content.',
+  '我同意按上述方式使用我的提問與評分。': 'I agree to my questions and scores being used in this way.',
+  '未開放 Google 登入': 'Google login is not enabled', '連結無效，請重新進入': 'The link is not valid; please enter again',
+  '請先輸入稱呼，再登入 Google': 'Please enter your name first, then sign in with Google',
+  '這是第一次用 Google 登入：請填寫您的稱呼，再按一次「用 Google 登入」完成（不用再登入 Google）。':
+    'This is your first Google sign-in: please enter your name and press “Sign in with Google” once more to finish (you will not be asked to sign in to Google again).',
+  '登入逾時或已用過，請再試一次': 'The login timed out or was already used; please try again',
+  '已取消登入': 'Login cancelled', '登入失敗，請再試一次': 'Login failed; please try again',
   '儲存評分': 'Save score', '已儲存評分': 'Score saved', '已儲存': 'Saved', '已更新講稿板': 'Draft board updated',
   '改標題': 'Rename', '修改內容': 'Edit', '刪除': 'Delete', '【完整講稿】': '[Full sermon] ',
   '這個回答對您的講道預備有多大幫助？（0–10，10 最好；7 分以上 = 可以直接用或小改就能用）': 'How helpful is this reply for your sermon preparation? (0–10, 10 best; 7 or more = usable as it is or with small changes)',
@@ -1399,6 +1890,7 @@ const EN = {
   '回答超時，請稍後再試，或把問題問得具體一點': 'The answer took too long; please try again, or make the question more specific',
   '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
   '請選擇總評': 'Please choose a verdict',
+  '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Please agree to the training use of your questions first (tick “Agree” on the page to continue)',
   '歡迎使用 TheoClaw 查經與講道助手': 'Welcome to TheoClaw, a Bible-study and sermon assistant',
   '一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。':
     'A Bible-study and sermon-preparation assistant in the Methodist tradition: scripture is looked up word for word by the program, and Wesley is quoted only from his own texts. Only you can see your questions.',
@@ -1442,6 +1934,178 @@ const EN_PATTERNS = [
 const EN_LABELS = {'查不到的經文：': 'Passages not found: ', '經文引用不一致：': 'Scripture quotations not matching: ',
   '不存在的要點編號：': 'Point numbers that do not exist: ', '未能核實的句子：': 'Sentences that could not be verified: '};
 
+// German: the same words as EN above, for visitors whose browser is set to German.
+const DE = {
+  '評分指定題目': 'Antworten bewerten', '對話並評分': 'Fragen & bewerten', '講道預備': 'Predigtvorbereitung',
+  '說明': 'Über', '過去的對話': 'Frühere Gespräche', '我的對話': 'Meine Gespräche', '我的講章': 'Meine Predigten',
+  '＋ 新對話': '＋ Neues Gespräch', '＋ 新講章': '＋ Neue Predigt', '還沒有': 'Noch nichts', '還沒有對話': 'Noch keine Gespräche',
+  '還沒有對話。': 'Noch kein Gespräch.', '還沒有講章': 'Noch keine Predigten',
+  '用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。':
+    'Ein Spitzname genügt (kein voller Name nötig); dieses Gerät merkt ihn. Bitte verwenden Sie jedes Mal denselben Namen.',
+  '🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。':
+    '🔒 Ihre Fragen und Bewertungen sind nur für Sie auf diesem Gerät sichtbar; kein anderer Nutzer kann sie sehen. Sie werden nur unter Ihrem Spitznamen gespeichert, um diesen Assistenten zu verbessern.',
+  '例如 e.g. 小明 / Tom': 'z. B. Tom',
+  '每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。':
+    'Jedes Element ist eine Antwort eines Assistenten für Bibelstudium und Predigtvorbereitung. Lesen Sie die Frage, dann die Antwort, und bewerten Sie nach Nutzen; Quellenprüfung ist nicht nötig: Bibeltexte werden vom Programm Wort für Wort geprüft, und die Fundierung der Antwort wird automatisch geprüft.',
+  '覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
+    'Wenn ein Satz seltsam klingt, kopieren Sie ihn in den Kommentar. Jede Bewertung wird mit „Speichern“ abgelegt; Sie können die Seite jederzeit schließen und mit demselben Link später weitermachen.',
+  '像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
+    'Fragen Sie wie im Bibelstudium — auf Deutsch, Englisch oder Chinesisch — und stellen Sie gerne Rückfragen: Der Assistent erinnert sich an das Gespräch. Bitte bewerten Sie die Antworten. Bitte geben Sie keine echten Namen oder privaten Daten ein.',
+  '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Ihre früheren Gespräche finden Sie in der Liste links (auf dem Handy: ☰ oben links); tippen Sie eines an, um fortzufahren.',
+  '例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
+    'z. B. Wie können wir das Gleichnis vom verlorenen Sohn (Lukas 15) in unserer Bibelgruppe besprechen?',
+  '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Rückfrage stellen… (z. B. Und Vers 9? Ein Beispiel?)',
+  '本次測試的提問額度已用完，謝謝您的參與。': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
+  '開一篇新講章': 'Neue Predigt beginnen',
+  '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
+    'Geben Sie die Textstelle ein; der Assistent erforscht zuerst Text, Ursprache und die Wesley- bzw. methodistische Tradition (etwa 1 Minute). Dann arbeiten Sie Schritt für Schritt: Bedeutung eines Worts, eine Einleitung, ein Beispiel, eine kürzere Fassung eines Absatzes … Fügen Sie gelungene Antworten mit „In Entwurf übernehmen“ dem Brett hinzu, dann „Gesamtpredigt zusammenfügen“.',
+  '經文（必填）': 'Textstelle (Pflicht)', '主題（選填）': 'Thema (optional)', '對象（選填）': 'Hörer (optional)', '長度（選填）': 'Länge (optional)',
+  '例如：路加福音 15:11-32': 'z. B. Lukas 15,11-32', '例如：父親的愛': 'z. B. Die Liebe des Vaters', '例如：主日崇拜；青年團契': 'z. B. Sonntagsgottesdienst; Jugendkreis',
+  '例如：約 20 分鐘': 'z. B. etwa 20 Minuten', '開始研究': 'Recherche starten', '← 我的講章': '← Meine Predigten',
+  '研究摘要': 'Recherchezusammenfassung', '點開查看（助手回答時會用到，[A1]、[B2] 即這些要點）': 'Zum Lesen aufklappen (der Assistent nutzt diese Punkte; [A1], [B2] verweisen auf sie)',
+  '原文逐詞表（程式整理）': 'Wortliste der Ursprache (vom Programm erstellt)', '點開查看': 'Zum Lesen aufklappen',
+  '講稿板（已選定的段落，可排序、修改、刪除）': 'Entwurfsbrett (gewählte Absätze; sortieren, bearbeiten, löschen)', '組成完整講稿': 'Gesamtpredigt zusammenfügen',
+  '對話': 'Gespräch', '送出': 'Senden',
+  '例如：15:20「動了慈心」原文是甚麼字？／幫我寫引言，約 300 字，從「回家」切入。／第二點給一個青年人能明白的例子。':
+    'z. B. Welches griechische Wort steht in 15,20 hinter „Mitleid“? / Schreibe eine Einleitung von etwa 300 Wörtern zum Einstieg „nach Hause“. / Gib ein Beispiel für Punkt zwei, das Jugendliche verstehen.',
+  '還沒有段落。在下面的對話裡，把滿意的回答按「加入講稿」。': 'Noch keine Absätze. Übernehmen Sie im Gespräch unten gelungene Antworten mit „In Entwurf übernehmen“.',
+  '加入講稿': 'In Entwurf übernehmen', '評分': 'Bewerten', '✓ 已評分': '✓ Bewertet', '✓ 已評分（修改）': '✓ Bewertet (ändern)', '未評分': 'Nicht bewertet',
+  '提意見 ▾': 'Anmerkung ▾', '✓ 已留言': '✓ Kommentiert', '儲存意見': 'Anmerkung speichern',
+  '已儲存意見': 'Anmerkung gespeichert', '請先寫下您的意見': 'Bitte zuerst Ihren Hinweis schreiben',
+  '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。': 'Anmerkungen oder ein ungeschickter Satz? Hier schreiben oder einfügen; eine Punktzahl ist nicht nötig.',
+  '這個回答有幫助嗎？': 'War diese Antwort hilfreich?', '👍 有幫助': '👍 Hilfreich', '👎 不太行': '👎 Eher nicht', '打分 0–10': 'Punkte 0–10',
+  '跟隨系統': 'Systemeinstellung', '白天': 'Hell', '黑夜': 'Dunkel',
+  '帳號 · Account': 'Konto',
+  '訪客': 'Gast',
+  '進入後可登入 Google': 'Nach dem Eintreten mit Google anmelden',
+  '用 Google 登入': 'Mit Google anmelden',
+  '退出登錄': 'Abmelden',
+  '只儲存帳號編號，不存電郵、姓名或頭像。': 'Gespeichert wird nur Ihre Konto-ID — nicht E-Mail-Adresse, Name oder Bild.',
+  '已登入 · 記錄會跨裝置同步': 'Angemeldet · Einträge werden geräteübergreifend abgeglichen',
+  '匿名 · 記錄只在這一部裝置': 'Anonym · Einträge bleiben auf diesem Gerät',
+  '先選擇進入方式，之後可在這裡登入。': 'Wählen Sie zuerst den Zugang; danach können Sie sich hier anmelden.',
+  '完成下方的進入步驟後，可在這裡登入。': 'Schließen Sie die Schritte unten ab; danach können Sie sich hier anmelden.',
+  'Google 登入目前未開放。': 'Google-Anmeldung ist derzeit nicht verfügbar.',
+  '登入後，這部裝置先前的記錄會帶到您的帳號。': 'Nach der Anmeldung werden die früheren Einträge dieses Geräts Ihrem Konto zugeordnet.',
+  '您的稱呼（暱稱即可，不必用全名；這部裝置會記住）': 'Ihr Name (ein Spitzname genügt — kein vollständiger Name nötig; dieses Gerät merkt ihn sich)',
+  '目前使用的稱呼：': 'Aktueller Name:',
+  '選擇進入方式：': 'Zugang wählen:',
+  '匿名進入': 'Anonym fortfahren',
+  '查經班': 'Bibelkreis', '牧者': 'Pastoren', '傳道模式': 'Predigtmodus',
+  'Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像。已有帳號不必先填稱呼，會直接用回之前的稱呼；第一次使用會在登入後請您建立稱呼。不登入也能照常用，只是記錄只留在這一部裝置上。':
+    'Die Google-Anmeldung dient nur der geräteübergreifenden Synchronisation: Wir speichern nur Ihre Konto-ID — nicht Ihre E-Mail-Adresse, Ihren Namen oder Ihr Bild. Bestehende Konten brauchen vorab keinen Namen: Ihr bisheriger Name wird verwendet. Beim ersten Mal werden Sie nach der Anmeldung gebeten, einen Namen zu wählen. Ohne Anmeldung ist alles weiterhin nutzbar; die Einträge bleiben dann nur auf diesem einen Gerät.',
+  'Google 登入只作跨裝置同步，我們只存帳號編號，不存電郵、姓名或頭像；不登入也能照常用，只是記錄只留在這一部裝置上。':
+    'Die Google-Anmeldung dient nur der geräteübergreifenden Synchronisation: Wir speichern nur Ihre Konto-ID — nicht Ihre E-Mail-Adresse, Ihren Namen oder Ihr Bild. Ohne Anmeldung ist alles weiterhin nutzbar; die Einträge bleiben dann nur auf diesem einen Gerät.',
+  '為了改進這個助手，您的提問與評分可能用於訓練與品質分析：只作為改進 agent 的資料，不向任何人透露您的對話內容；每位使用者仍然只能看到自己的內容。':
+    'Um diesen Assistenten zu verbessern, können Ihre Fragen und Bewertungen für Training und Qualitätsanalyse verwendet werden: ausschließlich zur Verbesserung des Assistenten, ohne Ihre Gespräche an Dritte weiterzugeben. Jeder Nutzer sieht weiterhin nur seine eigenen Inhalte.',
+  '我同意按上述方式使用我的提問與評分。': 'Ich stimme zu, dass meine Fragen und Bewertungen auf diese Weise verwendet werden.',
+  '未開放 Google 登入': 'Google-Anmeldung ist nicht aktiviert', '連結無效，請重新進入': 'Der Link ist ungültig; bitte treten Sie neu ein',
+  '請先輸入稱呼，再登入 Google': 'Bitte erst Ihren Namen eingeben und dann mit Google anmelden',
+  '這是第一次用 Google 登入：請填寫您的稱呼，再按一次「用 Google 登入」完成（不用再登入 Google）。':
+    'Dies ist Ihre erste Google-Anmeldung: Bitte geben Sie Ihren Namen ein und drücken Sie noch einmal „Mit Google anmelden“, um abzuschließen (Sie müssen sich nicht erneut bei Google anmelden).',
+  '登入逾時或已用過，請再試一次': 'Die Anmeldung ist abgelaufen oder bereits benutzt; bitte erneut versuchen',
+  '已取消登入': 'Anmeldung abgebrochen', '登入失敗，請再試一次': 'Anmeldung fehlgeschlagen; bitte erneut versuchen',
+  '開始之前 · Before you start': 'Bevor Sie beginnen',
+  '同意並繼續 · Agree and continue': 'Zustimmen und weiter',
+  '儲存評分': 'Bewertung speichern', '已儲存評分': 'Bewertung gespeichert', '已儲存': 'Gespeichert', '已更新講稿板': 'Entwurfsbrett aktualisiert',
+  '改標題': 'Umbenennen', '修改內容': 'Bearbeiten', '刪除': 'Löschen', '【完整講稿】': '[Gesamtpredigt] ',
+  '這個回答對您的講道預備有多大幫助？（0–10，10 最好；7 分以上 = 可以直接用或小改就能用）': 'Wie hilfreich ist diese Antwort für Ihre Predigtvorbereitung? (0–10, 10 am besten; ab 7 = direkt verwendbar oder mit kleinen Änderungen)',
+  '備註（選填）：哪裡要改、哪句不對、太長或太淺……': 'Kommentar (optional): was ändern, welcher Satz stimmt nicht, zu lang oder zu oberflächlich…',
+  '請選一個分數': 'Bitte eine Punktzahl wählen', '儲存失敗，請檢查網路': 'Speichern fehlgeschlagen; bitte Verbindung prüfen',
+  '儲存失敗，請檢查網路後再按一次': 'Speichern fehlgeschlagen; bitte Verbindung prüfen und erneut drücken', '送出失敗，請檢查網路': 'Senden fehlgeschlagen; bitte Verbindung prüfen',
+  '請輸入問題': 'Bitte Frage eingeben', '請輸入要求': 'Bitte Anliegen eingeben', '請填寫經文': 'Bitte Textstelle eingeben',
+  '請輸入 1 到 20 個字，不要用特殊符號': 'Bitte 1 bis 20 Zeichen eingeben, ohne Sonderzeichen',
+  '請使用負責人寄給您的專屬連結開啟本頁。': 'Bitte öffnen Sie diese Seite mit dem persönlichen Link, den Sie erhalten haben.',
+  '無法連線到評分伺服器，請稍後再試。': 'Server nicht erreichbar; bitte später erneut versuchen.',
+  '連線不穩，正在重試…': 'Verbindung instabil, erneuter Versuch…', '（連線不穩，重試中）': ' (Verbindung instabil, erneut versuchen)',
+  '找不到這個工作（伺服器可能剛重新啟動），請再送出一次。': 'Diese Anfrage ging verloren (der Server wurde eventuell neu gestartet); bitte erneut senden.',
+  '助手正在查資料和撰寫，通常 20 秒到 1 分鐘': 'Der Assistent recherchiert und schreibt, meist 20 Sekunden bis 1 Minute',
+  '正在組成完整講稿並查核，約 1 到 2 分鐘': 'Gesamtpredigt wird zusammengefügt und geprüft, etwa 1 bis 2 Minuten',
+  '題目 · Question': 'Frage', '回答 · Answer': 'Antwort', '研究摘要（講章所根據的要點）': 'Recherchezusammenfassung (Grundlage der Predigt)',
+  '查核結果': 'Prüfergebnis', '主要問題（可複選；沒有就不用選）': 'Hauptprobleme (mehrere möglich; keine = nichts anklicken)', '總評': 'Gesamturteil', '可以': 'Ja', '不可以': 'Nein',
+  '全部評完了，謝謝您！': 'Alles bewertet, vielen Dank!', '評分已經存檔，不需要另外下載。若想修改，可按下方按鈕回到任何一題。': 'Ihre Bewertungen sind gespeichert; nichts herunterzuladen. Zum Ändern mit den Schaltflächen unten zu einer Frage zurück.',
+  '回到第一題': 'Zur ersten Frage', '← 上一題': '← Zurück', '下一題 →': 'Weiter →', '已評': 'bewertet',
+  '（沒有呼叫工具）': '(keine Tools)', '（空白）': '(leer)', '（出錯）': ' (Fehler)',
+  '查經文': 'Bibeltext suchen', '填入經文': 'Bibeltext eingefügt', '串珠': 'Parallelstellen', '衛斯理註釋': 'Wesleys Anmerkungen', '知識庫': 'Methodistische Quellen',
+  '這個回答對你的查經或預備有多大幫助？ How helpful is this answer for your Bible study?': 'Wie hilfreich ist diese Antwort für Ihr Bibelstudium?',
+  '這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）': 'Ist diese Antwort direkt im Bibelstudium oder in der Vorbereitung verwendbar? (nach Punktzahl: ab 7 = ja)',
+  '經文引錯或出處錯': 'Bibeltext falsch zitiert oder falsche Stelle', '經文不是查來的（憑記憶寫）': 'Bibeltext aus dem Gedächtnis, nicht nachgeschlagen',
+  '捏造或曲解衛斯理': 'Wesley erfunden oder verdreht', '史實、教義或條文錯誤': 'Fehler in Geschichte, Lehre oder Ordnung',
+  '查不到卻沒有說明': 'Nichts gefunden, aber nicht gesagt', '經文、註釋與推論混在一起': 'Text, Anmerkung und Schlussfolgerung vermischt',
+  '空泛、沒有幫助': 'Leer, nicht hilfreich', '答非所問': 'Neben der Frage', '太長或重複': 'Zu lang oder wiederholend',
+  '語言問題（簡體、夾雜、不通順）': 'Sprachprobleme', '不符合循道衛理傳統': 'Entspricht nicht der methodistischen Tradition',
+  // from the server
+  '上一個要求還在處理中，請稍候': 'Die vorherige Anfrage läuft noch; bitte warten', '今天團契的提問額度已用完，請明天再來': 'Das Fragenkontingent Ihrer Gruppe für heute ist aufgebraucht; bitte morgen wiederkommen',
+  '問題請在 2 到 1000 字之間': 'Fragen: 2 bis 1000 Zeichen', '找不到這一段': 'Absatz nicht gefunden', '找不到這一題': 'Eintrag nicht gefunden',
+  '找不到這個回答': 'Antwort nicht gefunden', '找不到這個對話': 'Gespräch nicht gefunden', '找不到這篇講章': 'Predigt nicht gefunden',
+  '本次測試的提問額度已用完，謝謝您的參與': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
+  '本次測試的額度已用完，謝謝您的參與': 'Das Kontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
+  '段落內容請在 1 到 8000 字之間': 'Absatz: 1 bis 8000 Zeichen', '每一欄請在 300 字以內': 'Jedes Feld: höchstens 300 Zeichen',
+  '請先輸入您的稱呼': 'Bitte erst Ihren Namen eingeben', '請填寫經文（例如：路加福音 15:11-32）': 'Bitte Textstelle eingeben (z. B. Lukas 15,11-32)',
+  '請輸入要求（1500 字以內）': 'Bitte Anliegen eingeben (bis 1500 Zeichen)', '講稿板上還沒有段落，請先把滿意的回答加入講稿': 'Das Entwurfsbrett ist leer; übernehmen Sie erst gelungene Antworten',
+  '講稿板最多 30 段': 'Das Entwurfsbrett fasst höchstens 30 Absätze', '講道預備只開放給牧者連結': 'Predigtvorbereitung nur für Pastor-Links',
+  '連結無效，請向負責人索取您的專屬連結': 'Dieser Link ist ungültig; bitte fragen Sie nach Ihrem persönlichen Link', '回答時出錯，請稍後再試': 'Fehler beim Antworten; bitte später erneut versuchen',
+  '回答超時，請稍後再試，或把問題問得具體一點': 'Antwort dauerte zu lange; bitte erneut versuchen oder die Frage konkreter stellen',
+  '模型服務暫時無法使用，請稍後再試': 'Der Sprachdienst ist vorübergehend nicht verfügbar; bitte später erneut', '研究時出錯，請稍後再試': 'Recherche fehlgeschlagen; bitte später erneut versuchen',
+  '請選擇總評': 'Bitte Gesamturteil wählen',
+  '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Bitte stimmen Sie zuerst der Nutzung Ihrer Fragen zur Verbesserung zu (haken Sie auf der Seite „Zustimmen“ an, um fortzufahren)',
+  '歡迎使用 TheoClaw 查經與講道助手': 'Willkommen bei TheoClaw, dem Bibelstudien- und Predigt-Assistenten',
+  '一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。':
+    'Ein Assistent für Bibelstudium und Predigtvorbereitung in methodistischer Tradition: Bibeltexte werden vom Programm Wort für Wort nachgeschlagen, und Wesley wird nur aus seinen eigenen Texten zitiert. Nur Sie sehen Ihre Fragen.',
+  '我是信徒': 'Ich bin Gemeindeglied', '我是牧者': 'Ich bin Pastor/in', '請輸入團契碼（向負責人索取）': 'Bitte Gruppencode eingeben (beim Verantwortlichen erfragen)',
+  '進入牧者模式': 'Als Pastor/in eintreten', '請輸入團契碼': 'Bitte Gruppencode eingeben', '團契碼不正確': 'Der Gruppencode ist nicht richtig',
+  '嘗試太多次，請一小時後再試': 'Zu viele Versuche; bitte in einer Stunde erneut', '牧者入口尚未開放': 'Der Zugang für Pastoren ist noch nicht offen',
+  '信徒入口尚未開放': 'Der Zugang für Gemeindeglieder ist noch nicht offen', '請選擇信徒或牧者': 'Bitte Gemeindeglied oder Pastor/in wählen',
+  '無法連線，請稍後再試': 'Keine Verbindung; bitte später erneut versuchen',
+  '找回連結無效': 'Dieser Wiederherstellungslink ist ungültig', '找回連結無效或已用過': 'Dieser Wiederherstellungslink ist ungültig oder bereits benutzt',
+  '找回失敗，請檢查網路': 'Wiederherstellung fehlgeschlagen; bitte Verbindung prüfen',
+  // dialogs
+  '這一段的標題（例如：引言、第一點、例證、結語）': 'Titel dieses Absatzes (z. B. Einleitung, Punkt 1, Beispiel, Schluss)',
+  '段落': 'Absatz', '新標題': 'Neuer Titel', '修改這一段（可直接改寫）': 'Absatz bearbeiten (direkt umschreiben)', '刪除這一段？': 'Diesen Absatz löschen?',
+  '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Absätze vom Entwurfsbrett zu einer Gesamtpredigt zusammenfügen? (etwa 1 bis 2 Minuten)',
+};
+const DE_PATTERNS = [
+  [/^今天還可以問 (\d+) 題。$/, 'Heute können Sie noch $1 Fragen stellen.'],
+  [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (als „$1“ gespeichert; nicht Sie? Hier klicken)'],
+  [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' Frage' : ' Fragen') + (b ? ', ' + b + ' nicht bewertet' : '') + (c || '')],
+  [/^講稿板 (\d+) 段( · .+)?$/, (m, a, c) => a + ' auf dem Entwurfsbrett' + (c || '')],
+  [/^今天還可以開 (\d+) 篇新講章。$/, 'Heute können Sie noch $1 Predigten beginnen.'],
+  [/^已找回以前的紀錄（(\d+) 筆）$/, 'Ihre früheren Einträge sind zurück ($1)'],
+  [/^對話：/, 'Gespräch: '],
+  [/^助手正在查經文並撰寫回答……已等 (\d+) 秒（通常 20 秒到一分鐘），請不要關閉頁面。$/, 'Der Assistent schlägt Bibelstellen nach und schreibt … $1 s vergangen (meist 20 s bis 1 Minute). Bitte Seite offen lassen.'],
+  [/^正在研究經文、原文和衛斯理傳統……（已 (\d+) 秒，約需 1 分鐘）$/, 'Text, Ursprache und Wesley-Tradition werden erforscht … ($1 s; etwa 1 Minute)'],
+  [/^正在研究經文、原文和衛斯理傳統……/, 'Text, Ursprache und Wesley-Tradition werden erforscht …'],
+  [/^(.+)（已 (\d+) 秒）$/, (m, a, b) => toDe(a) + ' (' + b + ' s)'],
+  [/^(✓ 已評分|未評分)｜未能核實 (\d+)$/, (m, a, b) => toDe(a) + ' | ' + b + ' unbestätigt'],
+  [/^第 (\d+) \/ (\d+) 題$/, 'Eintrag $1 / $2'], [/^已評 (\d+) \/ (\d+)$/, 'Bewertet $1 / $2'],
+  [/^評分 · Score（(\d+)–(\d+)，(\d+) 最好 · best(；N = 不適用)?）$/, (m, a, b, c, n) => 'Punkte (' + a + '–' + b + ', ' + c + ' am besten' + (n ? '; N = nicht zutreffend' : '') + ')'],
+  [/^(\S+) 分 · pts：.*· (.+)$/, '$1 Pkt.: $2'],
+  [/^還有「(.+)」沒有評分$/, (m, a) => toDe(a) + ' ist noch nicht bewertet'],
+  [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'Sie haben heute $1 Fragen gestellt; bitte morgen wiederkommen'],
+  [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'Sie haben heute $1 Predigten begonnen; bitte morgen wiederkommen'],
+  [/^「(.+)」(還沒有評分|需要打分|的分數無效)$/, (m, a, b) => toDe(a) + ({'還沒有評分': ' ist noch nicht bewertet', '需要打分': ' braucht eine Punktzahl', '的分數無效': ': ungültige Punktzahl'})[b]],
+  [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (bearbeitet)'],
+  [/^查核 (\d+) 條陳述：未能核實 (\d+)、部分核實 (\d+)（[^）]*）/, '$1 Aussagen geprüft: $2 unbestätigt, $3 teilweise bestätigt („unbestätigt“ = in Recherche oder Nachweisen keine Stütze gefunden; nicht zwingend falsch — bitte prüfen)'],
+  [/^查核了 (\d+) 條事實陳述：沒有根據 (\d+) 條、部分有根據 (\d+) 條/, '$1 Tatsachenaussagen geprüft: $2 ohne Grundlage, $3 teilweise begründet'],
+  [/^(.+)：(.+)$/, null],
+];
+const DE_LABELS = {'查不到的經文：': 'Nicht gefundene Bibelstellen: ', '經文引用不一致：': 'Zitierte Bibeltexte stimmen nicht überein: ',
+  '不存在的要點編號：': 'Punktnummern, die es nicht gibt: ', '未能核實的句子：': 'Sätze, die nicht bestätigt werden konnten: '};
+
+function toDe(t) {
+  const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], s = t.trim().replace(/\s*\n\s*/g, ' ');
+  if (!s || !/[㐀-鿿（）【】《》]/.test(s)) return t;
+  if (s in DE) return DE[s] ? lead + DE[s] + trail : '';
+  for (const [re, rep] of DE_PATTERNS) {
+    if (rep === null || !re.test(s)) continue;
+    return lead + s.replace(re, rep).replace(/查不到的經文：|經文引用不一致：|不存在的要點編號：|未能核實的句子：/g, x => DE_LABELS[x])
+      .replace(/。/g, '. ').replace(/、/g, ', ').replace(/；/g, '; ') + trail;
+  }
+  const bi = s.match(/^.*[一-鿿].*?\s·\s([A-Za-z].*)$/);  // "中文 · English"
+  if (bi) return lead + bi[1] + trail;
+  return t;
+}
+
 function toEn(t) {
   const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], s = t.trim().replace(/\s*\n\s*/g, ' ');
   if (!s || !/[㐀-鿿（）【】《》]/.test(s)) return t;
@@ -1463,12 +2127,12 @@ function noTr(node) {
   return !!p && (p.matches('.sb-list li:not(.help)') || !!p.closest(NO_TR));
 }
 
-function T(s) { return zhMode === 'en' ? toEn(s) : (zhMode === 'hans' && zhMap ? toHans(s) : s); }
+function T(s) { return zhMode === 'en' ? toEn(s) : (zhMode === 'de' ? toDe(s) : (zhMode === 'hans' && zhMap ? toHans(s) : s)); }
 
 
 function shown(orig, node) {
   if (zhMode === 'hans') return zhMap ? toHans(orig) : orig;
-  if (zhMode === 'en' && !(node && noTr(node))) return toEn(orig);
+  if ((zhMode === 'en' || zhMode === 'de') && !(node && noTr(node))) return zhMode === 'en' ? toEn(orig) : toDe(orig);
   return orig;
 }
 
@@ -1493,8 +2157,11 @@ function convertNode(node) {
 
 function applyScript() {
   document.getElementById('langSel').value = zhMode;
-  document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant');
+  document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant'));
+  document.title = zhMode === 'de' ? 'TheoClaw – Bibelstudium & Predigt' : 'TheoClaw';
+  renderAccount();
   convertNode(document.body);
+  applyTheme();
 }
 
 function setLang(m) {
@@ -1502,8 +2169,55 @@ function setLang(m) {
   if (m !== 'hans' || zhMap) go(); else fetch('/zhmap.json').then(r => r.json()).then(map => { zhMap = map; go(); });
 }
 
-// what the assistant should answer in: English when the page is in English
-function answerLang() { return zhMode === 'en' ? 'en' : 'zh'; }
+// what the assistant should answer in: follow the page (English or German) unless it is Chinese
+function answerLang() { return zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : 'zh'); }
+
+// Theme: an explicit choice of 跟隨系統 / 白天 / 黑夜, kept in localStorage.
+let themeMode = 'auto';
+try { themeMode = localStorage.getItem('theoclaw_theme') || 'auto'; } catch (e) {}
+const themeMedia = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+function applyTheme() {
+  const dark = themeMode === 'dark' || (themeMode !== 'light' && themeMedia && themeMedia.matches);
+  if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  const meta = document.getElementById('metaTheme');
+  if (meta) meta.content = dark ? '#151411' : '#f8f7f4';
+  document.querySelectorAll('#themeMenu [data-mode]').forEach(el => {
+    el.setAttribute('aria-checked', el.dataset.mode === themeMode ? 'true' : 'false');
+  });
+  const b = document.getElementById('themeBtn');
+  if (b) {
+    b.textContent = themeMode === 'dark' ? '☾' : (themeMode === 'light' ? '☀' : '◐');
+    b.title = T('顯示模式 · Theme');
+  }
+}
+function themeMenuOpen(show) {
+  const menu = document.getElementById('themeMenu');
+  const b = document.getElementById('themeBtn');
+  if (!menu) return;
+  menu.classList.toggle('hidden', !show);
+  if (b) b.setAttribute('aria-expanded', show ? 'true' : 'false');
+  if (show) acctMenuOpen(false);
+}
+function toggleThemeMenu() {
+  const menu = document.getElementById('themeMenu');
+  if (menu) themeMenuOpen(menu.classList.contains('hidden'));
+}
+function setThemeMode(mode) {
+  themeMode = mode;
+  try { localStorage.setItem('theoclaw_theme', mode); } catch (e) {}
+  applyTheme();
+  themeMenuOpen(false);
+}
+if (themeMedia && themeMedia.addEventListener) themeMedia.addEventListener('change', applyTheme);
+document.addEventListener('click', e => {
+  if (!e.target.closest('#themeWrap')) themeMenuOpen(false);
+  if (!e.target.closest('#acctWrap')) acctMenuOpen(false);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { themeMenuOpen(false); acctMenuOpen(false); }
+});
 
 new MutationObserver(muts => {
   if (zhMode === 'hant' || (zhMode === 'hans' && !zhMap)) return;
@@ -1519,6 +2233,7 @@ new MutationObserver(muts => {
 
 if (zhMode === 'hans') fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; applyScript(); });
 else applyScript();
+applyTheme();
 
 function showToast(msg) {
   const t = document.getElementById('toast');

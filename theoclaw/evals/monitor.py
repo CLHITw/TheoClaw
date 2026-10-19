@@ -29,7 +29,7 @@ import random
 from pathlib import Path
 
 from .grading import ALWAYS_ON, load_graders
-from .human import load_items, load_ratings
+from .human import FAST_MAX_S, SAME_STREAK, confidence_marks, load_items, load_ratings
 from .judge import parse_json
 from .tasks import Task, load_tasks
 
@@ -93,6 +93,7 @@ def collect(chat_dir: Path, model_name: str | None) -> list[dict]:
     ratings: dict[str, dict[str, dict]] = {}
     for r in load_ratings(chat_dir):  # the latest rating of each rater counts
         ratings.setdefault(r["task_id"], {})[r["rater"]] = r
+    marks = confidence_marks([r for m in ratings.values() for r in m.values()])
     rows = []
     for it in load_items([chat_dir]):
         t = it.trace
@@ -102,6 +103,8 @@ def collect(chat_dir: Path, model_name: str | None) -> list[dict]:
         score = lambda r: (r.get("scores") or {}).get("overall")
         own = score(rs[asker]) if asker in rs else None
         others = [score(r) for name, r in rs.items() if name != asker and score(r) is not None]
+        conf_flags = {n: sorted(marks[(n, tid, r.get("run_index", 0))])
+                      for n, r in rs.items() if (n, tid, r.get("run_index", 0)) in marks}
         g = ground.get(tid)
         rules = rule_checks(t) if t.get("final_text") else {}
         flagged = (not all(rules.values())) if rules else False
@@ -111,6 +114,7 @@ def collect(chat_dir: Path, model_name: str | None) -> list[dict]:
         all_scores = [s for s in [own, *others] if s is not None]
         rows.append({"task_id": tid, "asker": asker, "asked_at": t.get("asked_at", ""), "prompt": t.get("prompt", ""),
                      "own": own, "others": others, "scores": all_scores,
+                     "scores_by": {n: score(r) for n, r in rs.items()}, "flags": conf_flags,
                      "human_mean": (sum(all_scores) / len(all_scores)) if all_scores else None,
                      "comments": [r.get("comment") for r in rs.values() if r.get("comment")],
                      "rules": rules, "faithfulness": g["faithfulness"] if g else None,
@@ -146,6 +150,20 @@ def render(rows: list[dict], suite: Path) -> str:
         lines += ["## 1. Human scores", "",
                   f"- mean {sum(allx) / len(allx):.1f} / 10; usable (≥ {USABLE}) {_pct(sum(s >= USABLE for s in allx), len(allx))}",
                   f"- answers below {USABLE} on average: {len(low)}", ""]
+    n_ratings = sum(len(r["scores_by"]) for r in rows)
+    if n_ratings:
+        n_flagged = sum(len(r["flags"]) for r in rows)
+        too_fast = sum(1 for r in rows for fs in r["flags"].values() for f in fs if f == "too_fast")
+        streaks = sum(1 for r in rows for fs in r["flags"].values() for f in fs if f == "same_streak")
+        clean = [s for r in rows for n, s in r["scores_by"].items() if s is not None and not r["flags"].get(n)]
+        mean_all = f"{sum(allx) / len(allx):.1f}" if scored else "–"
+        lines += ["### 評分可信度 · Rating confidence (analysis flags; the raw data is never deleted)", "",
+                  f"- ratings: {n_ratings} · flagged low-confidence: {n_flagged}",
+                  f"- too fast (scored under {FAST_MAX_S:.0f}s after the answer appeared): {too_fast}",
+                  f"- the same 0-10 score {SAME_STREAK} or more times in a row by one rater: {streaks}",
+                  f"- mean of the 0-10 scores: {mean_all} counting everyone" +
+                  (f" · {sum(clean) / len(clean):.1f} excluding flagged ratings ({len(clean)} scores)" if clean else ""),
+                  ""]
     multi = [r for r in rows if len(r["scores"]) >= 2]
     lines += ["## 2. Do raters agree?", ""]
     if multi:
@@ -189,8 +207,9 @@ def render(rows: list[dict], suite: Path) -> str:
     if low:
         lines += ["", "## 5. Low-scored answers (regression-task candidates)", ""]
         for r in sorted(low, key=lambda r: r["human_mean"]):
+            warn = " ⚠ " + ",".join(sorted({f for fs in r['flags'].values() for f in fs})) + " low-confidence" if r["flags"] else ""
             lines.append(f"- `{r['task_id']}` {r['human_mean']:.1f} · flagged: {'yes' if r['flagged'] else 'no'} · "
-                         f"{r['prompt'][:60]}" + (f" — 「{'；'.join(r['comments'])[:120]}」" if r["comments"] else ""))
+                         f"{r['prompt'][:60]}" + (f" — 「{'；'.join(r['comments'])[:120]}」" if r["comments"] else "") + warn)
     return "\n".join(lines) + "\n"
 
 

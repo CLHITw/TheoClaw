@@ -20,11 +20,19 @@
 runs/*/human/，評測工具直接讀）。`serve --storage db` 改存資料庫：伺服器上是 MySQL（.env 的
 THEOCLAW_DB），其他地方是 SQLite 檔；啟動時會把檔案裡還沒有的資料匯入（不會重複），
 評測工具要的檔案格式用 `python human_scoring/db.py export <資料夾>` 匯出。
+
+可選的 Google 登入（只作跨裝置同步；只存 Google 帳號編號的加鹽雜湊，不存電郵、姓名、頭像）：
+在 .env 放 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET（只放 VPS，不進版本庫）；
+`python human_scoring/human_server.py google-check` 會向 Google 查詢這組設定是否可用（不會登入任何人）。
+THEOCLAW_GOOGLE_SALT（加鹽雜湊用的鹽）與 THEOCLAW_SESSION_SECRET（登入工作階段的簽章密鑰）
+不設也會自動產生。團契碼存在資料庫 fellowships 表（`add-fellowship` 新增；未設時用
+THEOCLAW_PASTOR_CODE，預設 1893）。
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import re
 import hmac
@@ -35,10 +43,13 @@ import secrets
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -69,10 +80,21 @@ MAX_BODY = 64 * 1024
 DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
-PASTOR_CODE = "1893"       # 團契碼：首頁進入牧者模式要輸入的碼（.env 的 THEOCLAW_PASTOR_CODE 可覆寫）
+PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
 _KEY = re.compile(r"^[A-Za-z0-9_-]{16,64}$")  # a random key each browser makes once and keeps
+
+SESSION_COOKIE = "theoclaw_session"
+LOGIN_COOKIE = "theoclaw_login"  # the OAuth state, so only the browser that started the login can finish it
+GOOGLE_PENDING_COOKIE = "theoclaw_google_pending"  # a verified first-time Google login waiting for a nickname
+SESSION_DAYS = 30
+LOGIN_TTL = 600          # a started Google login must come back within this many seconds
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+GOOGLE_CLIENT_ID_RE = re.compile(r"^\d+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$")
+_INVISIBLE = re.compile(r"[\s\u200b-\u200f\u2060\ufeff]+")  # what copy-paste can add to a value
 
 # 「主要問題」：評分人勾選答案的毛病，日後可直接變成回歸測試題
 PROBLEMS = [
@@ -88,6 +110,160 @@ PROBLEMS = [
     {"key": "language", "label": "語言問題（簡體、夾雜、不通順）"},
     {"key": "tradition", "label": "不符合循道衛理傳統"},
 ]
+
+
+# ---------------------------------------------------------------- Google login (optional; sync only)
+# Only a salted hash of the Google account id (sub) is stored — never an email, name or avatar.
+# Scope "openid" asks Google for nothing but that id. The client id/secret live in the VPS .env only.
+
+def _env_clean(name: str) -> str:
+    return _INVISIBLE.sub("", os.environ.get(name, ""))
+
+
+def google_config() -> dict | None:
+    """The Google OAuth web client from .env, or None when it is not set up."""
+    try:
+        from theoclaw.llm.env import load_env
+        load_env()
+    except Exception:  # noqa: BLE001
+        pass
+    client_id = _env_clean("GOOGLE_CLIENT_ID")
+    client_secret = _env_clean("GOOGLE_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+    return {"client_id": client_id, "client_secret": client_secret}
+
+
+def google_id_problem(client_id: str) -> str:
+    """What is obviously wrong with a client ID, in one line; "" when it looks like a real one."""
+    if not client_id:
+        return "沒有 client ID"
+    if not client_id.endswith(".apps.googleusercontent.com"):
+        return (f"client ID 結尾不是 .apps.googleusercontent.com（目前 {len(client_id)} 字，"
+                "可能複製不完整或貼到了 secret）")
+    if not GOOGLE_CLIENT_ID_RE.match(client_id):
+        return "client ID 形狀不對（應像 123456789012-xxxx.apps.googleusercontent.com）"
+    return ""
+
+
+def google_client_check(client_id: str, redirect_uri: str) -> tuple[str, str]:
+    """Ask Google's sign-in page whether it knows this client and redirect URI.
+
+    No one signs in: Google answers with its own error page when the client is unknown
+    ("invalid_client") or the redirect URI is not registered. Returns (state, message)
+    where state is "ok", "client", "redirect" or "network"."""
+    url = GOOGLE_AUTH_URL + "?" + urlencode({
+        "client_id": client_id, "redirect_uri": redirect_uri, "response_type": "code",
+        "scope": "openid", "prompt": "select_account",
+    })
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (TheoClaw config check)"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            final, body = r.geturl(), r.read(2_000_000).decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        final, body = e.geturl(), e.read(2_000_000).decode("utf-8", "replace")
+    except OSError as e:
+        return "network", f"連不上 Google，稍後再試：{e}"
+    low = (body + " " + final).lower()
+    # Google's error page is long and puts the message deep inside; the final URL also carries
+    # authError=<base64>, so decode it too before deciding.
+    err = parse_qs(urlparse(final).query).get("authError", [""])[0]
+    if err:
+        try:
+            low += " " + _b64d(err).decode("utf-8", "replace").lower()
+        except ValueError:
+            pass
+    if "invalid_client" in low or "oauth client was not found" in low:
+        return "client", ("Google 不認識這個 client ID：可能複製錯了、已經刪除，"
+                          "或是在另一個專案重建過（重建後 ID 和 secret 都會換新的）。")
+    if "redirect_uri_mismatch" in low:
+        return "redirect", ("client ID 有效，但這個返回網址沒有登記在用戶端裡。"
+                            f"請到 Google Cloud Console → 用戶端 → 已授權的重新導向 URI，加入：{redirect_uri}")
+    return "ok", "client ID 與返回網址都被 Google 接受（這次沒有登入任何人）。"
+
+
+
+def session_secret() -> bytes:
+    """THEOCLAW_SESSION_SECRET, or a generated key kept outside the project so updates keep logins."""
+    value = os.environ.get("THEOCLAW_SESSION_SECRET", "").strip()
+    if value:
+        return value.encode()
+    path = Path.home() / ".theoclaw" / "session_secret"
+    try:
+        value = path.read_text(encoding="ascii").strip()
+        if value:
+            return value.encode()
+    except OSError:
+        pass
+    value = secrets.token_urlsafe(48)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="ascii")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return value.encode()
+
+
+def _b64e(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _b64d(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def sign_session(payload: dict, secret: bytes) -> str:
+    body = _b64e(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    sig = _b64e(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
+    return body + "." + sig
+
+
+def unsign_session(value: str, secret: bytes) -> dict | None:
+    try:
+        body, sig = value.split(".", 1)
+        want = _b64e(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
+        if not hmac.compare_digest(sig, want):
+            return None
+        data = json.loads(_b64d(body))
+        return data if isinstance(data, dict) else None
+    except (ValueError, TypeError):
+        return None
+
+
+def google_sub_hash(sub: str, salt: bytes) -> str:
+    """The only form in which a Google account id is ever kept: HMAC-SHA256 with the site salt."""
+    return hmac.new(salt, (sub or "").encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _google_json(url: str, data: bytes | None = None, headers: dict | None = None) -> dict:
+    req = urllib.request.Request(url, data=data, headers=headers or {})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def exchange_google_code(code: str, verifier: str, redirect_uri: str, config: dict) -> str:
+    """Authorisation code -> access token. The id_token is not needed."""
+    body = urlencode({
+        "code": code, "client_id": config["client_id"], "client_secret": config["client_secret"],
+        "redirect_uri": redirect_uri, "grant_type": "authorization_code", "code_verifier": verifier,
+    }).encode()
+    data = _google_json(GOOGLE_TOKEN_URL, body, {"Content-Type": "application/x-www-form-urlencoded",
+                                                 "Accept": "application/json"})
+    token = data.get("access_token")
+    if not token:
+        raise ValueError("Google returned no access token")
+    return token
+
+
+def fetch_google_sub(access_token: str) -> str:
+    """The signed-in account's id — with scope "openid" the userinfo endpoint returns only this."""
+    data = _google_json(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}",
+                                                      "Accept": "application/json"})
+    sub = str(data.get("sub") or "")
+    if not sub:
+        raise ValueError("Google returned no sub")
+    return sub
 
 
 # ---------------------------------------------------------------- assignment
@@ -188,6 +364,12 @@ class Store:
         self.jobs: dict[str, dict] = {}
         self._enter_fails: dict[str, list[float]] = {}  # address -> times of wrong fellowship codes (memory only)
         self.owner: dict[str, str] = {}  # chat item id -> rater name
+        self.google = google_config()
+        self._secret: bytes | None = None
+        self.pending: dict[str, dict] = {}  # OAuth state -> {created, verifier, redirect_uri, bind}
+        self._local = threading.local()     # per-request: the signed-in account's name, if any
+        if not self.db.fellowships():  # the fellowship code the front page asks for (THEOCLAW_PASTOR_CODE overrides)
+            self.db.put_fellowship(os.environ.get("THEOCLAW_PASTOR_CODE", "").strip() or PASTOR_CODE, "團契", "pastor")
         for rec in self.db.answers():
             if rec.get("outcome") != "api_error":
                 it = Item(chat_dir, rec)
@@ -202,12 +384,35 @@ class Store:
             r = self.raters.get(code)
         return r
 
+    # ------------------------------------------------------------ identity: anonymous or signed in
+    def set_session(self, name: str | None) -> None:
+        """The handler sets this at each request: the account behind the session cookie, if any."""
+        self._local.session_name = name
+
+    @property
+    def _session_name(self) -> str | None:
+        return getattr(self._local, "session_name", None)
+
     def who(self, code: str, nick=None) -> dict | None:
-        """The rater behind a request. A personal link is the rater. On a group link a person
-        is their nickname plus the private key their browser made (sent as (nick, key) by the
-        web page): two people who pick the same nickname are still two people and never see
-        each other's questions. Recorded as 「群組·暱稱#xxxxxxxx」 (a hash of the key, not the key).
-        None: a group link without a valid nickname or key yet."""
+        """The rater behind a request. A signed-in account first (its name, wherever the browser
+        is). A personal link is the rater. On a group link a person is their nickname plus the
+        private key their browser made (sent as (nick, key)): two people who pick the same nickname
+        are still two people and never see each other's questions. Recorded as 「群組·暱稱#xxxxxxxx」
+        (a hash of the key, not the key). None: a group link without a valid nickname or key yet."""
+        name = self._session_name
+        if name:
+            u = self._user(name)
+            # The account is the same everywhere; the link chosen on the front page decides the
+            # mode, so a member who signs in can switch to pastor tools without losing any records.
+            link = self.rater(code)
+            if link is None:
+                role = u.get("role", "lay")
+            elif link.get("group"):
+                role = link.get("role", "lay")
+            else:
+                role = "pastor"  # a personal link is the pastor's
+            return {"name": name, "nick": u["nick"], "order": [], "group": u.get("group"),
+                    "role": role, "account": True}
         r = self.raters[code]
         if not r.get("group"):
             return r
@@ -222,6 +427,97 @@ class Store:
         tag = "#" + hashlib.sha256(key.encode()).hexdigest()[:8] if key else ""
         return {"name": f"{r['name']}{GROUP_SEP}{nick}{tag}", "nick": nick, "order": [], "group": r["name"],
                 "role": r.get("role", "lay")}
+
+    # ------------------------------------------------------------ Google accounts: bind & merge
+    @property
+    def secret(self) -> bytes:
+        if self._secret is None:
+            self._secret = session_secret()
+        return self._secret
+
+    def google_salt(self) -> bytes:
+        """THEOCLAW_GOOGLE_SALT, else the session secret (a random site key, never stored in the project)."""
+        return os.environ.get("THEOCLAW_GOOGLE_SALT", "").strip().encode() or self.secret
+
+    def begin_google_login(self, bind: str, redirect_uri: str, code: str = "") -> str:
+        """Starts the Google redirect; ``code`` is the link the person came on, to return them there."""
+        state, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(48)
+        challenge = _b64e(hashlib.sha256(verifier.encode()).digest())
+        now = time.time()
+        with self.lock:
+            self.pending = {s: p for s, p in self.pending.items() if now - p["created"] < LOGIN_TTL}
+            if len(self.pending) >= 500:  # a cap, so a flood cannot grow memory without bound
+                for s in sorted(self.pending, key=lambda s: self.pending[s]["created"])[:len(self.pending) - 499]:
+                    self.pending.pop(s, None)
+            self.pending[state] = {"created": now, "verifier": verifier, "redirect_uri": redirect_uri,
+                                   "bind": bind, "code": code}
+        return GOOGLE_AUTH_URL + "?" + urlencode({
+            "client_id": self.google["client_id"], "redirect_uri": redirect_uri, "response_type": "code",
+            "scope": "openid", "state": state, "code_challenge": challenge,
+            "code_challenge_method": "S256", "prompt": "select_account",
+        })
+
+    def take_pending(self, state: str | None) -> dict | None:
+        if not state:
+            return None
+        with self.lock:
+            pending = self.pending.pop(state, None)
+        if pending is None or time.time() - pending["created"] > LOGIN_TTL:
+            return None
+        return pending
+
+    def bind_google(self, sub_hash: str, bind_name: str) -> tuple[str | None, str | None, int]:
+        """Bind a Google identity to the person on this browser. A first login needs a nickname
+        (error "newname"); an existing account logs in under its own name. A later login on another
+        browser merges that browser's anonymous records (rename) into the account.
+        Returns (name, error, moved)."""
+        if not sub_hash:
+            return None, "failed", 0
+        with self.lock:
+            acct = self.db.google_account(sub_hash)
+            moved = 0
+            if acct is None:
+                if not bind_name:
+                    return None, "newname", 0
+                self.db.put_google_account(sub_hash, bind_name)
+                name = bind_name
+            else:
+                name = acct["name"]
+                if bind_name and name != bind_name:
+                    moved = self.db.rename_identity(bind_name, name)
+                    for i, owner in list(self.owner.items()):
+                        if owner == bind_name:
+                            self.owner[i] = name
+                            self.items[i].trace["asked_by"] = name
+        return name, None, moved
+
+    def google_pending_value(self, sub_hash: str, code: str) -> str:
+        """A verified Google login that still needs a first-time nickname. Only the keyed hash of
+        the Google id is kept, short-lived and HttpOnly; the second step binds it to the chosen name."""
+        return sign_session({"v": 1, "h": sub_hash, "t": code or "", "exp": int(time.time()) + LOGIN_TTL},
+                            self.secret)
+
+    def google_pending(self, value: str | None) -> dict | None:
+        if not value:
+            return None
+        data = unsign_session(value, self.secret)
+        if not data or int(data.get("exp") or 0) < time.time() or not data.get("h"):
+            return None
+        return data
+
+    def issue_session(self, sub_hash: str) -> str:
+        exp = int(time.time()) + SESSION_DAYS * 86400
+        return sign_session({"v": 1, "h": sub_hash, "exp": exp}, self.secret)
+
+    def session_account(self, value: str | None) -> dict | None:
+        """The account named in a valid session cookie (None when logged out or expired)."""
+        if not value:
+            return None
+        data = unsign_session(value, self.secret)
+        if not data or int(data.get("exp") or 0) < time.time():
+            return None
+        acct = self.db.google_account(str(data.get("h") or ""))
+        return acct
 
     @staticmethod
     def is_pastor(r: dict) -> bool:
@@ -240,7 +536,8 @@ class Store:
     def state(self, code: str, nick: str | None = None) -> dict:
         r = self.who(code, nick)
         if r is None:
-            return {"need_name": True, "group": self.raters[code]["name"], "denominations": DENOMINATIONS}
+            return {"need_name": True, "group": self.raters[code]["name"], "denominations": DENOMINATIONS,
+                    "pastor": self.is_pastor(self.raters[code]), "google": self.google is not None}
         done = self.done(r["name"])
         chat = None
         if self.chat:
@@ -265,6 +562,8 @@ class Store:
                 chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
         return {"rater": r.get("nick", r["name"]), "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
                 "problems": PROBLEMS, "chat": chat, "denominations": DENOMINATIONS,
+                "consented": self.db.consented(r["name"]),
+                "google": self.google is not None, "account": bool(r.get("account")), "pastor": self.is_pastor(r),
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
                            "allow_na": self.rubric.get("allow_na", True), "anchors": self.rubric.get("anchors", []),
                            "dimensions": [{k: d[k] for k in ("key", "name", "question")} for d in self.rubric["dimensions"]]}}
@@ -285,7 +584,11 @@ class Store:
                 "previous": None if prev is None else {k: prev.get(k) for k in ("scores", "verdict", "comment", "problems")}}
 
     def rate(self, code: str, body: dict, nick: str | None = None) -> str | None:
-        """Validate and save one rating; returns an error message or None."""
+        """Validate and save one rating; returns an error message or None. A quick rating (a thumb
+        or a 0-10 tap) and a skip are recorded with the method used and how long the answer had been
+        visible; a skip marks "no opinion", not a score. A comment with no score is a note on its
+        own (method "note"): an opinion or an awkward sentence, which a number cannot carry. A
+        comment typed next to a quick tap is kept with that tap, so the latest record keeps both."""
         r = self.who(code, nick)
         if r is None:
             return "請先輸入您的稱呼"
@@ -293,26 +596,49 @@ class Store:
         if item is None or not self._allowed(r, body.get("id")):
             return "找不到這一題"
         chat = body.get("id") in self.owner
-        lo, hi = self.rubric["scale"]["min"], self.rubric["scale"]["max"]
-        scores = {}
-        for d in self.rubric["dimensions"]:
-            v = (body.get("scores") or {}).get(d["key"], "missing")
-            if v == "missing":
-                return f"「{d['name']}」還沒有評分"
-            if v is None and not self.rubric.get("allow_na", True):
-                return f"「{d['name']}」需要打分"
-            if v is not None and not (isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi):
-                return f"「{d['name']}」的分數無效"
-            scores[d["key"]] = v
-        auto = self.rubric["verdict"].get("auto_min")
-        verdict = (scores[self.rubric["dimensions"][0]["key"]] >= auto) if auto is not None else body.get("verdict")
-        if verdict not in (True, False):
-            return "請選擇總評"
-        keys = {p["key"] for p in PROBLEMS}
-        problems = [p for p in body.get("problems") or [] if p in keys]
+        if chat:
+            consent = self._consent_error(r)
+            if consent:
+                return consent
+        skip = bool(body.get("skip"))
+        quick = body.get("quick") if body.get("quick") in ("up", "down", "score") else None
         comment = str(body.get("comment") or "")[:2000]
+        note = not skip and not quick and not (body.get("scores") or {}) and bool(comment.strip())
+        method = "skip" if skip else ("quick" if quick else ("note" if note else "detailed"))
+        scores: dict = {}
+        verdict: bool | None = None
+        if not skip and not note:
+            if quick == "up":
+                verdict = True
+            elif quick == "down":
+                verdict = False
+            else:
+                lo, hi = self.rubric["scale"]["min"], self.rubric["scale"]["max"]
+                for d in self.rubric["dimensions"]:
+                    v = (body.get("scores") or {}).get(d["key"], "missing")
+                    if v == "missing":
+                        return f"「{d['name']}」還沒有評分"
+                    if v is None and not self.rubric.get("allow_na", True):
+                        return f"「{d['name']}」需要打分"
+                    if v is not None and not (isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi):
+                        return f"「{d['name']}」的分數無效"
+                    scores[d["key"]] = v
+                auto = self.rubric["verdict"].get("auto_min")
+                verdict = (scores[self.rubric["dimensions"][0]["key"]] >= auto) if auto is not None else body.get("verdict")
+                if verdict not in (True, False):
+                    return "請選擇總評"
+        try:
+            elapsed = min(max(float(body.get("elapsed")), 0.0), 86400.0) if body.get("elapsed") is not None else None
+        except (TypeError, ValueError):
+            elapsed = None
+        keys = {p["key"] for p in PROBLEMS}
+        problems = [] if (skip or quick or note) else [p for p in body.get("problems") or [] if p in keys]
+        if skip:
+            comment = ""
         mode = "blind" if not chat else ("own" if self.owner.get(body.get("id")) == r["name"] else "group")
-        extra = {"problems": problems, "via": "human_server", "mode": mode}
+        extra = {"problems": problems, "via": "human_server", "mode": mode, "method": method, "elapsed_s": elapsed}
+        if quick in ("up", "down"):
+            extra["quick"] = quick
         if body.get("denomination") in DENOMINATIONS:
             extra["denomination"] = body["denomination"]
         rec = rating_record(item, r["name"], scores, verdict, comment, blind=not chat, rubric=self.rubric, extra=extra)
@@ -382,6 +708,9 @@ class Store:
         r = self.who(code, nick)
         if r is None:
             return {"error": "請先輸入您的稱呼"}
+        err = self._consent_error(r)
+        if err:
+            return {"error": err}
         question = (question or "").strip()
         if not 2 <= len(question) <= 1000:
             return {"error": "問題請在 2 到 1000 字之間"}
@@ -407,13 +736,15 @@ class Store:
         denom = denomination if denomination in DENOMINATIONS else None
         from theoclaw.agent.conversation import follow_up_prompt
         prompt = follow_up_prompt(history, question)
-        if lang == "en":  # the page is in English: answer in English, whatever language the question is in
+        if lang == "de":  # the page's own language: answer in it, whatever language the question is in
+            prompt += "\n\n(Bitte antworten Sie auf Deutsch.)"
+        elif lang == "en":
             prompt += "\n\n(Please answer in English.)"
 
         def run(_q):
             rec = (runner or self._run_agent)(prompt)
             rec.update(prompt=question, conv=conv, turn=len(history) + 1,  # shown and graded as the person asked it
-                       lang="en" if lang == "en" else "zh")
+                       lang=lang if lang in ("en", "de") else "zh")
             return rec
 
         threading.Thread(target=self._answer, args=(job, r["name"], question, run, denom), daemon=True).start()
@@ -511,12 +842,15 @@ class Store:
         r, err = self._ws_rater(code, nick)
         if err:
             return {"error": err}
+        err = self._consent_error(r)
+        if err:
+            return {"error": err}
         f = {k: str(body.get(k) or "").strip() for k in ("passage", "theme", "audience", "length", "notes")}
         if not 2 <= len(f["passage"]) <= 60:
             return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
         if any(len(v) > 300 for v in f.values()):
             return {"error": "每一欄請在 300 字以內"}
-        f["lang"] = "en" if body.get("lang") == "en" else "zh"
+        f["lang"] = body.get("lang") if body.get("lang") in ("en", "de") else "zh"
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的額度已用完，謝謝您的參與"}
@@ -648,9 +982,10 @@ class Store:
     ENTER_TRIES = 8   # wrong fellowship codes from one address in an hour before it is turned away
 
     def enter(self, role: str, passcode: str = "", client: str = "") -> dict:
-        """The front page: members go in on the lay group's link; pastors give the fellowship code
-        (PASTOR_CODE, or THEOCLAW_PASTOR_CODE in .env) and go in on the pastors' group link. Which groups:
-        THEOCLAW_LAY_GROUP / THEOCLAW_PASTOR_GROUP, else the first group link of each role."""
+        """The front page: members go in on the lay group's link; pastors give a fellowship code
+        (the fellowships table, seeded with THEOCLAW_PASTOR_CODE / 1893) and go in on the pastors'
+        group link. Which groups: THEOCLAW_LAY_GROUP / THEOCLAW_PASTOR_GROUP, else the first group
+        link of each role."""
         self.raters = self.db.links()
         groups = [(c, r) for c, r in self.raters.items() if r.get("group")]
 
@@ -661,14 +996,14 @@ class Store:
                     return c
             return None
 
-        if role == "lay":
+        f = self.db.fellowship((passcode or "").strip())
+        if role == "lay" or (f is not None and f["role"] == "member"):
             code = group_code("lay", "THEOCLAW_LAY_GROUP")
             return {"t": code} if code else {"error": "信徒入口尚未開放"}
         if role != "pastor":
             return {"error": "請選擇信徒或牧者"}
-        secret = os.environ.get("THEOCLAW_PASTOR_CODE", "").strip() or PASTOR_CODE
         code = group_code("pastor", "THEOCLAW_PASTOR_GROUP")
-        if not secret or not code:
+        if not code or not self.db.fellowships():
             return {"error": "牧者入口尚未開放"}
         now = time.time()
         with self.lock:
@@ -676,7 +1011,7 @@ class Store:
             tries[:] = [t for t in tries if now - t < 3600]
             if len(tries) >= self.ENTER_TRIES:
                 return {"error": "嘗試太多次，請一小時後再試"}
-            if not hmac.compare_digest((passcode or "").strip().encode(), secret.encode()):
+            if f is None or f["role"] != "pastor":
                 tries.append(now)
                 return {"error": "團契碼不正確"}
         return {"t": code}
@@ -708,6 +1043,11 @@ class Store:
         group, nick = name.split(GROUP_SEP, 1)
         role = next((r.get("role", "lay") for r in self.raters.values() if r.get("group") and r["name"] == group), "lay")
         return {"name": name, "group": group, "nick": nick.split("#")[0], "role": role}
+
+    def _consent_error(self, r: dict) -> str | None:
+        """None when the person has agreed to the training use of their questions (required to ask
+        or to rate chat answers; blind scoring of packaged answers is not gated)."""
+        return None if self.db.consented(r["name"]) else "請先同意使用對話作改進（在頁面上勾選「同意」後繼續）"
 
     def _lay_tools(self):
         """Lay members' tools: scripture and Wesley's notes, plus the Methodist knowledge base when it
@@ -805,6 +1145,74 @@ def make_handler(store: Store):
             code = (q.get("t") or [""])[0]
             return code if store.rater(code) else None
 
+        def _cookie(self, name):
+            raw = self.headers.get("Cookie")
+            if not raw:
+                return None
+            try:
+                jar = SimpleCookie()
+                jar.load(raw)
+                morsel = jar.get(name)
+                return morsel.value if morsel else None
+            except Exception:
+                return None
+
+        def _secure(self) -> bool:
+            return (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip() == "https"
+
+        def _session_cookie(self, value: str | None) -> str:
+            if value:
+                cookie = f"{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_DAYS * 86400}"
+            else:
+                cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            return cookie + ("; Secure" if self._secure() else "")
+
+        def _login_cookie(self, value: str | None) -> str:
+            if value:
+                cookie = (f"{LOGIN_COOKIE}={value}; Path=/auth/google; HttpOnly; SameSite=Lax; "
+                          f"Max-Age={LOGIN_TTL}")
+            else:
+                cookie = f"{LOGIN_COOKIE}=; Path=/auth/google; HttpOnly; SameSite=Lax; Max-Age=0"
+            return cookie + ("; Secure" if self._secure() else "")
+
+        def _pending_cookie(self, value: str | None) -> str:
+            if value:
+                cookie = (f"{GOOGLE_PENDING_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; "
+                          f"Max-Age={LOGIN_TTL}")
+            else:
+                cookie = f"{GOOGLE_PENDING_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            return cookie + ("; Secure" if self._secure() else "")
+
+        def _redirect(self, location: str, *cookies: str):
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", location)
+            for cookie in cookies:
+                self.send_header("Set-Cookie", cookie)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _redirect_uri(self) -> str:
+            proto = (self.headers.get("X-Forwarded-Proto") or "http").split(",")[0].strip() or "http"
+            host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").split(",")[0].strip()
+            return f"{proto}://{host}/auth/google/callback"
+
+        def _identity(self, q):
+            """Who a request belongs to: a signed-in account (session cookie) if any, set for who();
+            plus the link code and the browser's (nick, key)."""
+            acct = store.session_account(self._cookie(SESSION_COOKIE))
+            store.set_session(acct["name"] if acct else None)
+            code = (q.get("t") or [""])[0]
+            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
+            return code, nick
+
+        def _google_back(self, error: str, code: str = "", keep_pending: bool = False):
+            params = {"t": code, "auth_error": error} if code else {"auth_error": error}
+            cookies = [self._login_cookie(None)]
+            if not keep_pending:
+                cookies.append(self._pending_cookie(None))
+            self._redirect("/?" + urlencode(params), *cookies)
+
         def do_GET(self):
             u = urlparse(self.path)
             q = parse_qs(u.query)
@@ -834,10 +1242,71 @@ def make_handler(store: Store):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if u.path == "/api/session":  # who is signed in on this browser (no link code needed)
+                acct = store.session_account(self._cookie(SESSION_COOKIE))
+                nick = None
+                if acct:
+                    nick = store._user(acct["name"])["nick"] if GROUP_SEP in acct["name"] else acct["name"]
+                return self._json({"google": store.google is not None,
+                                   "account": acct["name"] if acct else None, "nick": nick})
+            if u.path == "/auth/logout":  # end this browser's Google session; the local identity is untouched
+                code = (q.get("t") or [""])[0]
+                back = "/?" + urlencode({"t": code}) if store.rater(code) else "/"
+                return self._redirect(back, self._session_cookie(None), self._login_cookie(None),
+                                      self._pending_cookie(None))
+            if u.path == "/auth/google/start":
+                if not store.google:
+                    return self._google_back("disabled")
+                code = (q.get("t") or [""])[0]
+                if not store.rater(code):
+                    return self._google_back("link")
+                nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
+                pending = store.google_pending(self._cookie(GOOGLE_PENDING_COOKIE))
+                if pending and (pending.get("t") or "") == code:  # Google is done; this step just needs a nickname
+                    r = store.who(code, nick)
+                    name, error, moved = store.bind_google(pending["h"], r["name"] if r else "")
+                    if error or not name:
+                        return self._google_back(error or "failed", code, keep_pending=error == "newname")
+                    sys.stderr.write(f"google login: {moved} records merged into an account\n")
+                    return self._redirect("/?" + urlencode({"t": code}),
+                                          self._session_cookie(store.issue_session(pending["h"])),
+                                          self._login_cookie(None), self._pending_cookie(None))
+                r = store.who(code, nick)  # no nickname yet is fine: a returning account keeps its own name
+                url = store.begin_google_login(r["name"] if r else "", self._redirect_uri(), code)
+                state = parse_qs(urlparse(url).query)["state"][0]
+                return self._redirect(url, self._login_cookie(state))
+            if u.path == "/auth/google/callback":
+                state = (q.get("state") or [""])[0]
+                pending = store.take_pending(state)
+                if pending is None or self._cookie(LOGIN_COOKIE) != state:
+                    return self._google_back("state")  # a login started in another browser, or too late
+                if q.get("error"):
+                    return self._google_back("denied", pending.get("code") or "")
+                if not (q.get("code") or [""])[0]:
+                    return self._google_back("failed", pending.get("code") or "")
+                try:
+                    token = exchange_google_code((q.get("code") or [""])[0], pending["verifier"],
+                                                 pending["redirect_uri"], store.google)
+                    sub = fetch_google_sub(token)
+                except Exception as e:
+                    sys.stderr.write(f"google login failed: {type(e).__name__}\n")
+                    return self._google_back("failed", pending.get("code") or "")
+                sub_hash = google_sub_hash(sub, store.google_salt())
+                name, error, moved = store.bind_google(sub_hash, pending["bind"])
+                if error == "newname":  # first time: ask for a name, then finish without another Google trip
+                    params = {"t": pending["code"], "auth_error": "newname"} if pending.get("code") else {"auth_error": "newname"}
+                    return self._redirect("/?" + urlencode(params), self._login_cookie(None),
+                                          self._pending_cookie(store.google_pending_value(sub_hash, pending.get("code") or "")))
+                if error or not name:
+                    return self._google_back(error or "failed", pending.get("code") or "")
+                sys.stderr.write(f"google login: {moved} records merged into an account\n")
+                back = "/?" + urlencode({"t": pending["code"]}) if pending.get("code") else "/"
+                return self._redirect(back, self._session_cookie(store.issue_session(sub_hash)),
+                                      self._login_cookie(None), self._pending_cookie(None))
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效，請向負責人索取您的專屬連結"}, HTTPStatus.FORBIDDEN)
-            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
+            code, nick = self._identity(q)
             if u.path == "/api/state":
                 return self._json(store.state(code, nick))
             if u.path == "/api/item":
@@ -873,9 +1342,8 @@ def make_handler(store: Store):
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
-            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
             if u.path not in ("/api/rate", "/api/ask", "/api/sermon", "/api/sermon/start", "/api/sermon/turn",
-                              "/api/sermon/assemble", "/api/sermon/board", "/api/recover"):
+                              "/api/sermon/assemble", "/api/sermon/board", "/api/recover", "/api/consent"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
@@ -884,6 +1352,13 @@ def make_handler(store: Store):
                 body = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError:
                 return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+            code, nick = self._identity(q)
+            if u.path == "/api/consent":  # agreeing to the training use of one's questions
+                r = store.who(code, nick)
+                if r is None:
+                    return self._json({"error": "請先輸入您的稱呼"}, HTTPStatus.BAD_REQUEST)
+                store.db.record_consent(r)
+                return self._json({"ok": True})
             if u.path == "/api/recover":
                 out = store.recover(code, str(body.get("token") or ""), nick)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
@@ -935,6 +1410,13 @@ def main(argv=None):
     p.add_argument("name", help="people 列出的完整名稱，例如 查經班·小明#1a2b3c4d")
     p.add_argument("--days", type=int, default=7, help="幾天內有效（預設 7 天）")
     p.add_argument("--base-url", default=None, help="預設用 .env 的 THEOCLAW_URL")
+    p = sub.add_parser("add-fellowship", help="加一個團契碼（首頁進入時輸入；未來其他團契各用各的碼）")
+    p.add_argument("code", help="團契碼，1 到 16 字")
+    p.add_argument("--name", default="", help="哪一個團契（只作記錄）")
+    p.add_argument("--role", choices=("member", "pastor"), default="pastor",
+                   help="member = 信徒入口；pastor = 牧者入口（預設）")
+    p = sub.add_parser("google-check", help="檢查 .env 的 Google 登入設定（只向 Google 查詢，不會登入）")
+    p.add_argument("--redirect-uri", default=None, help="預設用 .env 的 THEOCLAW_URL + /auth/google/callback")
     p = sub.add_parser("serve", help="啟動評分伺服器")
     p.add_argument("--host", default="127.0.0.1", help="預設只聽本機；經通道對外，不要直接開 0.0.0.0")
     p.add_argument("--port", type=int, default=8765)
@@ -980,6 +1462,33 @@ def main(argv=None):
     elif a.cmd == "group":
         code = add_group(a.name, role=a.role)  # the database server reads it in at its next start
         print(f"團體連結（{a.name}，{'牧者' if a.role == 'pastor' else '平信徒'}，大家共用；不要公開張貼）：{a.base_url.rstrip('/')}/?t={code}")
+    elif a.cmd == "add-fellowship":
+        db = _cli_storage()
+        db.put_fellowship(a.code, a.name, a.role)
+        print(f"團契碼「{a.code}」（{'牧者' if a.role == 'pastor' else '信徒'}入口"
+              f"{('，' + a.name) if a.name else ''}）已加入。")
+    elif a.cmd == "google-check":
+        cfg = google_config()
+        if cfg is None:
+            raise SystemExit("未設定 Google 登入：.env 要有 GOOGLE_CLIENT_ID 和 GOOGLE_CLIENT_SECRET 兩行。")
+        print(f"client ID：{cfg['client_id']}（{len(cfg['client_id'])} 字）")
+        problem = google_id_problem(cfg["client_id"])
+        if problem:
+            print(f"格式檢查：{problem}")
+        redirect = (a.redirect_uri or "").strip()
+        if not redirect:
+            base = os.environ.get("THEOCLAW_URL", "").strip().rstrip("/")
+            if not base:
+                raise SystemExit("請加 --redirect-uri https://你的網域/auth/google/callback，"
+                                 "或先在 .env 設定 THEOCLAW_URL=https://你的網域")
+            redirect = base + "/auth/google/callback"
+        print(f"返回網址：{redirect}")
+        state, message = google_client_check(cfg["client_id"], redirect)
+        print(f"結果：{message}")
+        if state != "ok":
+            if state != "network":
+                print("修正 .env 後請執行：sudo systemctl restart theoclaw-scoring")
+            raise SystemExit(1)
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
@@ -994,7 +1503,13 @@ def main(argv=None):
         print(f"資料存放：{store.db.url}")
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
-        print(f"{len(store.items)} 個回答、{len(store.raters)} 位評分人{note}。"
+        gnote = "；未設 Google 登入（.env 缺 GOOGLE_CLIENT_ID/SECRET）"
+        if store.google:
+            gnote = f"；Google 登入可用（client ID: {store.google['client_id']}）"
+            problem = google_id_problem(store.google["client_id"])
+            if problem:
+                gnote += f"；警告：{problem}"
+        print(f"{len(store.items)} 個回答、{len(store.raters)} 位評分人{note}{gnote}。"
               f"http://{a.host}:{a.port}/?t=<代碼>  （Ctrl+C 停止）")
         ThreadingHTTPServer((a.host, a.port), make_handler(store)).serve_forever()
 
