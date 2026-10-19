@@ -46,6 +46,19 @@ def test_judge_score_saves_a_rater(tmp_path):
     assert judge.score([d], "deepseek-flash", client=StubClient(reply))["scored"] == 0  # already scored
 
 
+def test_judge_score_with_the_live_10_rubric(tmp_path):
+    import pathlib
+    rubric = pathlib.Path(__file__).resolve().parents[1] / "config" / "human_rubric_10.yaml"
+    d = _run_dir(tmp_path)
+    reply = '{"scores": {"overall": 8}, "verdict": "n", "comment": "x"}'
+    out = judge.score([d], "deepseek-flash", client=StubClient(reply), rubric_path=rubric, tag="r1")
+    assert out["rater"] == "judge-deepseek-flash-r1"
+    rec = json.loads((d / "human" / "judge-deepseek-flash-r1.jsonl").read_text(encoding="utf-8"))
+    assert rec["scores"] == {"overall": 8} and rec["verdict"] is True  # the site's rule: 7 or more = usable
+    assert judge.score([d], "deepseek-flash", client=StubClient(reply), rubric_path=rubric, tag="r2")["scored"] == 1
+    assert judge.score([d], "deepseek-flash", client=StubClient(reply), rubric_path=rubric, tag="r1")["scored"] == 0
+
+
 def test_judge_pair_records_both_orders(tmp_path):
     a, b = _run_dir(tmp_path / "a"), _run_dir(tmp_path / "b")
     out = judge.pair(a, b, "deepseek-flash", out_dir=tmp_path, client=StubClient('{"better": "A", "reason": "x"}'))

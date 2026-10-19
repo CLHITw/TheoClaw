@@ -85,6 +85,9 @@ def main(argv=None) -> None:
     p.add_argument("--model", help="default: the judge role in config/llm.yaml")
     p.add_argument("--limit", type=int)
     p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--rubric", help="scoring standard YAML, e.g. config/human_rubric_10.yaml (default: the five-dimension rubric)")
+    p.add_argument("--tool-width", type=int, default=3000, help="characters of each tool output shown; a big value shows them in full")
+    p.add_argument("--tag", help="suffix for the rater name, to run the same judge twice and measure its consistency")
     p = jg.add_parser("pair", help="the two runs' answers side by side, judged in both orders")
     p.add_argument("run_a")
     p.add_argument("run_b")
@@ -203,7 +206,8 @@ def main(argv=None) -> None:
     elif args.cmd == "judge":
         from . import judge
         if args.jcmd == "score":
-            print(judge.score(args.run_dirs, args.model, limit=args.limit, workers=args.workers))
+            print(judge.score(args.run_dirs, args.model, limit=args.limit, workers=args.workers,
+                              rubric_path=args.rubric, tool_width=args.tool_width, tag=args.tag))
         elif args.jcmd == "pair":
             print(judge.pair(args.run_a, args.run_b, args.model, limit=args.limit, workers=args.workers))
         else:

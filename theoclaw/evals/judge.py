@@ -98,10 +98,13 @@ def judge_name(model: str | None) -> str:
 
 
 def score(run_dirs, model: str | None = None, *, limit: int | None = None, workers: int = 4,
-          client=None, seed: int = 0) -> dict:
-    """Score answers not yet scored by this judge; saves as rater judge-<model>."""
-    rubric = load_rubric()
-    rater = judge_name(model)
+          client=None, seed: int = 0, rubric_path=None, tool_width: int = 3000, tag: str | None = None) -> dict:
+    """Score answers not yet scored by this judge; saves as rater judge-<model> (plus the tag,
+    so the same judge can be run twice to measure its own consistency). rubric_path selects the
+    scoring standard, e.g. the live site's 0-10 rubric; with auto_min the verdict is derived
+    from the score, exactly as the site derives it."""
+    rubric = load_rubric(rubric_path) if rubric_path else load_rubric()
+    rater = judge_name(model) + (f"-{tag}" if tag else "")
     items = load_items(run_dirs)
     done = {(Path(d).resolve(), r["task_id"], r["run_index"]) for d in run_dirs
             for r in load_ratings(Path(d)) if r["rater"] == rater}
@@ -110,13 +113,14 @@ def score(run_dirs, model: str | None = None, *, limit: int | None = None, worke
     items = items[:limit] if limit else items
     keys = [d["key"] for d in rubric["dimensions"]]
     lo, hi = rubric["scale"]["min"], rubric["scale"]["max"]
+    auto = rubric["verdict"].get("auto_min")
     lock, total = threading.Lock(), {"scored": 0, "unparsed": 0, "cost": 0.0}
 
     total["api_errors"] = 0
 
     def one(item: Item):
         try:
-            parsed, usd, raw = _call(score_prompt(item, rubric), model, client)
+            parsed, usd, raw = _call(score_prompt(item, rubric, tool_width), model, client)
         except Exception as e:  # one failed call (quota, timeout) must not stop the batch; rerun to fill gaps
             with lock:
                 total["api_errors"] += 1
@@ -133,6 +137,8 @@ def score(run_dirs, model: str | None = None, *, limit: int | None = None, worke
                 scores[k] = int(v) if isinstance(v, (int, float)) and lo <= v <= hi else None
             v = str(parsed.get("verdict", "")).strip().lower()
             verdict = True if v.startswith("y") else False if v.startswith("n") else None
+            if auto is not None and scores.get(keys[0]) is not None:
+                verdict = scores[keys[0]] >= auto  # the site derives the verdict from the score
             save_rating(item, rater, scores, verdict, str(parsed.get("comment", ""))[:300], blind=True, rubric=rubric)
             total["scored"] += 1
 

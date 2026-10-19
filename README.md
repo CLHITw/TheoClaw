@@ -48,7 +48,8 @@ to find out, with how much evidence, and at what cost.
   retrieved) and *citation precision* (ALCE style), with a blind sheet for a person to check
   the checker.
 - *Human scoring:* blind scoring of eval runs, and live answers scored by the people who asked.
-- *LLM judge:* measured against human scores for position, length and self-preference bias.
+- *LLM judge:* measured against human scores for position, length and self-preference bias,
+  and against the live users' own scores of the answers they received (findings below).
 - *Decisions:* a two-stage bootstrap non-inferiority test with margins fixed in advance, and a
   simulation of how much data a decision needs.
 - *Production monitoring:* live answers are traced like eval runs; the same checks run on
@@ -64,8 +65,10 @@ conversation; only public-domain or openly licensed sources.
 model was not worse on 270 blind-scored answers but the pre-registered rule still said
 "wait"; rule graders and human verdicts barely agree (kappa ≈ 0); the LLM judge favours
 longer answers; wiki plus search beat plain retrieval; giving lay members the Methodist
-sources made their answers far more checkable. Live data so far is too small to judge the
-monitoring.
+sources made their answers far more checkable. Thirteen real answers now pair their askers'
+scores with two blind LLM judges: the judges match the users' usable call 75% of the time
+and every miss is the judge stricter — an alarm, not a replacement. Live data is still too
+small to judge the monitoring flags.
 
 ## What this project tries to answer
 
@@ -76,9 +79,9 @@ in this repository and what is still missing.
 | question | what exists | evidence | status |
 |---|---|---|---|
 | **How much evidence is enough to act?** (deploy, roll back, switch model) | `evals decide`: two-stage bootstrap (tasks, then runs within a task) non-inferiority test with margins fixed before looking; sequential view ("from how many runs would the decision have held?"); simulated sample-size planning | [`runs/calibration/decision_qwen-max_to_deepseek-flash.md`](runs/calibration/decision_qwen-max_to_deepseek-flash.md) | done, used once on a real decision |
-| **Can an LLM judge stand in for a person?** | `evals judge score / pair / analyze`: blind rubric scoring, pairwise judgments in both orders, agreement with a reference rater, self-preference, position and length bias | [`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md) | done against one reference rater; domain experts are rating now |
+| **Can an LLM judge stand in for a person?** | `evals judge score / pair / analyze`: blind rubric scoring, pairwise judgments in both orders, agreement with a reference rater, self-preference, position and length bias; `--rubric` scores on the live site's 0–10 scale and `--tag` runs one judge twice to measure its self-consistency | [`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md), [`runs/calibration/judge_vs_human.md`](runs/calibration/judge_vs_human.md) | done against one reference rater and (2026-10-20) against 6 real users on 13 live answers: usable-call agreement 75%, every miss the judge stricter — use as an alarm, not as a rater |
 | **How do domain experts turn traces into evals?** | a web app where members and pastors ask their own questions and score the answers (0–10, 11 problem types, comments); blind scoring of eval runs; `evals monitor --export-tasks` writes low-scored or flagged answers as draft regression tasks with the raters' comments | [`human_scoring/`](human_scoring/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; the drafts still need a person to write the expected behaviour |
-| **Can production behaviour be monitored as precisely as regression evals?** | every live answer is traced like an eval run; `evals monitor` runs the rule graders and the groundedness evaluator on it and reports their precision and recall against the people's scores, and rater agreement | [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built and run on the first real data (12 answers, 7 scored): too few to judge the flags yet |
+| **Can production behaviour be monitored as precisely as regression evals?** | every live answer is traced like an eval run; `evals monitor` runs the rule graders and the groundedness evaluator on it and reports their precision and recall against the people's scores, and rater agreement | [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built and run on the first real data (13 answers, 13 rated): too few to judge the flags yet; the judge-vs-user analysis adds a second alarm signal to test (findings below) |
 | **How far is the eval suite from real use?** (coverage) | 27 regression tasks in 9 categories plus 10 everyday lay questions; `evals monitor` puts each real question in a category (a model call per batch) and compares the counts with the suite | [`tasks/`](tasks/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; by category only, not by behaviour |
 
 ### Findings so far
@@ -110,6 +113,15 @@ in this repository and what is still missing.
   - The longer answer wins 65%. qwen's answers win 67% when they are longer and 42% when they are shorter.
   - What first looked like self-preference is mostly length.
   - The kappa against the reference is uninformative here, because the reference judged 98–100% of answers usable. Telling good from bad needs the domain experts' ratings, which include their flagged problems.
+- **Judges against the people who asked (2026-10-20, [`runs/calibration/judge_vs_human.md`](runs/calibration/judge_vs_human.md)).** The answers real users received were scored again by two blind LLM judges, each judging twice. This is the first round where the ground truth is the live users themselves, so it is also a first measurement of what production ratings can and cannot certify.
+  - Setup: 13 live answers, each carrying its asker's 0–10 score (12 scored, 1 skipped); judges deepseek-flash (API, 2 passes) and Claude (in-session subagents, 2 passes). Each judgment shows the question, the complete untruncated tool outputs and the answer, on the same rubric the users saw; the judges never see the users' scores, the rater identities or the model. Metrics were fixed before looking; confidence intervals bootstrap over raters; a sensitivity rule (drop sub-15-second quick ratings) was pre-registered.
+  - Nondeterminism handled head-on: every judge runs twice, and its agreement with itself (MAE 0.42, usable call 92% same, both judges) is reported as the ceiling its agreement with people is read against.
+  - Numbers (n = 12): Spearman 0.15 for both judges with intervals including zero; MAE 1.38 and 1.46 on the 0–10 scale; the usable call (user ≥ 6 vs judge ≥ 7) agrees 75% for both; all misses are the judge stricter, none the reverse — the judges never pass an answer the user rejected (untestable so far: no user scored below 6).
+  - Metric design lesson: Cohen's kappa is 0.00 for both judges purely because every user score is ≥ 6 (skewed margins make the chance-agreement correction collapse), while Gwet's AC1 on the same table is 0.68. Reporting one number without the margin structure would have told the opposite story to the truth.
+  - What the evidence licenses: 12 judgments cannot certify score-level agreement, and the pre-registered analysis says so; but they are enough for an operational decision — the judge is an *alarm* (nightly scan; answers scoring < 7 or citing unverifiable sources go to a person), not a *rater*. As a regression signal its self-consistency (± 0.42) would catch a 1-point drift after a prompt or model change. Cost: $0.0617 for all 26 judge passes ($0.0024 per judgment; off-peak DeepSeek pricing halved the second pass); the Claude judge, run as in-session subagents, added $0.
+  - The users and the judges measure different things: the asker scores "did this help my situation" (satisfaction), the judge scores "is every quotation verifiable against what was retrieved" (compliance). The largest gaps are judges docking answers whose marked citations never appear in the tool outputs while the asker is satisfied. Both directions of the biggest gaps follow from this, so they are standard differences, not noise.
+  - Ground-truth curation is now the bottleneck, and the report says what to collect: the same answer rated by 2–3 people (every answer so far has one rater, its asker), deliberately gathered bad answers, conversation context stored in traces (multi-turn follow-ups are judged on their turn alone), and the problem tags only now accumulating.
+  - Process lesson, recorded because it is the kind of thing that silently corrupts evals: one judge pass was thrown away whole when a harness bug mis-paired case files with their ids — caught by auditing every judge comment against its case's topic, fixed by embedding the id in the case file itself, and the discarded run is kept (out of git) as evidence.
 - **Compiled wiki vs plain RAG: the way a long document is ingested mattered more than compiling** ([`runs/calibration/kb_vs_rag.md`](runs/calibration/kb_vs_rag.md)).
   - Setup: Wesley's *Plain Account*, 12 questions × 2 runs per arm, scored with a groundedness evaluator (`evals ground`: a simplified, single-call implementation modelled on RAGAS faithfulness and FActScore's atomic-fact decomposition (not the ragas library; statements are checked against what the agent retrieved, not the whole source; no TruLens context relevance and no ALCE citation check yet)) and blind 0–10 scores.
   - First run: the compiled wiki lost to BM25 RAG (fact recall 81% vs 92%, twice the cost). The cause was my setup: the PDF was converted to text, so OpenKB treated it as a short document, and a 100k-character read cap hid the second half of the book.
@@ -377,7 +389,7 @@ grading are separate, so a changed grader re-grades old traces without API calls
 | `compare base new` | per-task pass-rate change between two runs |
 | `cost base arm …` | tokens and cost per answer against the baseline, with intervals (below) |
 | `experiment file.yaml [--dry-run]` | runs every arm of an experiment, then `cost` over them |
-| `judge score / pair / analyze` | LLM judge with the rubric, pairwise in both orders, and its agreement and biases against a person |
+| `judge score / pair / analyze` | LLM judge with the rubric, pairwise in both orders, and its agreement and biases against a person; `--rubric` takes another scale (the live site's 0–10), `--tool-width` caps tool-output truncation, `--tag` names repeat passes for self-consistency |
 | `ground score / report` | groundedness against the retrieved text, a simplified implementation modelled on RAGAS faithfulness and FActScore: faithfulness, fact recall, context recall, relevance |
 | `human …` | human scoring (below) |
 
