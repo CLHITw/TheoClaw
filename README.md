@@ -1,7 +1,7 @@
 # TheoClaw: a Bible-study agent and the harness that measures it
 
-TheoClaw is a small tool-using agent that helps a Mandarin-speaking fellowship of the
-Methodist Church, Hong Kong (香港循道衛理聯合教會) prepare Bible studies, and helps
+TheoClaw is a small tool-using agent that helps a Mandarin-speaking Methodist fellowship
+prepare Bible studies, and helps
 preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified),
 English or German, quotes scripture only from a lookup tool, and draws on the Methodist
 sources:
@@ -679,7 +679,7 @@ wiki pages, the processed lexicons) is committed: `knowledge/`, `data/original/`
 |---|---|---|---|
 | Wesley's *Sermons on Several Occasions* (the Standard Sermons), *Journal*, *A Plain Account of Christian Perfection*; the General Rules (1743); the Articles of Religion | the Methodist knowledge base (`knowledge/methodist…`, compiled with OpenKB) | public editions of 18th-century texts | public domain |
 | *A Collection of Hymns for the Use of the People Called Methodists* (1876 edition; its first 539 hymns are substantially the 1780 text) | hymn search (`theoclaw.kb.hymns`, one hymn per passage, no compiling) | CCEL e-text by John Harris (1994), released as a public-domain edition; CCEL permits non-profit use | public domain |
-| The church's own course booklets (six on the creed, one on spiritual gifts) | the Methodist knowledge base, for this church's members | the Methodist Church, Hong Kong | used within the church only; not published |
+| The church's own course booklets (six on the creed, one on spiritual gifts) | the Methodist knowledge base, for this church's members | the fellowship (copyright holder) | used within the church only; not published |
 | STEPBible lexicons (TBESG, TBESH) and tagged Bibles (TAGNT, TAHOT) | the original-language word study, Chinese and English | STEPBible.org, Tyndale House, Cambridge | CC BY 4.0 |
 | 和合本 with Strong's numbers | which original word each Chinese word translates | 信望愛 FHL | FDL; Strong's tags kept |
 | ISBE (1915), Easton (1897), Smith (1884) | pastors' Bible-dictionary lookups | CrossWire modules | public domain |
