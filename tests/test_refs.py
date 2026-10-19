@@ -46,3 +46,13 @@ def test_format():
     assert r.zh() == "哥林多前書 13:4-7"
     assert r.en() == "1 Corinthians 13:4-7"
     assert r.osis() == "1Cor.13.4-1Cor.13.7"
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("\u542f示\u5f55 7:9-10", Ref("Rev", 7, 9, 10)),     # Simplified, as a Simplified-script answer writes it
+    ("以弗所\u4e66 2:19-22", Ref("Eph", 2, 19, 22)),
+    ("啓示錄 7:9-10", Ref("Rev", 7, 9, 10)),     # opencc's s2t variant form of 啟示錄
+])
+def test_parse_simplified_and_variant_book_names(text, expected):
+    pytest.importorskip("opencc")
+    assert parse_ref(text) == expected

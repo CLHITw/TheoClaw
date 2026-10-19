@@ -123,6 +123,17 @@ def to_traditional(text: str) -> str:
     return conv.convert(text)
 
 
+# opencc's s2t gives some variant forms; the 繁體 和合本 (data/cuv.json) writes these
+VARIANTS = str.maketrans({"爲": "為", "裏": "裡", "啓": "啟", "衆": "眾", "麪": "麵", "牀": "床", "綫": "線"})
+
+
+def to_hant(text: str) -> str:
+    """繁體 with the 和合本's forms, so a Simplified or variant-form query still matches."""
+    if available():
+        text = to_traditional(text)
+    return text.translate(VARIANTS)
+
+
 def width(text: str) -> int:
     """Display width in a terminal: CJK characters take two columns."""
     import unicodedata

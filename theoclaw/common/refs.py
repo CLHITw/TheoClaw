@@ -183,7 +183,7 @@ def _mk(book: str, ch: int, v1: int, v2: int | None) -> Ref:
     return Ref(book, ch, v1, v2)
 
 
-def parse_ref(text: str) -> Ref:
+def parse_ref(text: str, _retry: bool = False) -> Ref:
     """Parse one reference. Raises RefError when it cannot be understood."""
     s = text.strip()
     if not s:
@@ -206,6 +206,14 @@ def parse_ref(text: str) -> Ref:
         if key in _EN_LOOKUP:
             return _mk(_EN_LOOKUP[key], int(m.group("ch")), int(m.group("v1")),
                        int(m.group("v2")) if m.group("v2") else None)
+    if not _retry:  # Simplified book names and s2t variant forms (啓示錄): retry in the 和合本's forms
+        from .zh import to_hant
+        t = to_hant(s)
+        if t != s:
+            try:
+                return parse_ref(t, _retry=True)
+            except RefError:
+                pass
     raise RefError(f"無法辨識的經文出處：{text}")
 
 

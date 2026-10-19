@@ -21,10 +21,9 @@ import re
 
 from .paths import DATA_DIR
 from .refs import RefError, parse_ref
+from .zh import to_hant
 
 DIR = DATA_DIR / "original"
-# opencc's s2t gives some variant forms; the 繁體 和合本 (data/cuv.json) writes these
-VARIANTS = str.maketrans({"爲": "為", "裏": "裡", "啓": "啟", "衆": "眾", "麪": "麵", "牀": "床", "綫": "線"})
 SHARE = 0.1      # a Chinese word's candidate original words: those behind at least 10% of its uses
 PER_WORD = 4     # ... at most this many
 NEAR_KEYS = 12   # an approximate match looks at this many 和合本 words containing the query
@@ -34,14 +33,6 @@ MAX_ROWS = 30
 CREDIT = "原文資料：STEPBible.org（Tyndale House，CC BY 4.0）；和合本 Strong's 編號：信望愛 FHL"
 CREDIT_EN = ("Original-language data: STEPBible.org (Tyndale House, Cambridge), CC BY 4.0: the tagged Greek NT "
              "(TAGNT), Hebrew OT (TAHOT) and lexicons; English renderings are STEP's word-by-word translation.")
-
-
-def to_hant(text: str) -> str:
-    """繁體 with the 和合本's forms, so a Simplified or variant-form query still matches."""
-    from . import zh
-    if zh.available():
-        text = zh.to_traditional(text)
-    return text.translate(VARIANTS)
 
 
 def available() -> bool:
