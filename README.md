@@ -2,8 +2,9 @@
 
 TheoClaw is a small tool-using agent that helps a Mandarin-speaking fellowship of the
 Methodist Church, Hong Kong (香港循道衛理聯合教會) prepare Bible studies, and helps
-preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified) or
-English, quotes scripture only from a lookup tool, and draws on the Methodist sources:
+preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified),
+English or German, quotes scripture only from a lookup tool, and draws on the Methodist
+sources:
 John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
 base, his sermons, journal, hymns, the General Rules and the fellowship's course material.
 It is deployed: church members and pastors use it through a web page, and score what it says.
@@ -511,10 +512,15 @@ The first lay testers, an English-speaking Bible-study group, gave three pieces 
 What changed:
 
 - **Language.** The agent answers in the language of the question, and the page has a
-  Traditional / Simplified / English switch for its own text and for the answers (the English page asks for
+  Traditional / Simplified / English / German switch for its own text and for the answers (the English page asks for
   English answers whatever language the question is in; each answer records which). English
   answers quote the World English Bible (the KJV on request) in plain English, with no
-  Chinese at all; many in that group use Bible study to practise English.
+  Chinese at all; many in that group use Bible study to practise English. German answers —
+  for members of the fellowship who live in Germany — likewise contain no Chinese: whole
+  verses are filled from the World English Bible's English text behind the usual marker,
+  short quotes keep the English wording inside German quotation marks with a German
+  reference („while we were yet sinners" (Römer 5:8, WEB)), and Wesley is quoted in his
+  own English with the source.
 - **Tradition, recorded.** Every question and rating records the asker's church tradition;
   for now it is Methodist by default (the choice is hidden until other traditions'
   sources are in). Answers take a Methodist perspective.
@@ -534,9 +540,10 @@ one-shot generator.
    - Research runs once, about a minute and about $0.03, and is kept with the sermon.
    - The program builds the original-language word table: the passage's words and the
      theme's words, mapped to Strong's numbers through the tagged 和合本, with STEPBible
-     lexicon entries. No tokens. A pastor working in English gets the table from STEPBible's
-     tagged Greek NT and Hebrew OT instead: each word's translation in this passage and its
-     usual English renderings across the Bible, and the research briefs in English.
+     lexicon entries. No tokens. A pastor working in English or German gets the table
+     from STEPBible's tagged Greek NT and Hebrew OT instead: each word's translation in
+     this passage and its usual English renderings across the Bible — and the research
+     briefs come back in English or German accordingly.
    - Two research agents run in parallel:
      - scripture: the passage, cross references, Bible dictionaries;
      - Wesley and Methodist sources: his notes, plus the compiled Methodist wiki (sermons,
