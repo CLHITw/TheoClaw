@@ -1,11 +1,10 @@
-# TheoClaw: a Bible-study agent and the harness that measures it
+# TheoClaw: a faith Q&A agent and the harness that measures it
 
-TheoClaw is a small tool-using agent that helps a Mandarin-speaking Methodist fellowship
-prepare Bible studies, and helps
-preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified),
-English or German, quotes scripture only from a lookup tool, and draws on the Methodist
-sources:
-John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
+TheoClaw is an AI agent that answers people's questions and doubts about faith from the
+Bible and the Methodist tradition, citing only sources it has looked up. It was built for a
+Mandarin-speaking Methodist fellowship, and it also helps preachers prepare Sunday sermons.
+It answers in Chinese (Traditional or Simplified), English or German, quotes scripture only
+from a lookup tool, and draws on the Methodist sources: John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
 base, his sermons, journal, hymns, the General Rules and the fellowship's course material.
 It is deployed: church members and pastors use it through a web page, and score what it says.
 
@@ -18,7 +17,7 @@ time" (pass^k), with tokens and cost per answer.
 ## At a glance
 
 **The problem.** A domain-specific, nondeterministic agent for people who cannot check its
-sources themselves: a wrong verse or an invented Wesley quotation in a Bible study is worse
+sources themselves: a wrong verse or an invented Wesley quotation in an answer about faith is worse
 than no answer. Unit tests cannot say whether such a system works; the project is about how
 to find out, with how much evidence, and at what cost.
 
