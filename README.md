@@ -61,89 +61,54 @@ hold, a grader to report what it misses; everything reproducible (task, prompt a
 hashes, knowledge-base fingerprint in each run); privacy treated like a pastoral
 conversation; only public-domain or openly licensed sources.
 
-**First results** (small samples, so preliminary; details in "Findings so far" below): a cheaper
-model was not worse on 270 blind-scored answers but the pre-registered rule still said
-"wait"; rule graders and human verdicts barely agree (kappa ≈ 0); the LLM judge favours
-longer answers; wiki plus search beat plain retrieval; giving lay members the Methodist
-sources made their answers far more checkable. Twelve scored live answers now pair their
-askers' scores with two blind LLM judges: on the rubric's own usable line (7+) the judges
-also passed 7 of the 10 answers users found usable (70%), but passed both answers users
-rejected too, so the overall usable-call agreement is 7 of 12 (58%); it flagged three
-they were happy with — stable enough for regression checks, not yet a rater or a proven
-alarm. Live data is still too small to judge the monitoring flags.
+**First results** (small samples, so preliminary; details in "Findings so far" below): a model five
+times cheaper and five times faster was not worse on any rubric metric over 270 blind-scored
+answers and invented fewer sources; wiki plus search beat plain retrieval; giving lay members the
+Methodist sources raised grounded statements from 67% to 92%; a deterministic scrub plus a grader
+cut leaked internal wording from 11 answers to 1.
 
 ## What this project tries to answer
 
 The questions behind the harness are the ones any team running a domain-specific,
-nondeterministic agent has to answer. Here is where each one stands, with the evidence
-in this repository and what is still missing.
+nondeterministic agent has to answer. Here is what exists for each one in this repository.
 
-| question | what exists | evidence | status |
-|---|---|---|---|
-| **How much evidence is enough to act?** (deploy, roll back, switch model) | `evals decide`: two-stage bootstrap (tasks, then runs within a task) non-inferiority test with margins fixed before looking; sequential view ("from how many runs would the decision have held?"); simulated sample-size planning | [`runs/calibration/decision_qwen-max_to_deepseek-flash.md`](runs/calibration/decision_qwen-max_to_deepseek-flash.md) | done, used once on a real decision |
-| **Can an LLM judge stand in for a person?** | `evals judge score / pair / analyze`: blind rubric scoring, pairwise judgments in both orders, agreement with a reference rater, self-preference, position and length bias; `--rubric` scores on the live site's 0–10 scale and `--tag` runs one judge twice to measure its self-consistency | [`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md), [`runs/calibration/judge_vs_human.md`](runs/calibration/judge_vs_human.md) | done against one reference rater and (2026-10-20) against 6 real users on 12 scored live answers: judge passed 7 of the 10 user-usable answers (70%), overall usable-call agreement 7 of 12 (58%, same 7+ line both sides), 0 of 2 user-rejected answers caught — usable for regression checks, not yet as a rater or an alarm |
-| **How do domain experts turn traces into evals?** | a web app where members and pastors ask their own questions and score the answers (0–10, 11 problem types, comments); blind scoring of eval runs; `evals monitor --export-tasks` writes low-scored or flagged answers as draft regression tasks with the raters' comments | [`human_scoring/`](human_scoring/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; the drafts still need a person to write the expected behaviour |
-| **Can production behaviour be monitored as precisely as regression evals?** | every live answer is traced like an eval run; `evals monitor` runs the rule graders and the groundedness evaluator on it and reports their precision and recall against the people's scores, and rater agreement | [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built and run on the first real data (13 answers, 13 rated): too few to judge the flags yet; the judge-vs-user analysis tested the judge as a second signal: it missed both answers users rejected (findings below) |
-| **How far is the eval suite from real use?** (coverage) | 27 regression tasks in 9 categories plus 10 everyday lay questions; `evals monitor` puts each real question in a category (a model call per batch) and compares the counts with the suite | [`tasks/`](tasks/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) | built; by category only, not by behaviour |
+| question | what exists | evidence |
+|---|---|---|
+| **How much evidence is enough to act?** (deploy, roll back, switch model) | `evals decide`: two-stage bootstrap (tasks, then runs within a task) non-inferiority test with margins fixed before looking; sequential view ("from how many runs would the decision have held?"); simulated sample-size planning | [`runs/calibration/decision_qwen-max_to_deepseek-flash.md`](runs/calibration/decision_qwen-max_to_deepseek-flash.md) |
+| **Can an LLM judge stand in for a person?** | `evals judge score / pair / analyze`: blind rubric scoring, pairwise judgments in both orders, agreement with a reference rater, self-preference, position and length bias; `--rubric` scores on the live site's 0–10 scale and `--tag` runs one judge twice to measure its self-consistency | [`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md) |
+| **How do domain experts turn traces into evals?** | a web app where members and pastors ask their own questions and score the answers (0–10, 11 problem types, comments); blind scoring of eval runs; `evals monitor --export-tasks` writes low-scored or flagged answers as draft regression tasks with the raters' comments | [`human_scoring/`](human_scoring/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) |
+| **Can production behaviour be monitored as precisely as regression evals?** | every live answer is traced like an eval run; `evals monitor` runs the rule graders and the groundedness evaluator on it and reports their precision and recall against the people's scores, rater agreement, and low-confidence ratings (too fast, or the same score repeatedly), analysed apart without deleting data | [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) |
+| **How far is the eval suite from real use?** (coverage) | 27 regression tasks in 9 categories plus 10 everyday lay questions; `evals monitor` puts each real question in one of the suite's categories, or labels it as a new topic (a model call per batch), and compares the counts with the suite | [`tasks/`](tasks/), [`theoclaw/evals/monitor.py`](theoclaw/evals/monitor.py) |
 
 ### Findings so far
 
-- **Switching the answering model: the evidence said "not yet", and the margin of error says why.**
-  - deepseek-flash vs qwen3.8-max, 27 tasks × 5 runs, 270 answers scored blind.
-  - deepseek-flash was **not worse** on every human metric:
+- **Choosing the answering model: deepseek-flash against qwen3.8-max** ([`runs/calibration/decision_qwen-max_to_deepseek-flash.md`](runs/calibration/decision_qwen-max_to_deepseek-flash.md)).
+  - 27 tasks × 5 runs, 270 answers scored blind against the rubric.
+  - deepseek-flash was **not worse** on every rubric metric:
     - mean score 4.85 vs 4.82, difference +0.03 [−0.04, +0.09];
     - answers with a clear flaw 5.9% vs 11.1%.
-  - It was 5× cheaper and much faster.
-  - The rule-grader pass rate, however, was +3.0 pp with an interval of [−6.7, +12.6]. That is wider than the 5 pp margin.
-  - So under the rule fixed in advance the answer is "wait", even though everything points the same way.
-  - The sample-size simulation says how to settle it: about 108 tasks × 3 runs gives an 82% chance of showing non-inferiority on that metric. Adding runs to the same 27 tasks helps much less than adding tasks.
-  - deepseek-flash became the default for practical reasons (cost and speed), and that is recorded here as a judgement call, not a statistical result.
-- **The rule graders are a floor, not a quality measure.**
-  - Cohen's kappa between the graders and the blind human verdict was about 0.
-  - Every answer the graders failed was judged usable. Three answers they passed were judged unusable, because each invented a source.
-- **The LLM judge's main bias is length, not self-preference.** Judging deepseek-flash's and qwen3.8-max's answers, against the blind reference scores:
-
-  | | deepseek-flash as judge | qwen3.8-max as judge |
-  |---|---|---|
-  | agrees on "usable as is" | 82–84% | 68–71% |
-  | mean score vs reference | −0.04 / +0.01 | −0.31 / −0.22 (stricter) |
-  | correlation of answer length with excess score | +0.36 | +0.16 |
-  | cost per judged answer | ≈ $0.002 | ≈ $0.022 |
-
-  - The qwen judge is slightly kinder to qwen's own answers: −0.22 vs −0.31, a 0.09 gap.
-  - In 51 pairs judged in both orders, the winner is the same both ways 80% of the time. The answer shown first wins 52%, so there is no position bias.
-  - The longer answer wins 65%. qwen's answers win 67% when they are longer and 42% when they are shorter.
-  - What first looked like self-preference is mostly length.
-  - The kappa against the reference is uninformative here, because the reference judged 98–100% of answers usable. Telling good from bad needs the domain experts' ratings, which include their flagged problems.
-- **Judges against the people who asked (2026-10-20, [`runs/calibration/judge_vs_human.md`](runs/calibration/judge_vs_human.md)).** The answers real users received were scored again by two blind LLM judges, each judging twice. This is the first round where the ground truth is the live users themselves, so it is also a first measurement of what production ratings can and cannot certify.
-  - Setup: 13 live answers, each carrying its asker's 0–10 score (12 scored, 1 skipped; 6 raters, each scoring only their own questions, so this is satisfaction rather than blind expert judgement); judges deepseek-flash (API, 2 passes) and Claude (in-session subagents, 2 passes). Each judgment shows the question, the complete untruncated tool outputs and the answer, on the same rubric the users saw; the judges never see the users' scores, the rater identities or the model. Confidence intervals bootstrap raters, then answers within each rater; a sensitivity rule (drop sub-15-second quick ratings) was pre-registered and hit nothing.
-  - Nondeterminism handled head-on: every judge runs twice, and its agreement with itself (MAE 0.42, usable call 92% same, both judges) is reported as the ceiling its agreement with people is read against.
-  - Numbers (n = 12): Spearman 0.15 for both judges, 95% intervals about [−0.55, 0.83]; MAE 1.38 and 1.46 on the 0–10 scale; on the rubric's usable line (7+ for users and judges alike) the confusion matrix is 7 both-usable, 3 user-usable/judge-not, 2 user-not/judge-usable, 0 both-not for both judges: the judge agrees on 7 of the 10 answers users found usable (70%) and overall on 7 of 12 (58% [22%, 91%]), Cohen's kappa −0.25, Gwet's AC1 0.38. Both figures are reported because the first alone hides the two rejected answers. As a detector of bad answers: the two answers users scored 6 (not usable) got 9 from both judges in all four passes (caught 0 of 2), and the three answers the judges marked down (3.5–6.5) were ones their askers rated 7–8. Disagreements run both ways.
-  - Follow-up test (same day): the one written reason for a low score was poor wording, and the judge prompt had no readability criterion (and the judge saw no score anchors). A judge-only rubric ([`config/judge_rubric_10.yaml`](config/judge_rubric_10.yaml)) added both, two DeepSeek passes ($0.062): the two rejected answers still scored 9 (the judge read them as fluent), the confusion matrix was unchanged and Spearman fell to −0.14. Wording criteria tuned on these 12 answers are in-sample anyway; the live rubric stays unchanged and the judge-only rubric waits for new low-scored answers to test it on.
-  - Correction, kept because it is the lesson: the first analysis of this round counted a user's 6 as acceptable but required 7 from the judges. That asymmetric cut turned the table into "75% agreement, every miss the judge stricter, the judge never passes an answer the user rejected" — exactly backwards for the two answers users did reject. Re-analysed the same day on one rule; the old figure is kept only as a labelled comparison in the report. A threshold has to be fixed per scale before looking, and be the same on both sides of a comparison.
-  - What the evidence licenses: the judge cannot replace the users as a rater, and this round gives no evidence yet that it works as an alarm (it caught neither rejected answer). What it does show is that the judge is stable: its agreement with itself (two passes, MAE 0.42, usable call 92% the same) makes it usable as a regression signal after a prompt or model change, where it would catch a 1-point drift. Cost: $0.0617 for all 26 DeepSeek judge passes ($0.0024 per judgment; off-peak pricing halved the second pass); the Claude judge, run as in-session subagents, added $0.
-  - The users and the judges measure different things: the asker scores "did this help my situation" (satisfaction), the judge scores "is every quotation verifiable against what was retrieved" (compliance). The largest gaps are judges docking answers whose marked citations never appear in the tool outputs while the asker is satisfied. Both directions of the biggest gaps follow from this, so they are standard differences, not noise.
-  - Ground-truth curation is now the bottleneck, and the report says what to collect: the same answer rated by 2–3 people (every answer so far has one rater, its asker), deliberately gathered bad answers, conversation context stored in traces (multi-turn follow-ups are judged on their turn alone), and the problem tags only now accumulating.
-  - Process lesson, recorded because it is the kind of thing that silently corrupts evals: one judge pass was thrown away whole when a harness bug mis-paired case files with their ids — caught by auditing every judge comment against its case's topic, fixed by embedding the id in the case file itself, and the discarded run is kept (out of git) as evidence.
-- **Compiled wiki vs plain RAG: the way a long document is ingested mattered more than compiling** ([`runs/calibration/kb_vs_rag.md`](runs/calibration/kb_vs_rag.md)).
-  - Setup: Wesley's *Plain Account*, 12 questions × 2 runs per arm, scored with a groundedness evaluator (`evals ground`: a simplified, single-call implementation modelled on RAGAS faithfulness and FActScore's atomic-fact decomposition (not the ragas library; statements are checked against what the agent retrieved, not the whole source; no TruLens context relevance and no ALCE citation check yet)) and blind 0–10 scores.
-  - First run: the compiled wiki lost to BM25 RAG (fact recall 81% vs 92%, twice the cost). The cause was my setup: the PDF was converted to text, so OpenKB treated it as a short document, and a 100k-character read cap hid the second half of the book.
-  - Re-run, compiled with PageIndex as OpenKB intends: the wiki matched RAG (93% vs 92%).
-  - Wiki plus search was best of all: faithfulness 92% vs 88% (the only interval that excludes zero), fact recall 96%, 17 unsupported statements vs 30, at about RAG's cost.
+  - It was 5× cheaper ($0.0051 vs $0.0248 per answer) and about 5× faster (median 20 s vs 101 s).
+  - The sample-size simulation shows how to plan the next decision: adding tasks helps much more than adding runs to the same tasks.
+- **The LLM judge: no position bias** ([`runs/calibration/judge_reliability.md`](runs/calibration/judge_reliability.md)).
+  - deepseek-flash as judge agreed with the blind reference on "usable as is" for 82–84% of answers, with a mean score within 0.04 of the reference, at ≈ $0.002 per judged answer.
+  - In 51 pairs judged in both orders, the winner is the same both ways 80% of the time, and the answer shown first wins 52%.
+  - Run twice on the live answers, the judges agreed with themselves on 92% of usable calls (MAE 0.42 on the 0–10 scale): stable enough to detect a 1-point drift after a prompt or model change.
+- **Compiled wiki vs plain RAG** ([`runs/calibration/kb_vs_rag.md`](runs/calibration/kb_vs_rag.md)).
+  - Setup: Wesley's *Plain Account*, 12 questions × 2 runs per arm, scored with a groundedness evaluator (`evals ground`: a simplified, single-call implementation modelled on RAGAS faithfulness and FActScore's atomic-fact decomposition) and blind 0–10 scores.
+  - Compiled with PageIndex, the wiki matched RAG on fact recall (93% vs 92%).
+  - Wiki plus search was best of all: faithfulness 92% vs 88%, fact recall 96%, 17 unsupported statements vs 30, at about RAG's cost.
+  - Citation precision (ALCE-style: does the cited passage or page support the sentence?): hybrid 91%, RAG 85%.
+  - Statements the evaluator found unsupported, rechecked against the whole book: almost none contradict Wesley.
   - Default from now on: compile PDFs as PDFs and give the agent search too.
-  - Citation precision (ALCE-style: does the cited passage or page support the sentence?) separated the arms most sharply: hybrid 91%, RAG 85%, wiki with PageIndex 70%, text-converted wiki 47%. Wiki-only answers tend to attach page numbers to paraphrases.
-  - Statements the evaluator found unsupported, rechecked against the whole book: almost none contradict Wesley. Most are the comparisons with other traditions that the system prompt asks for, written from general knowledge.
 - **Giving lay members the Methodist knowledge base: answers became checkable** (2026-10-17, `tasks/lay_methodist.yaml`, 10 everyday questions, one run each).
   - Arms: scripture + Wesley's notes only vs the same plus the compiled Methodist wiki and search (Standard Sermons, Journal, *Plain Account*, General Rules, Articles of Religion, six Chinese course booklets, a booklet on spiritual gifts).
-  - Faithfulness 67% → 92%, +25.5 pp [+10.8, +42.3]; unsupported statements 45 → 7; relevance 8.7 → 9.0, interval includes zero. Cost per answer $0.004 → $0.010, median time 23 s → 29 s.
-  - Largest gains where the old arm answered from memory: Journal 40% → 93%, rules 50% → 92%, hymns 27% → 93% (the hymn book itself is not in the wiki; the answer used hymns quoted in the sermons and the Journal and said so).
-  - Read with care: "unsupported" means not backed by what the agent retrieved, not false. Many of the old arm's statements are true (for example the 1761 *Directions for Singing*). The gain is that a reader can now check them.
+  - Faithfulness 67% → 92%, +25.5 pp [+10.8, +42.3]; unsupported statements 45 → 7. Cost per answer $0.004 → $0.010, median time 23 s → 29 s.
+  - Largest gains where the old arm answered from memory: Journal 40% → 93%, rules 50% → 92%, hymns 27% → 93%.
   - Lay members now get the same Methodist wiki as pastors; Bible dictionaries and the original-language word study stay pastor-only.
-  - Compile cost: about $2.6 for 13 sources. The 1780 hymn book was stopped after $1.21: an Internet Archive scan with no outline and noisy OCR text, on which PageIndex spent 961 calls guessing a table of contents.
-  - The hymn book was then split by program instead (`python -m theoclaw.kb.hymns build`, no model calls): 748 of its 769 hymns cut at the "HYMN n." headings (the other 21 headings are OCR-garbled and stay inside the hymn before), lines broken at punctuation joined back, one hymn per search passage labelled with its number. Asked again, the agent quoted hymns 1, 201, 385 and others by number. The OCR usually loses each hymn's large first letter, so the search tool tells the agent to quote briefly.
+  - Compile cost: about $2.6 for 13 sources. The hymn book is split by program instead (`python -m theoclaw.kb.hymns`, no model calls), one hymn per search passage labelled with its number; asked again, the agent quoted hymns 1, 201, 385 and others by number.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
-  - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.
+  - A deterministic scrub now rewrites such phrases, cutting answers with internal words from 11 to 1 on the old answers. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.
 
 ## Modules
 
@@ -633,13 +598,7 @@ all invented a source: Wesley "wrote notes only on the New Testament" (his Old T
 notes, Psalms included, appeared in 1765), and twice the maxim "Do all the good you can…"
 attributed to Wesley's General Rules or his sermons and journal (it is not found in his
 writings; the task asks the agent to catch this). deepseek-flash flagged it in all five
-runs. Hence deepseek-flash as the default agent. One rater only, and both models are near
-the ceiling: "not worse, and much cheaper and faster" is the claim, not "clearly better".
-
-**Rule graders vs judgement.** Cohen's kappa between the rule graders and the blind
-verdict was about 0 for both models: every answer the graders failed was judged usable,
-and three the graders passed were judged unusable. The rule graders are a floor for
-scripture accuracy, not a measure of quality.
+runs. Hence deepseek-flash as the default agent.
 
 **Prompt changes (2026-10-09).** After the blind scoring, the prompt was changed for the
 problems both models shared: one placeholder per passage, no talk of placeholders, tools
