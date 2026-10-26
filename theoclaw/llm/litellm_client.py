@@ -19,6 +19,7 @@ returns a 400 when it is missing from a tool-calling conversation.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -28,6 +29,11 @@ from .usage import get_field, normalize_litellm_usage
 STOP_REASONS = {"tool_calls": "tool_use", "function_call": "tool_use", "stop": "end_turn",
                 "length": "max_tokens", "content_filter": "refusal"}
 ERROR_PREFIX = "工具錯誤："  # OpenAI tool messages have no is_error flag
+# Worth another try: busy (429), the provider's own failures (5xx), a dropped connection, a timeout.
+# A wrong key or a bad request fails the same way every time, so it is not retried.
+RETRYABLE = {"RateLimitError", "InternalServerError", "ServiceUnavailableError", "BadGatewayError",
+             "APIConnectionError", "APITimeoutError", "Timeout"}
+RETRY_DELAYS = (2, 5, 10)  # seconds before each retry
 
 
 class ProviderAPIError(Exception):
@@ -143,9 +149,10 @@ class LiteLLMClient:
     """An object with .messages.create(...) like anthropic.Anthropic, backed by LiteLLM."""
 
     def __init__(self, provider: Provider, api_key: str | None = None, params: dict | None = None,
-                 timeout: float = 600, max_retries: int = 4, completion=None):
+                 timeout: float = 600, max_retries: int = 4, completion=None, retry_delays=RETRY_DELAYS):
         self.provider, self.api_key, self.params = provider, api_key, dict(params or {})
         self.timeout, self.max_retries = timeout, max_retries
+        self.retry_delays = tuple(retry_delays)[:max_retries]
         self._completion = completion  # injectable for tests
         self.messages = self
 
@@ -158,10 +165,10 @@ class LiteLLMClient:
             import litellm  # pip install litellm (also installed with openkb)
             litellm.suppress_debug_info = True  # no "Give Feedback" banners on every error
             completion = litellm.completion
-        # max_retries: the HTTP client's own retries on 429, 5xx and dropped connections
-        # (LiteLLM's num_retries would need the tenacity package).
+        # Retries are done here: LiteLLM passes max_retries on to the HTTP client for some providers
+        # only (a DeepSeek 429 or 500 was tried once), and its num_retries needs the tenacity package.
         kwargs: dict = {"model": f"{self.provider.prefix}/{model}", "messages": to_openai_messages(system, messages),
-                        "max_tokens": max_tokens, "timeout": self.timeout, "max_retries": self.max_retries}
+                        "max_tokens": max_tokens, "timeout": self.timeout, "max_retries": 0}
         if tools:
             kwargs["tools"] = to_openai_tools(tools)
         if self.api_key:
@@ -169,10 +176,14 @@ class LiteLLMClient:
         if self.provider.endpoint:
             kwargs["api_base"] = self.provider.endpoint
         kwargs.update(self.params)
-        try:
-            resp = completion(**kwargs)
-        except Exception as e:
-            if type(e).__module__.startswith("litellm") or type(e).__module__.startswith("openai"):
-                raise ProviderAPIError(f"{type(e).__name__}: {e}") from e
-            raise
+        for attempt in range(len(self.retry_delays) + 1):
+            try:
+                resp = completion(**kwargs)
+                break
+            except Exception as e:
+                if not (type(e).__module__.startswith("litellm") or type(e).__module__.startswith("openai")):
+                    raise
+                if type(e).__name__ not in RETRYABLE or attempt == len(self.retry_delays):
+                    raise ProviderAPIError(f"{type(e).__name__}: {e}") from e
+                time.sleep(self.retry_delays[attempt])
         return from_openai_response(resp, model)

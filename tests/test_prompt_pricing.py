@@ -37,3 +37,12 @@ def test_ask_log_appends(tmp_path, monkeypatch):
     agent_cli.log_answer({"task_id": "ask-2", "run_index": 0})
     assert json.loads((tmp_path / "ask" / "config.json").read_text())["kind"] == "ask-log"
     assert len((tmp_path / "ask" / "traces.jsonl").read_text().splitlines()) == 2
+
+
+def test_prompt_keeps_to_faith_and_puts_safety_first_without_local_numbers():
+    import re
+    prompt = system_prompt(["scripture", "wesley"])
+    assert "只回答與信仰" in prompt and "寫程式" in prompt
+    assert "緊急服務" in prompt and "不要寫出任何電話號碼" in prompt and "不要叫人停藥" in prompt
+    from theoclaw.agent.prompt import SAFETY
+    assert SAFETY in prompt and not re.search(r"\d", SAFETY)  # users are everywhere: no hotline number

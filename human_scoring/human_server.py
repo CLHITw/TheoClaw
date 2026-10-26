@@ -72,6 +72,7 @@ PROJECT_ID = re.compile(r"^[0-9a-f]{12}$")                     # 講道預備要
 METHODIST_KB = "methodist.en.deepseek-flash"   # 循道衛理知識庫（knowledge/ 底下）：講道集、日記、聖詩、規章、課程；
                                                 # 平信徒與牧者共用。聖經辭典與原文工具只給牧者。
 CHAT_TIMEOUT = 300                       # 秒；超過就告訴提問者失敗（背景的回答若之後完成仍會存檔）
+CALL_TIMEOUT = 90                        # 秒；每一次呼叫模型的等候上限（卡住時重試，不會一直掛著）
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
@@ -372,7 +373,7 @@ class Store:
         if not self.db.fellowships():  # the fellowship code the front page asks for (THEOCLAW_PASTOR_CODE overrides)
             self.db.put_fellowship(os.environ.get("THEOCLAW_PASTOR_CODE", "").strip() or PASTOR_CODE, "團契", "pastor")
         for rec in self.db.answers():
-            if rec.get("outcome") != "api_error":
+            if rec.get("outcome") != "api_error" and rec.get("final_text"):
                 it = Item(chat_dir, rec)
                 self.items[it.item_id] = it
                 self.owner[it.item_id] = rec.get("asked_by", "")
@@ -1072,7 +1073,7 @@ class Store:
         from theoclaw.llm import make_client, role
         rl = role("agent", model=self.chat["model"])
         ts = self._lay_tools()
-        run = run_agent(make_client(provider=rl.provider, params=rl.params), question, model=rl.model,
+        run = run_agent(make_client(provider=rl.provider, params=rl.params, timeout=CALL_TIMEOUT), question, model=rl.model,
                         handlers=ts.handlers, tools=ts.defs, system=ts.system, effort=rl.effort,
                         max_tokens=rl.max_tokens)
         rec = {"toolset": ts.meta, "llm": rl.describe(), **run.to_dict()}
@@ -1089,21 +1090,23 @@ class Store:
             stamp = time.strftime("%Y%m%d-%H%M%S")
             rec = {"task_id": f"chat-{stamp}-{job}", "run_index": 0, "asked_by": name, "asked_at": stamp,
                    "denomination": denomination, "kind": rec.get("kind", "question"), **rec}
+            failed = rec.get("outcome") == "api_error" or not rec.get("final_text")
             with self.lock:
-                self.db.add_answer(rec)
+                self.db.add_answer(rec)  # a failed one too, to see why; it is not shown, rated or counted
                 self.db.touch_user(self._user(name), denomination, stamp, rec.get("lang"))
-                it = Item(self.chat_dir, rec)
-                self.items[it.item_id] = it
-                self.owner[it.item_id] = name
-                self._by_key[(run_key(it.run_dir, self.chat_dir), *it.key)] = it.item_id
-                if rec.get("outcome") == "api_error" or not rec.get("final_text"):
-                    self.jobs[job].update(status="error", error="模型服務暫時無法使用，請稍後再試"
-                                          + ("（伺服器沒有設定金鑰）" if "API key" in str(rec.get("error")) else ""))
+                if failed:
+                    self.jobs[job].update(status="error", error="模型服務暫時無法使用，請稍後再試（這一題不計入今天的題數）")
                 else:
+                    it = Item(self.chat_dir, rec)
+                    self.items[it.item_id] = it
+                    self.owner[it.item_id] = name
+                    self._by_key[(run_key(it.run_dir, self.chat_dir), *it.key)] = it.item_id
                     self.jobs[job].update(status="done", item=it.item_id)
-        except Exception as e:  # report, never crash the server
+        except (Exception, SystemExit) as e:  # report, never crash the server; SystemExit: make_client found no API key
+            no_key = isinstance(e, SystemExit) and "API key" in str(e)
             with self.lock:
-                self.jobs[job].update(status="error", error="回答時出錯，請稍後再試")
+                self.jobs[job].update(status="error", error="伺服器沒有設定金鑰，請通知負責人" if no_key
+                                      else "回答時出錯，請稍後再試")
             sys.stderr.write(f"chat error {job}: {type(e).__name__}: {e}\n")
 
 
@@ -1426,7 +1429,7 @@ def main(argv=None):
     p.add_argument("--chat-model", default=CHAT_MODEL, help=f"提問模式的模型（預設 {CHAT_MODEL}）")
     p.add_argument("--daily-limit", type=int, default=20, help="每人每天最多問幾題")
     p.add_argument("--budget", type=float, default=5.0, help="提問模式總花費上限（美元）")
-    p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題")
+    p.add_argument("--group-daily-limit", type=int, default=60, help="團體連結每天合計最多問幾題（0 = 不設上限）")
     p.add_argument("--sermon-daily-limit", type=int, default=15, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
     p.add_argument("--kb", "--sermon-kb", dest="kb", default=METHODIST_KB,
                    help="循道衛理知識庫（平信徒提問與講道預備共用）")
@@ -1503,6 +1506,11 @@ def main(argv=None):
                                  "請檢查 .env 的 THEOCLAW_DB（帳號、密碼、資料庫名稱）以及 MySQL 是否在執行。") from None
             raise
         print(f"資料存放：{store.db.url}")
+        if chat:
+            from theoclaw.llm import api_key, role
+            provider = role("agent", model=a.chat_model).provider
+            if provider.api_key_env and not api_key(provider):
+                print(f"警告：.env 沒有 {provider.api_key_env}，提問會失敗；請加上金鑰後 sudo systemctl restart theoclaw-scoring")
         note = (f"；提問模式開啟（{a.chat_model}，每人每天 {a.daily_limit} 題，總上限 ${a.budget}，"
                 f"已花 ${store._spent():.2f}）") if chat else ""
         gnote = "；未設 Google 登入（.env 缺 GOOGLE_CLIENT_ID/SECRET）"

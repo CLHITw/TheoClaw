@@ -1373,7 +1373,8 @@ function ask() {
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
-        t => { text.textContent = t >= 0 ? T('助手正在查經文並撰寫回答……已等 ' + t + ' 秒（通常 20 秒到一分鐘），請不要關閉頁面。') : T('連線不穩，正在重試…'); },
+        t => { text.textContent = t < 0 ? T('連線不穩，正在重試…') : t >= 120 ? T('比平常慢，助手還在處理……已等 ' + t + ' 秒，請不要關閉頁面。')
+                 : T('助手正在查經文並撰寫回答……已等 ' + t + ' 秒（通常 20 秒到一分鐘），請不要關閉頁面。'); },
         j => { text.textContent = ''; btn.disabled = false; document.getElementById('askInput').value = ''; voicePending = true; convOpen(j.conv, true); },
         msg => { text.textContent = msg; btn.disabled = false; refreshAsk(); });
     })
@@ -2587,7 +2588,9 @@ const EN = {
   '講稿板最多 30 段': 'The draft board holds at most 30 paragraphs', '講道預備只開放給牧者連結': 'Sermon preparation is for pastors’ links only',
   '連結無效，請向負責人索取您的專屬連結': 'This link is not valid; please ask for your personal link', '回答時出錯，請稍後再試': 'Something went wrong; please try again later',
   '回答超時，請稍後再試，或把問題問得具體一點': 'The answer took too long; please try again, or make the question more specific',
-  '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
+  '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later',
+  '模型服務暫時無法使用，請稍後再試（這一題不計入今天的題數）': "The language model is unavailable; please try again later (this question does not count toward today's limit)",
+  '伺服器沒有設定金鑰，請通知負責人': 'The server has no API key set up; please tell the person in charge', '研究時出錯，請稍後再試': 'Research failed; please try again later',
   '請選擇總評': 'Please choose a verdict',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Please agree to the training use of your questions first (tick “Agree” on the page to continue)',
   '歡迎使用 TheoClaw': 'Welcome to TheoClaw',
@@ -2625,6 +2628,7 @@ const EN_PATTERNS = [
   [/^今天還可以開 (\d+) 篇新講章。$/, 'You can start $1 more sermons today.'],
   [/^已找回以前的紀錄（(\d+) 筆）$/, 'Your earlier records are back ($1)'],
   [/^對話：/, 'Conversation: '],
+  [/^比平常慢，助手還在處理……已等 (\d+) 秒，請不要關閉頁面。$/, 'Slower than usual; the assistant is still working… $1 s so far. Please keep this page open.'],
   [/^助手正在查經文並撰寫回答……已等 (\d+) 秒（通常 20 秒到一分鐘），請不要關閉頁面。$/, 'The assistant is looking up scripture and writing… $1 s so far (usually 20 s to a minute). Please keep this page open.'],
   [/^正在研究經文、原文和衛斯理傳統……（已 (\d+) 秒，約需 1 分鐘）$/, 'Researching the passage, the original language and the Wesleyan tradition… ($1 s; about a minute)'],
   [/^正在研究經文、原文和衛斯理傳統……/, 'Researching the passage, the original language and the Wesleyan tradition…'],
@@ -2760,7 +2764,9 @@ const DE = {
   '講稿板最多 30 段': 'Das Entwurfsbrett fasst höchstens 30 Absätze', '講道預備只開放給牧者連結': 'Predigtvorbereitung nur für Pastor-Links',
   '連結無效，請向負責人索取您的專屬連結': 'Dieser Link ist ungültig; bitte fragen Sie nach Ihrem persönlichen Link', '回答時出錯，請稍後再試': 'Fehler beim Antworten; bitte später erneut versuchen',
   '回答超時，請稍後再試，或把問題問得具體一點': 'Antwort dauerte zu lange; bitte erneut versuchen oder die Frage konkreter stellen',
-  '模型服務暫時無法使用，請稍後再試': 'Der Sprachdienst ist vorübergehend nicht verfügbar; bitte später erneut', '研究時出錯，請稍後再試': 'Recherche fehlgeschlagen; bitte später erneut versuchen',
+  '模型服務暫時無法使用，請稍後再試': 'Der Sprachdienst ist vorübergehend nicht verfügbar; bitte später erneut',
+  '模型服務暫時無法使用，請稍後再試（這一題不計入今天的題數）': 'Der Sprachdienst ist vorübergehend nicht verfügbar; bitte später erneut (diese Frage zählt nicht zum heutigen Kontingent)',
+  '伺服器沒有設定金鑰，請通知負責人': 'Auf dem Server ist kein API-Schlüssel eingerichtet; bitte die verantwortliche Person benachrichtigen', '研究時出錯，請稍後再試': 'Recherche fehlgeschlagen; bitte später erneut versuchen',
   '請選擇總評': 'Bitte Gesamturteil wählen',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Bitte stimmen Sie zuerst der Nutzung Ihrer Fragen zur Verbesserung zu (haken Sie auf der Seite „Zustimmen“ an, um fortzufahren)',
   '歡迎使用 TheoClaw': 'Willkommen bei TheoClaw',
@@ -2798,6 +2804,7 @@ const DE_PATTERNS = [
   [/^今天還可以開 (\d+) 篇新講章。$/, 'Heute können Sie noch $1 Predigten beginnen.'],
   [/^已找回以前的紀錄（(\d+) 筆）$/, 'Ihre früheren Einträge sind zurück ($1)'],
   [/^對話：/, 'Gespräch: '],
+  [/^比平常慢，助手還在處理……已等 (\d+) 秒，請不要關閉頁面。$/, 'Langsamer als sonst; der Assistent arbeitet noch … $1 s vergangen. Bitte Seite offen lassen.'],
   [/^助手正在查經文並撰寫回答……已等 (\d+) 秒（通常 20 秒到一分鐘），請不要關閉頁面。$/, 'Der Assistent schlägt Bibelstellen nach und schreibt … $1 s vergangen (meist 20 s bis 1 Minute). Bitte Seite offen lassen.'],
   [/^正在研究經文、原文和衛斯理傳統……（已 (\d+) 秒，約需 1 分鐘）$/, 'Text, Ursprache und Wesley-Tradition werden erforscht … ($1 s; etwa 1 Minute)'],
   [/^正在研究經文、原文和衛斯理傳統……/, 'Text, Ursprache und Wesley-Tradition werden erforscht …'],

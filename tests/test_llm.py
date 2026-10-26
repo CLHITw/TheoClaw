@@ -12,7 +12,7 @@ from theoclaw.common.pricing import price_for
 from theoclaw.agent.loop import run_agent
 from theoclaw.agent.tools import build_tool_set
 from theoclaw.llm import (LiteLLMClient, Provider, complete, litellm_id, load_env, load_llm_config, make_client, resolve,
-                          role, supports_effort, token_counter)
+                          ProviderAPIError, role, supports_effort, token_counter)
 from theoclaw.llm.__main__ import main as llm_main
 
 CUSTOM = """
@@ -205,6 +205,36 @@ def test_litellm_errors_are_api_errors():
         raise LiteLLMError("429 too many requests")
 
     ts = build_tool_set("scripture")
-    client = LiteLLMClient(Provider("dashscope", api="litellm"), "k", completion=completion)
+    client = LiteLLMClient(Provider("dashscope", api="litellm"), "k", completion=completion, retry_delays=(0, 0))
     run = run_agent(client, "q", model="qwen3.8-max", handlers=ts.handlers, tools=ts.defs, system=ts.system)
     assert run.outcome == "api_error" and "429" in run.error
+
+
+def test_busy_or_dropped_provider_is_retried_but_a_wrong_key_is_not():
+    def error(name):
+        return type(name, (Exception,), {"__module__": "litellm.exceptions"})
+
+    ok = {"choices": [{"message": {"role": "assistant", "content": "好"}, "finish_reason": "stop"}],
+          "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+    calls = []
+
+    def flaky(**kwargs):
+        calls.append(kwargs)
+        if len(calls) < 3:
+            raise error(["RateLimitError", "InternalServerError"][len(calls) - 1])("busy")
+        return ok
+
+    client = LiteLLMClient(Provider("deepseek", api="litellm"), "k", completion=flaky, retry_delays=(0, 0, 0))
+    resp = client.create(model="m", max_tokens=10, messages=[{"role": "user", "content": "q"}])
+    assert resp.content[0].text == "好" and len(calls) == 3 and calls[0]["max_retries"] == 0
+
+    calls.clear()
+
+    def bad_key(**kwargs):
+        calls.append(kwargs)
+        raise error("AuthenticationError")("401")
+
+    client = LiteLLMClient(Provider("deepseek", api="litellm"), "k", completion=bad_key, retry_delays=(0, 0, 0))
+    with pytest.raises(ProviderAPIError):
+        client.create(model="m", max_tokens=10, messages=[{"role": "user", "content": "q"}])
+    assert len(calls) == 1

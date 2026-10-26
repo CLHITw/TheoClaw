@@ -806,3 +806,41 @@ def test_google_check_separates_unknown_client_from_unregistered_redirect(monkey
     monkeypatch.setattr(hs.urllib.request, "urlopen", failing(b"Error 400: redirect_uri_mismatch"))
     state, msg = hs.google_client_check(cid, "https://theoclaw.app/auth/google/callback")
     assert state == "redirect" and "重新導向" in msg
+
+
+def test_a_failed_answer_is_kept_but_not_shown_or_counted(tmp_path):
+    code = hs.add_group("查經班", path=tmp_path / "assignment.json")
+    store = hs.Store(tmp_path / "assignment.json", chat={"model": "deepseek-flash", "daily_limit": 1, "budget_usd": 1.0},
+                     chat_dir=tmp_path / "pastor-chat")
+    me = ("小明", "k" * 20)
+    _consent(store, code, me)
+    failed = lambda q: {"model": "deepseek-flash", "prompt": q, "final_text": "", "outcome": "api_error",
+                        "error": "ProviderAPIError: RateLimitError", "steps": [], "usage_total": {}, "cost_usd": 0.0}
+    job = store.ask(code, "會失敗的問題", runner=failed, nick=me)["job"]
+    for _ in range(50):
+        if store.job(code, job, me)["status"] != "running":
+            break
+        time.sleep(0.05)
+    j = store.job(code, job, me)
+    assert j["status"] == "error" and "不計入" in j["error"]
+    state = store.state(code, me)["chat"]
+    assert state["remaining_today"] == 1 and state["questions"] == []
+    assert [a["outcome"] for a in store.db.answers()] == ["api_error"]  # kept, to see why it failed
+
+
+def test_no_api_key_is_reported_at_once(tmp_path):
+    code = hs.add_group("查經班", path=tmp_path / "assignment.json")
+    store = hs.Store(tmp_path / "assignment.json", chat={"model": "deepseek-flash", "daily_limit": 5, "budget_usd": 1.0},
+                     chat_dir=tmp_path / "pastor-chat")
+    me = ("小明", "k" * 20)
+    _consent(store, code, me)
+
+    def no_key(q):
+        raise SystemExit("no API key for provider deepseek: set DEEPSEEK_API_KEY in .env or the environment")
+
+    job = store.ask(code, "沒有金鑰", runner=no_key, nick=me)["job"]
+    for _ in range(50):
+        if store.job(code, job, me)["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert "金鑰" in store.job(code, job, me)["error"]
