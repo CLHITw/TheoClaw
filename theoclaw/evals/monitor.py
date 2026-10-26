@@ -1,4 +1,4 @@
-"""Monitoring real questions: the answers the Bible-study group asked for and scored.
+"""Monitoring real questions: the answers the fellowship asked for and scored.
 
     python -m theoclaw.evals monitor runs/pastor-chat [--budget 0.5] [--out report.md]
     python -m theoclaw.evals monitor runs/pastor-chat --no-llm          # free: rule graders and scores only

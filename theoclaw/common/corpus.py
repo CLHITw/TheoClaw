@@ -6,6 +6,7 @@ Data files live in ``data/`` and are flat JSON objects keyed by OSIS verse id
 - cuv.json      和合本（繁體）
 - kjv.json      King James Version
 - web.json      World English Bible (public domain; scripts/build_web.py)
+- lut.json      Luther-Bibel 1912 (public domain; scripts/build_lut.py)
 - crossrefs.json  {"John.3.16": [["Rom.5.8", 96], ...]}  (OpenBible.info, CC-BY)
 - wesley_nt.json  {"John.3.16": "Yea, and this was ..."}  (Wesley, Explanatory Notes upon the NT)
 """
@@ -21,7 +22,7 @@ from pathlib import Path
 from .paths import DATA_DIR
 from .refs import Ref
 
-VERSIONS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB"}
+VERSIONS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB", "lut": "Luther 1912"}
 
 
 class Corpus:
@@ -100,5 +101,17 @@ def normalize_en(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def normalize_de(text: str) -> str:
+    """German: umlauts kept, but ß and ss count as the same word (the 1912 text writes
+    daß where a modern copy writes dass)."""
+    text = unicodedata.normalize("NFKC", text).lower().replace("ß", "ss")
+    text = re.sub(r"[^a-zäöü0-9 ]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def normalize(text: str, version: str) -> str:
-    return normalize_zh(text) if version == "cuv" else normalize_en(text)
+    if version == "cuv":
+        return normalize_zh(text)
+    if version == "lut":
+        return normalize_de(text)
+    return normalize_en(text)

@@ -3,7 +3,8 @@
 A reference is identified by OSIS book id plus chapter and verse range, e.g.
 ``Ref("John", 3, 16, 16)``. Parsing accepts 繁體 names and abbreviations
 (約翰福音 3:16, 約3:16, 約翰福音三章十六節), English names (John 3:16,
-1 Cor 13:4-7) and OSIS ids (John.3.16).
+1 Cor 13:4-7), German names (Römer 5,8, 1. Korinther 13:4 — the German
+chapter,verse comma included) and OSIS ids (John.3.16).
 """
 
 from __future__ import annotations
@@ -11,84 +12,87 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-# (OSIS id, 繁體全名, 繁體簡稱, English name, extra English aliases)
-BOOKS: list[tuple[str, str, str, str, tuple[str, ...]]] = [
-    ("Gen", "創世記", "創", "Genesis", ("Gen",)),
-    ("Exod", "出埃及記", "出", "Exodus", ("Exod", "Ex")),
-    ("Lev", "利未記", "利", "Leviticus", ("Lev",)),
-    ("Num", "民數記", "民", "Numbers", ("Num",)),
-    ("Deut", "申命記", "申", "Deuteronomy", ("Deut", "Dt")),
-    ("Josh", "約書亞記", "書", "Joshua", ("Josh",)),
-    ("Judg", "士師記", "士", "Judges", ("Judg",)),
-    ("Ruth", "路得記", "得", "Ruth", ()),
-    ("1Sam", "撒母耳記上", "撒上", "1 Samuel", ("1Sam", "I Samuel")),
-    ("2Sam", "撒母耳記下", "撒下", "2 Samuel", ("2Sam", "II Samuel")),
-    ("1Kgs", "列王紀上", "王上", "1 Kings", ("1Kgs", "I Kings")),
-    ("2Kgs", "列王紀下", "王下", "2 Kings", ("2Kgs", "II Kings")),
-    ("1Chr", "歷代志上", "代上", "1 Chronicles", ("1Chr", "I Chronicles")),
-    ("2Chr", "歷代志下", "代下", "2 Chronicles", ("2Chr", "II Chronicles")),
-    ("Ezra", "以斯拉記", "拉", "Ezra", ()),
-    ("Neh", "尼希米記", "尼", "Nehemiah", ("Neh",)),
-    ("Esth", "以斯帖記", "斯", "Esther", ("Esth",)),
-    ("Job", "約伯記", "伯", "Job", ()),
-    ("Ps", "詩篇", "詩", "Psalms", ("Psalm", "Ps", "Psa")),
-    ("Prov", "箴言", "箴", "Proverbs", ("Prov",)),
-    ("Eccl", "傳道書", "傳", "Ecclesiastes", ("Eccl", "Eccles")),
-    ("Song", "雅歌", "歌", "Song of Solomon", ("Song", "Song of Songs")),
-    ("Isa", "以賽亞書", "賽", "Isaiah", ("Isa",)),
-    ("Jer", "耶利米書", "耶", "Jeremiah", ("Jer",)),
-    ("Lam", "耶利米哀歌", "哀", "Lamentations", ("Lam",)),
-    ("Ezek", "以西結書", "結", "Ezekiel", ("Ezek",)),
-    ("Dan", "但以理書", "但", "Daniel", ("Dan",)),
-    ("Hos", "何西阿書", "何", "Hosea", ("Hos",)),
-    ("Joel", "約珥書", "珥", "Joel", ()),
-    ("Amos", "阿摩司書", "摩", "Amos", ()),
-    ("Obad", "俄巴底亞書", "俄", "Obadiah", ("Obad",)),
-    ("Jonah", "約拿書", "拿", "Jonah", ()),
-    ("Mic", "彌迦書", "彌", "Micah", ("Mic",)),
-    ("Nah", "那鴻書", "鴻", "Nahum", ("Nah",)),
-    ("Hab", "哈巴谷書", "哈", "Habakkuk", ("Hab",)),
-    ("Zeph", "西番雅書", "番", "Zephaniah", ("Zeph",)),
-    ("Hag", "哈該書", "該", "Haggai", ("Hag",)),
-    ("Zech", "撒迦利亞書", "亞", "Zechariah", ("Zech",)),
-    ("Mal", "瑪拉基書", "瑪", "Malachi", ("Mal",)),
-    ("Matt", "馬太福音", "太", "Matthew", ("Matt", "Mt")),
-    ("Mark", "馬可福音", "可", "Mark", ("Mk",)),
-    ("Luke", "路加福音", "路", "Luke", ("Lk",)),
-    ("John", "約翰福音", "約", "John", ("Jn",)),
-    ("Acts", "使徒行傳", "徒", "Acts", ()),
-    ("Rom", "羅馬書", "羅", "Romans", ("Rom",)),
-    ("1Cor", "哥林多前書", "林前", "1 Corinthians", ("1Cor", "1 Cor", "I Corinthians")),
-    ("2Cor", "哥林多後書", "林後", "2 Corinthians", ("2Cor", "2 Cor", "II Corinthians")),
-    ("Gal", "加拉太書", "加", "Galatians", ("Gal",)),
-    ("Eph", "以弗所書", "弗", "Ephesians", ("Eph",)),
-    ("Phil", "腓立比書", "腓", "Philippians", ("Phil",)),
-    ("Col", "歌羅西書", "西", "Colossians", ("Col",)),
-    ("1Thess", "帖撒羅尼迦前書", "帖前", "1 Thessalonians", ("1Thess", "1 Thess", "I Thessalonians")),
-    ("2Thess", "帖撒羅尼迦後書", "帖後", "2 Thessalonians", ("2Thess", "2 Thess", "II Thessalonians")),
-    ("1Tim", "提摩太前書", "提前", "1 Timothy", ("1Tim", "1 Tim", "I Timothy")),
-    ("2Tim", "提摩太後書", "提後", "2 Timothy", ("2Tim", "2 Tim", "II Timothy")),
-    ("Titus", "提多書", "多", "Titus", ("Tit",)),
-    ("Phlm", "腓利門書", "門", "Philemon", ("Phlm", "Philem")),
-    ("Heb", "希伯來書", "來", "Hebrews", ("Heb",)),
-    ("Jas", "雅各書", "雅", "James", ("Jas",)),
-    ("1Pet", "彼得前書", "彼前", "1 Peter", ("1Pet", "1 Pet", "I Peter")),
-    ("2Pet", "彼得後書", "彼後", "2 Peter", ("2Pet", "2 Pet", "II Peter")),
-    ("1John", "約翰一書", "約壹", "1 John", ("1John", "1 Jn", "I John")),
-    ("2John", "約翰二書", "約貳", "2 John", ("2John", "2 Jn", "II John")),
-    ("3John", "約翰三書", "約參", "3 John", ("3John", "3 Jn", "III John")),
-    ("Jude", "猶大書", "猶", "Jude", ()),
-    ("Rev", "啟示錄", "啟", "Revelation", ("Rev", "Revelation of John")),
+# (OSIS id, 繁體全名, 繁體簡稱, English name, German name, extra Latin-script aliases)
+BOOKS: list[tuple[str, str, str, str, str, tuple[str, ...]]] = [
+    ("Gen", "創世記", "創", "Genesis", "1. Mose", ("Gen", "1 Mose")),
+    ("Exod", "出埃及記", "出", "Exodus", "2. Mose", ("Exod", "Ex", "2 Mose")),
+    ("Lev", "利未記", "利", "Leviticus", "3. Mose", ("Lev", "3 Mose")),
+    ("Num", "民數記", "民", "Numbers", "4. Mose", ("Num", "4 Mose")),
+    ("Deut", "申命記", "申", "Deuteronomy", "5. Mose", ("Deut", "Dt", "5 Mose")),
+    ("Josh", "約書亞記", "書", "Joshua", "Josua", ("Josh",)),
+    ("Judg", "士師記", "士", "Judges", "Richter", ("Judg",)),
+    ("Ruth", "路得記", "得", "Ruth", "Rut", ()),
+    ("1Sam", "撒母耳記上", "撒上", "1 Samuel", "1. Samuel", ("1Sam", "I Samuel", "1 Samuel")),
+    ("2Sam", "撒母耳記下", "撒下", "2 Samuel", "2. Samuel", ("2Sam", "II Samuel", "2 Samuel")),
+    ("1Kgs", "列王紀上", "王上", "1 Kings", "1. Könige", ("1Kgs", "I Kings", "1 Könige")),
+    ("2Kgs", "列王紀下", "王下", "2 Kings", "2. Könige", ("2Kgs", "II Kings", "2 Könige")),
+    ("1Chr", "歷代志上", "代上", "1 Chronicles", "1. Chronik", ("1Chr", "I Chronicles", "1 Chronik")),
+    ("2Chr", "歷代志下", "代下", "2 Chronicles", "2. Chronik", ("2Chr", "II Chronicles", "2 Chronik")),
+    ("Ezra", "以斯拉記", "拉", "Ezra", "Esra", ()),
+    ("Neh", "尼希米記", "尼", "Nehemiah", "Nehemia", ("Neh",)),
+    ("Esth", "以斯帖記", "斯", "Esther", "Ester", ("Esth",)),
+    ("Job", "約伯記", "伯", "Job", "Hiob", ()),
+    ("Ps", "詩篇", "詩", "Psalms", "Psalmen", ("Psalm", "Ps", "Psa")),
+    ("Prov", "箴言", "箴", "Proverbs", "Sprüche", ("Prov", "Sprichwörter")),
+    ("Eccl", "傳道書", "傳", "Ecclesiastes", "Prediger", ("Eccl", "Eccles", "Kohelet")),
+    ("Song", "雅歌", "歌", "Song of Solomon", "Hoheslied", ("Song", "Song of Songs")),
+    ("Isa", "以賽亞書", "賽", "Isaiah", "Jesaja", ("Isa",)),
+    ("Jer", "耶利米書", "耶", "Jeremiah", "Jeremia", ("Jer",)),
+    ("Lam", "耶利米哀歌", "哀", "Lamentations", "Klagelieder", ("Lam",)),
+    ("Ezek", "以西結書", "結", "Ezekiel", "Hesekiel", ("Ezek", "Ezechiel")),
+    ("Dan", "但以理書", "但", "Daniel", "Daniel", ("Dan",)),
+    ("Hos", "何西阿書", "何", "Hosea", "Hosea", ("Hos",)),
+    ("Joel", "約珥書", "珥", "Joel", "Joel", ()),
+    ("Amos", "阿摩司書", "摩", "Amos", "Amos", ()),
+    ("Obad", "俄巴底亞書", "俄", "Obadiah", "Obadja", ("Obad",)),
+    ("Jonah", "約拿書", "拿", "Jonah", "Jona", ()),
+    ("Mic", "彌迦書", "彌", "Micah", "Micha", ("Mic",)),
+    ("Nah", "那鴻書", "鴻", "Nahum", "Nahum", ("Nah",)),
+    ("Hab", "哈巴谷書", "哈", "Habakkuk", "Habakuk", ("Hab",)),
+    ("Zeph", "西番雅書", "番", "Zephaniah", "Zefanja", ("Zeph",)),
+    ("Hag", "哈該書", "該", "Haggai", "Haggai", ("Hag",)),
+    ("Zech", "撒迦利亞書", "亞", "Zechariah", "Sacharja", ("Zech",)),
+    ("Mal", "瑪拉基書", "瑪", "Malachi", "Maleachi", ("Mal",)),
+    ("Matt", "馬太福音", "太", "Matthew", "Matthäus", ("Matt", "Mt")),
+    ("Mark", "馬可福音", "可", "Mark", "Markus", ("Mk",)),
+    ("Luke", "路加福音", "路", "Luke", "Lukas", ("Lk",)),
+    ("John", "約翰福音", "約", "John", "Johannes", ("Jn", "Joh")),
+    ("Acts", "使徒行傳", "徒", "Acts", "Apostelgeschichte", ("Apg",)),
+    ("Rom", "羅馬書", "羅", "Romans", "Römer", ("Rom", "Röm")),
+    ("1Cor", "哥林多前書", "林前", "1 Corinthians", "1. Korinther", ("1Cor", "1 Cor", "I Corinthians", "1 Korinther")),
+    ("2Cor", "哥林多後書", "林後", "2 Corinthians", "2. Korinther", ("2Cor", "2 Cor", "II Corinthians", "2 Korinther")),
+    ("Gal", "加拉太書", "加", "Galatians", "Galater", ("Gal",)),
+    ("Eph", "以弗所書", "弗", "Ephesians", "Epheser", ("Eph",)),
+    ("Phil", "腓立比書", "腓", "Philippians", "Philipper", ("Phil",)),
+    ("Col", "歌羅西書", "西", "Colossians", "Kolosser", ("Col",)),
+    ("1Thess", "帖撒羅尼迦前書", "帖前", "1 Thessalonians", "1. Thessalonicher",
+     ("1Thess", "1 Thess", "I Thessalonians", "1 Thessalonicher")),
+    ("2Thess", "帖撒羅尼迦後書", "帖後", "2 Thessalonians", "2. Thessalonicher",
+     ("2Thess", "2 Thess", "II Thessalonians", "2 Thessalonicher")),
+    ("1Tim", "提摩太前書", "提前", "1 Timothy", "1. Timotheus", ("1Tim", "1 Tim", "I Timothy", "1 Timotheus")),
+    ("2Tim", "提摩太後書", "提後", "2 Timothy", "2. Timotheus", ("2Tim", "2 Tim", "II Timothy", "2 Timotheus")),
+    ("Titus", "提多書", "多", "Titus", "Titus", ("Tit",)),
+    ("Phlm", "腓利門書", "門", "Philemon", "Philemon", ("Phlm", "Philem")),
+    ("Heb", "希伯來書", "來", "Hebrews", "Hebräer", ("Heb", "Hebräerbrief")),
+    ("Jas", "雅各書", "雅", "James", "Jakobus", ("Jas",)),
+    ("1Pet", "彼得前書", "彼前", "1 Peter", "1. Petrus", ("1Pet", "1 Pet", "I Peter", "1 Petrus")),
+    ("2Pet", "彼得後書", "彼後", "2 Peter", "2. Petrus", ("2Pet", "2 Pet", "II Peter", "2 Petrus")),
+    ("1John", "約翰一書", "約壹", "1 John", "1. Johannes", ("1John", "1 Jn", "I John", "1 Johannes", "1 Joh")),
+    ("2John", "約翰二書", "約貳", "2 John", "2. Johannes", ("2John", "2 Jn", "II John", "2 Johannes", "2 Joh")),
+    ("3John", "約翰三書", "約參", "3 John", "3. Johannes", ("3John", "3 Jn", "III John", "3 Johannes", "3 Joh")),
+    ("Jude", "猶大書", "猶", "Jude", "Judas", ()),
+    ("Rev", "啟示錄", "啟", "Revelation", "Offenbarung", ("Rev", "Revelation of John", "Offb")),
 ]
 
 OSIS_IDS = [b[0] for b in BOOKS]
 BOOK_INDEX = {b[0]: i for i, b in enumerate(BOOKS)}
 ZH_NAME = {b[0]: b[1] for b in BOOKS}
 EN_NAME = {b[0]: b[3] for b in BOOKS}
+DE_NAME = {b[0]: b[4] for b in BOOKS}
 NT_BOOKS = set(OSIS_IDS[39:])
 
 _ZH_LOOKUP: dict[str, str] = {}
-for _osis, _full, _abbr, _en, _aliases in BOOKS:
+for _osis, _full, _abbr, _en, _de, _aliases in BOOKS:
     _ZH_LOOKUP[_full] = _osis
     _ZH_LOOKUP[_abbr] = _osis
 # Common alternative forms (all 繁體).
@@ -96,8 +100,8 @@ _ZH_LOOKUP.update({"約翰壹書": "1John", "約翰貳書": "2John", "約翰參�
                    "約一": "1John", "約二": "2John", "約三": "3John"})
 
 _EN_LOOKUP: dict[str, str] = {}
-for _osis, _full, _abbr, _en, _aliases in BOOKS:
-    for _name in (_osis, _en, *_aliases):
+for _osis, _full, _abbr, _en, _de, _aliases in BOOKS:
+    for _name in (_osis, _en, _de, *_aliases):
         _EN_LOOKUP[re.sub(r"[\s.]", "", _name).lower()] = _osis
 
 
@@ -123,6 +127,11 @@ class Ref:
     def en(self) -> str:
         v = str(self.verse_start) if self.is_single else f"{self.verse_start}-{self.verse_end}"
         return f"{EN_NAME[self.book]} {self.chapter}:{v}"
+
+    def de(self) -> str:
+        """German form, with the German chapter,verse comma: Römer 5,8."""
+        v = str(self.verse_start) if self.is_single else f"{self.verse_start}-{self.verse_end}"
+        return f"{DE_NAME[self.book]} {self.chapter},{v}"
 
     def verses(self) -> list[tuple[int, int]]:
         return [(self.chapter, v) for v in range(self.verse_start, self.verse_end + 1)]
@@ -170,9 +179,10 @@ _ZH_REF_RE = re.compile(
     rf"|(?P<ch2>\d+)\s*{_COLON}\s*(?P<v3>\d+)(?:\s*{_DASH}\s*(?P<v4>\d+))?)"
 )
 
+# John 3:16 / 1 Cor 13:4-7 / 1. Korinther 13,4 (the German chapter,verse comma)
 _EN_REF_RE = re.compile(
-    r"(?P<book>(?:[123]|I{1,3})?\s?[A-Za-z][A-Za-z. ]*?)\s*"
-    r"(?P<ch>\d+)\s*[:.]\s*(?P<v1>\d+)(?:\s*[-–]\s*(?:(?P=book)\s*\.?\s*(?P=ch)\s*\.\s*)?(?P<v2>\d+))?$"
+    r"(?P<book>(?:[123]|I{1,3})?[.\s]*[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß. ]*?)\s*"
+    r"(?P<ch>\d+)\s*[:.,]\s*(?P<v1>\d+)(?:\s*[-–]\s*(?:(?P=book)\s*\.?\s*(?P=ch)\s*[.:]\s*)?(?P<v2>\d+))?$"
 )
 
 

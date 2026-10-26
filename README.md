@@ -1,10 +1,11 @@
-# TheoClaw: a Bible-study agent and the harness that measures it
+# TheoClaw: an assistant that answers questions of faith, and the harness that measures it
 
-TheoClaw is a small tool-using agent that helps a Mandarin-speaking Methodist fellowship
-prepare Bible studies, and helps
-preachers prepare Sunday sermons. It answers in Chinese (Traditional or Simplified),
-English or German, quotes scripture only from a lookup tool, and draws on the Methodist
-sources:
+TheoClaw is a small tool-using agent that answers questions of faith from the Bible and the
+Methodist tradition: everyday struggles, questions about doctrine, difficult passages in
+scripture. Pastors can also use it to prepare sermons. Scripture and the classic texts are
+looked up word for word by the program, and only what it has looked up is quoted. It serves a
+Mandarin-speaking Methodist fellowship, answers in Chinese (Traditional or Simplified),
+English or German, and draws on the Methodist sources:
 John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
 base, his sermons, journal, hymns, the General Rules and the fellowship's course material.
 It is deployed: church members and pastors use it through a web page, and score what it says.
@@ -18,9 +19,10 @@ time" (pass^k), with tokens and cost per answer.
 ## At a glance
 
 **The problem.** A domain-specific, nondeterministic agent for people who cannot check its
-sources themselves: a wrong verse or an invented Wesley quotation in a Bible study is worse
-than no answer. Unit tests cannot say whether such a system works; the project is about how
-to find out, with how much evidence, and at what cost.
+sources themselves: a wrong verse or an invented Wesley quotation — in a Bible study or in
+someone's own question about their faith — is worse than no answer. Unit tests cannot say
+whether such a system works; the project is about how to find out, with how much evidence,
+and at what cost.
 
 **How it is built** (Python, no agent framework):
 
@@ -240,7 +242,7 @@ Tools come in groups, switched on with `--tools`:
 
 | group | tools | source |
 |---|---|---|
-| `scripture` | `lookup_verse` (和合本 / KJV / World English Bible), `cross_references` | `data/` |
+| `scripture` | `lookup_verse` (和合本 / KJV / World English Bible / Luther 1912), `cross_references` | `data/` |
 | `wesley` | `wesley_note`: Wesley's NT note on one verse, exact lookup | `data/wesley_nt.json` |
 | `reference` | Bible dictionaries (ISBE, Easton, Smith) and the original-language word study; pastors only | `data/reference/`, `data/original/` |
 | `kb` | `kb_read_file`, `kb_get_page_content` over a compiled wiki | `knowledge/<name>/` |
@@ -520,10 +522,12 @@ What changed:
   answers quote the World English Bible (the KJV on request) in plain English, with no
   Chinese at all; many in that group use Bible study to practise English. German answers —
   for members of the fellowship who live in Germany — likewise contain no Chinese: whole
-  verses are filled from the World English Bible's English text behind the usual marker,
-  short quotes keep the English wording inside German quotation marks with a German
-  reference („while we were yet sinners" (Römer 5:8, WEB)), and Wesley is quoted in his
-  own English with the source.
+  verses are filled from the Luther Bible 1912 behind the usual marker (German book names
+  and the German chapter,verse comma are understood: Römer 5,8), short quotes must match
+  Luther's wording inside German quotation marks („als wir noch Sünder waren" (Römer 5,8,
+  LUT)), and Wesley, whose works exist only in English, is translated and marked
+  *Übersetzung*. Psalm headings are taken off verse 1 in the English and German texts, and a
+  filled passage that ends mid-sentence does not end on a comma.
 - **Tradition, recorded.** Every question and rating records the asker's church tradition;
   for now it is Methodist by default (the choice is hidden until other traditions'
   sources are in). Answers take a Methodist perspective.
@@ -660,6 +664,7 @@ answers the scrub would have cut the answers with internal words from 11 to 1.
 | `cuv.json` | 和合本（繁體）, via scrollmapper/bible_databases | public domain |
 | `kjv.json` | King James Version (1769), same source | public domain |
 | `web.json` | World English Bible, eBible.org (66 books; psalm headings taken out of verse 1) | public domain |
+| `lut.json` | Luther-Bibel 1912, eBible.org `deu1912` (66 books; psalm headings taken out of verse 1) | public domain |
 | `crossrefs.json` | OpenBible.info cross references (top 25 per verse by votes) | CC-BY, credit OpenBible.info |
 | `wesley_nt.json` | Wesley, *Explanatory Notes upon the New Testament*, parsed from the PDF in the Methodist folder | text in the public domain |
 
@@ -667,7 +672,7 @@ Only the New Testament part of the Wesley PDF is used: it is Wesley's own work a
 doctrinal standard; the Old Testament notes are largely adapted from other
 commentators. The parser is heuristic (5,595 verse notes); spot-check a sample by hand
 before building tasks on a specific note. `scripts/build_data.py` rebuilds `data/`
-(`scripts/build_web.py` the World English Bible).
+(`scripts/build_web.py` the World English Bible, `scripts/build_lut.py` the Luther Bible).
 
 ### Sources and licences of everything else
 

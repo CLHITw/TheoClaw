@@ -18,8 +18,10 @@ spec.loader.exec_module(hs)
 
 @pytest.fixture(autouse=True, params=["files", "db"])
 def storage(request, tmp_path, monkeypatch):
-    """Every server test on both storages; the database is each test's own SQLite file,
-    never the project's or the server's."""
+    """Every server test on both storages; the database is each test's own SQLite file and
+    the chat folder its own temporary one, never the project's or the server's (a local
+    server run leaves real conversations in runs/pastor-chat)."""
+    monkeypatch.setattr(hs, "CHAT_DIR", tmp_path / "default-chat")
     monkeypatch.setenv("THEOCLAW_DB", f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
     monkeypatch.setattr(hs, "STORAGE", request.param)
     return request.param

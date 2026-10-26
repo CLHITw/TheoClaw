@@ -18,6 +18,15 @@ from theoclaw.common.refs import Ref, RefError, cn_to_int, extract_refs, parse_r
     ("I Corinthians 13:4", Ref("1Cor", 13, 4, 4)),
     ("John.3.16", Ref("John", 3, 16, 16)),
     ("Prov.8.22-Prov.8.30", Ref("Prov", 8, 22, 30)),
+    ("Römer 5:8", Ref("Rom", 5, 8, 8)),
+    ("Römer 5,8", Ref("Rom", 5, 8, 8)),                 # German chapter,verse comma
+    ("Johannes 3:16", Ref("John", 3, 16, 16)),
+    ("1. Korinther 13,4", Ref("1Cor", 13, 4, 4)),
+    ("1 Korinther 13,4-7", Ref("1Cor", 13, 4, 7)),
+    ("Röm 5,8", Ref("Rom", 5, 8, 8)),
+    ("Apg 2,42", Ref("Acts", 2, 42, 42)),
+    ("Offenbarung 7,9-10", Ref("Rev", 7, 9, 10)),
+    ("Hiob 1,1", Ref("Job", 1, 1, 1)),
 ])
 def test_parse(text, expected):
     assert parse_ref(text) == expected
@@ -45,7 +54,9 @@ def test_format():
     r = Ref("1Cor", 13, 4, 7)
     assert r.zh() == "哥林多前書 13:4-7"
     assert r.en() == "1 Corinthians 13:4-7"
+    assert r.de() == "1. Korinther 13,4-7"
     assert r.osis() == "1Cor.13.4-1Cor.13.7"
+    assert Ref("Rom", 5, 8, 8).de() == "Römer 5,8"
 
 
 @pytest.mark.parametrize("text,expected", [

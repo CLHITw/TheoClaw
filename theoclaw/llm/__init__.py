@@ -4,7 +4,7 @@ Settings live in config/llm.yaml (roles, providers, models with prices); API key
 live in .env or the environment, never in the YAML. Every other module asks this
 package for its model and client instead of hard-coding them:
 
-    role("agent")       the Bible-study agent (ask, evals, experiments)
+    role("agent")       the assistant that answers questions of faith (ask, evals, experiments)
     role("kb_query")    kb.query ask: answers from a wiki alone
     role("compile")     kb.compile build: OpenKB compiles the wiki through LiteLLM
     role("judge")       the LLM judge (phase 2), through complete(role="judge")

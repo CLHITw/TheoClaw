@@ -75,7 +75,7 @@ def answer_refs(run: dict) -> list[Ref]:
     return extract_refs(run["final_text"])
 
 
-_QUOTE_RE = re.compile(r"「([^「」]+)」|『([^『』]+)』|“([^“”]+)”")
+_QUOTE_RE = re.compile(r"„([^„“]+)“|「([^「」]+)」|『([^『』]+)』|“([^“”]+)”")
 
 
 def quoted_spans(text: str) -> list[str]:
@@ -97,23 +97,38 @@ def quotation_citations(text: str) -> list[tuple[str, str, list[Ref]]]:
             continue
         cite_text = cite.group(1) or cite.group(2)
         refs = extract_refs(cite_text)
-        if not refs and re.search(r"\b(KJV|WEB)\b", cite_text.upper()):
-            try:
-                refs = [parse_ref(re.split(r"[,，;；(（]", cite_text)[0].strip())]
-            except RefError:
-                refs = []
+        if not refs and re.search(r"\b(KJV|WEB|LUT|LUTHER)\b", cite_text.upper()):
+            # "Romans 5:8, WEB" or "Römer 5,8, LUT" (the German chapter,verse comma is inside the
+            # reference), so the version tag comes off the end before parsing, not just the
+            # first comma-segment.
+            stripped = re.sub(r"[,，;；]\s*(?:KJV|WEB|LUT|LUTHER\s*1912)[^（）()]*$", "", cite_text,
+                              flags=re.I).strip()
+            for cand in dict.fromkeys((stripped, re.split(r"[,，;；(（]", cite_text)[0].strip())):
+                if not cand:
+                    continue
+                try:
+                    refs = [parse_ref(cand)]
+                    break
+                except RefError:
+                    refs = []
         if refs:
             out.append((next(g for g in m.groups() if g), cite_text, refs))
     return out
 
 
 def quotation_version(span: str, cite: str) -> str | None:
-    """The Bible version a cited quotation is in: Chinese is 和合本 (cuv); English counts
-    as a quotation only when the citation says KJV or WEB; anything else is None."""
+    """The Bible version a cited quotation is in: Chinese is 和合本 (cuv); a Latin-script
+    quotation counts only when the citation names its version: KJV, WEB or LUT."""
     if re.search(r"[㐀-鿿]", span):
         return "cuv"
     up = cite.upper()
-    return "kjv" if "KJV" in up else ("web" if re.search(r"\bWEB\b", up) else None)
+    if "KJV" in up:
+        return "kjv"
+    if re.search(r"\bWEB\b", up):
+        return "web"
+    if re.search(r"\bLUT\b|\bLUTHER\b", up):
+        return "lut"
+    return None
 
 
 def cited_quotations(text: str) -> list[tuple[str, Ref]]:

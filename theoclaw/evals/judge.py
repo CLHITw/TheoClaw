@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .human import Item, load_items, load_ratings, load_rubric, save_rating
 
-SYSTEM = ("你是嚴謹的評審，替香港循道衛理聯合教會的查經與講道預備助手的回答評分。"
+SYSTEM = ("你是嚴謹的評審，替香港循道衛理聯合教會的 TheoClaw 回答信仰問題的回答評分。"
           "依照評分標準逐項打分，只根據你看到的題目、工具結果和回答，不要猜測回答來自哪個模型。"
           "工具結果是可信的資料來源：回答裡的經文若和工具結果逐字不符，或工具沒有回傳卻寫出經文，就是經文問題；"
           "說是衛斯理的話卻不見於工具回傳的註釋，就是捏造。")
@@ -70,7 +70,7 @@ def pair_prompt(first: Item, second: Item, rubric: dict, tool_width: int = 3000)
         return [f"【回答 {name} 的工具呼叫與結果】", *_tools(it.trace, tool_width), "",
                 f"【回答 {name}】", it.trace.get("final_text") or "（沒有回答）", ""]
     return "\n".join([
-        "兩個助手回答了同一個題目。依照下列標準整體比較，哪一個對查經或講道預備更好？", _rubric_text(rubric), "",
+        "兩個助手回答了同一個題目。依照下列標準整體比較，哪一個對提問的人更有幫助？", _rubric_text(rubric), "",
         "【題目】", first.trace["prompt"], "", *block("A", first), *block("B", second),
         '只輸出一個 JSON 物件：{"better": "A" 或 "B" 或 "tie", "reason": "一句繁體中文理由"}',
     ])

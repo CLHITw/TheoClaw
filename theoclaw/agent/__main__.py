@@ -32,7 +32,7 @@ def log_answer(record: dict) -> None:
 def main(argv=None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles default to cp950/cp936
-    ap = argparse.ArgumentParser(prog="theoclaw", description="TheoClaw Bible-study agent")
+    ap = argparse.ArgumentParser(prog="theoclaw", description="TheoClaw, the assistant that answers questions of faith")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("ask", help="ask one question; prints the answer, the tool calls and the cost")
     p.add_argument("question")

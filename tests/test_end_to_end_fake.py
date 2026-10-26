@@ -80,6 +80,15 @@ def test_always_on_misquote_check():
     assert check("“For God so loved the world, that he gave his only born Son”（John 3:16, WEB）").passed  # World English Bible
     assert not check("“For God so loved the world, that he gave his only begotten Son”（John 3:16, WEB）").passed
     assert check("“For God so much loved the world”（John 3:16）").passed
+    # German: a Luther quotation in „…“ is checked against Luther 1912 when the citation says LUT
+    lut = "„Also hat Gott die Welt geliebt, daß er seinen eingeborenen Sohn gab“（Johannes 3,16, LUT）"
+    assert check(lut).passed
+    assert not check(lut.replace("eingeborenen", "fremden")).passed
+    assert check(lut.replace("daß", "dass")).passed  # modern ss for the 1912 ß counts as the same text
+    assert check("„Also hat Gott die Welt geliebt“（Johannes 3,16）").passed  # no version named: not checked
+    # a filled Luther quotation cites "Luther 1912" and is checked against it
+    assert check("„Denn aus Gnade seid ihr selig geworden durch den Glauben, und das nicht aus euch: "
+                 "Gottes Gabe ist es“ (Epheser 2,8, Luther 1912)").passed
 
 
 def test_misquote_check_dash_citation_and_labels():

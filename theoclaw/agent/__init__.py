@@ -1,4 +1,4 @@
-"""TheoClaw, the Bible-study agent: the loop, the system prompt and the tools.
+"""TheoClaw, the assistant that answers questions of faith: the loop, the system prompt and the tools.
 
     python -m theoclaw ask "衛斯理怎樣解釋羅馬書 8:16？"
 """

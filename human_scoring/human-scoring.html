@@ -25,6 +25,7 @@
     --accent-solid: #4a6741;
     --accent-hover: #3d5536;
     --accent-light: #e8f0e5;
+    --read-bg: #e3efdd;
     --danger: #c0392b;
     --success: #27ae60;
     --code-bg: #f5f3ef;
@@ -50,6 +51,7 @@
     --accent-solid: #4d7445;
     --accent-hover: #54804a;
     --accent-light: #242e21;
+    --read-bg: #45573a;
     --danger: #e08a7e;
     --success: #7fce94;
     --code-bg: #26231f;
@@ -550,6 +552,102 @@
   }
   .acct-item:hover { background: var(--accent-light); }
   .acct-note { padding: 6px 10px 8px; font-size: 0.78rem; color: var(--text-light); line-height: 1.45; }
+
+  /* 語音朗讀：頁頭的開關，和每個回答下面的朗讀鈕 */
+  .voice-btn {
+    display: inline-flex; align-items: center; gap: 6px; flex: none;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    height: 34px; padding: 0 10px; cursor: pointer; color: var(--text);
+    font-family: inherit; font-size: 0.85rem; line-height: 1; white-space: nowrap;
+  }
+  .voice-btn:hover { border-color: var(--accent); }
+  .voice-btn.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .voice-pick { max-width: 150px; height: 34px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0 4px; }
+  @media (max-width: 600px) { .voice-pick { max-width: 120px; } }
+  .speak-row { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; flex-wrap: wrap; }
+  .speak-btn.speaking { background: var(--read-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .speak-stop { color: var(--danger); }
+  .speak-pos { font-size: 0.8rem; color: var(--text-light); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .speak-track { flex: 1 1 90px; max-width: 180px; height: 4px; background: var(--border);
+    border-radius: 2px; overflow: hidden; }
+  .speak-fill { display: block; height: 100%; width: 0; background: var(--accent);
+    border-radius: 2px; transition: width 0.25s ease; }
+  .speak-mins { font-size: 0.8rem; }
+  /* 正在朗讀的段落：整段淡色底，跟著語音移動，也方便回頭看讀到哪裡。 */
+  .vseg { border-radius: 3px; transition: background-color 0.2s ease; }
+  .vseg-on { background: var(--read-bg); box-shadow: 0 0 0 3px var(--read-bg);
+    -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  /* 朗讀時浮在頁面上方正中間：手機上不用找回答下面的按鈕，隨時可以暫停、換段。 */
+  .voice-float {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    top: calc(var(--hdr, 64px) + 10px); z-index: 95;
+    display: flex; flex-direction: column; gap: 1px;
+    width: max-content; max-width: calc(100vw - 20px);
+    padding: 6px 10px 6px 6px;
+    background: var(--card); border: 1px solid var(--accent);
+    border-radius: 16px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  }
+  .voice-float-top {
+    display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 6px; min-height: 42px;
+  }
+  .voice-float-main {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 42px; padding: 0 18px; border: 0; border-radius: 999px;
+    background: var(--accent-solid); color: #fff;
+    font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  .voice-float-main:active { transform: scale(0.98); }
+  .voice-float-main.paused { background: var(--accent); }
+  .voice-float-pos { display: inline-flex; align-items: center; gap: 2px;
+    font-size: 0.82rem; color: var(--text-light); white-space: nowrap;
+    font-variant-numeric: tabular-nums; }
+  /* 「第 __ / 116 段」的中間可以直接輸入段號，按 Enter 就從那一段開始讀。 */
+  .voice-float-num {
+    width: 3.4em; height: 30px; padding: 0 2px; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+    color: var(--text); font: inherit; font-size: 0.9rem; font-weight: 600;
+    text-align: center; font-variant-numeric: tabular-nums; appearance: none;
+  }
+  .voice-float-num:focus { outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-light); }
+  /* 可拖動的段落進度條：拖到哪一段，就從那一段開始讀。 */
+  .voice-float-seek {
+    -webkit-appearance: none; appearance: none;
+    display: block; width: 100%; height: 20px; margin: 0 0 1px;
+    background: transparent; cursor: pointer;
+  }
+  .voice-float-seek::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px;
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--seek, 0%),
+      var(--border) var(--seek, 0%), var(--border) 100%);
+  }
+  .voice-float-seek::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px;
+    border-radius: 50%; background: var(--accent-solid); border: 2px solid var(--card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  .voice-float-seek::-moz-range-track { height: 4px; border-radius: 2px; background: var(--border); }
+  .voice-float-seek::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+  .voice-float-seek::-moz-range-thumb { width: 14px; height: 14px;
+    border: 2px solid var(--card); border-radius: 50%; background: var(--accent-solid); }
+  .voice-float-seek:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .voice-float-stop {
+    min-height: 42px; padding: 0 8px; border: 0; background: none;
+    color: var(--text-light); font: inherit; font-size: 0.82rem; cursor: pointer; white-space: nowrap;
+  }
+  @media (max-width: 600px) {
+    .voice-float { top: calc(var(--hdr, 60px) + 8px); padding-right: 10px; }
+    .voice-float-top { gap: 4px; }
+    .voice-float-main { min-height: 44px; padding: 0 16px; font-size: 1rem; }
+    .voice-float-pos { font-size: 0.8rem; }
+    .voice-float-num { height: 34px; font-size: 1rem; }
+    .voice-float-seek { height: 28px; }
+    .voice-float-seek::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -7px; }
+  }
+
   ::placeholder { color: var(--text-light); opacity: 0.9; }
 </style>
 </head>
@@ -589,6 +687,10 @@
           <option value="hant">繁體</option><option value="hans">&#31616;&#20307;</option><option value="en">English</option><option value="de">Deutsch</option>
         </select>
       </label>
+      <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()" aria-pressed="false" title="語音朗讀">
+        <span id="voiceIcon" aria-hidden="true">🔇</span><span>語音</span>
+      </button>
+      <select id="voicePick" class="voice-pick hidden notr" title="朗讀的聲音" onchange="setVoice(this.value)" aria-label="朗讀的聲音"></select>
       <div id="themeWrap" class="theme-wrap">
         <button id="themeBtn" class="notr" onclick="toggleThemeMenu()" title="顯示模式 · Theme" aria-haspopup="true" aria-expanded="false"
                 style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;cursor:pointer;color:var(--text);font-size:16px;line-height:1">◐</button>
@@ -610,6 +712,21 @@
 </aside>
 <div id="sbBackdrop" onclick="sbToggle(false)"></div>
 
+<div id="voiceFloat" class="voice-float hidden" role="group" aria-label="朗讀控制">
+  <div class="voice-float-top">
+    <button id="voiceFloatBtn" class="voice-float-main" type="button" onclick="voiceFloatToggle()">
+      <span class="vlabel" data-vtext="⏸ 暫停">⏸ 暫停</span>
+    </button>
+    <span id="voiceFloatPos" class="voice-float-pos hidden">
+      <span id="voiceFloatPre">第 </span><input id="voiceFloatNum" class="voice-float-num" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" value="1" aria-label="段落編號"><span id="voiceFloatPost"> / 1 段</span>
+    </span>
+    <button id="voiceFloatStop" class="voice-float-stop" type="button" aria-label="停止朗讀" onclick="voiceStop()">
+      <span data-vtext="⏹ 停止">⏹ 停止</span>
+    </button>
+  </div>
+  <input id="voiceFloatSeek" class="voice-float-seek hidden" type="range" min="1" max="1" step="1" value="1" aria-label="朗讀進度">
+</div>
+
 <div class="container">
   <div id="errorBox" class="card hidden"><div class="card-content" id="errorText"></div></div>
 
@@ -629,8 +746,8 @@
   </div>
 
   <div id="enterCard" class="card hidden">
-    <div class="card-title">歡迎使用 TheoClaw 查經與講道助手</div>
-    <div class="help">一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。</div>
+    <div class="card-title">歡迎使用 TheoClaw</div>
+    <div class="help">一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
     <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
       <button class="btn" onclick="enterAs('lay')">我是信徒</button>
       <button class="btn btn-secondary" onclick="showPastorCode()">我是牧者</button>
@@ -676,7 +793,7 @@
 
   <div id="introBox" class="card hidden">
     <div class="card-title">說明</div>
-    <div class="card-content help" id="introText">每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。
+    <div class="card-content help" id="introText">每一題都是 TheoClaw 回答一個問題的結果。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。
 覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。</div>
   </div>
 
@@ -689,8 +806,8 @@
   <div id="askSection" class="hidden">
     <div class="card">
       <div class="card-title">我的對話 · My conversations</div>
-      <div class="help">像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
-Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers.</div>
+      <div class="help">用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
+Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.</div>
       <div class="actions" style="justify-content:flex-start"><button class="btn btn-secondary btn-sm" onclick="convNew()">＋ 開始新對話 · New conversation</button></div>
       <ul class="q-list hidden" id="convList"></ul>
       <div class="help" style="margin-top:6px">過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。</div>
@@ -699,7 +816,7 @@ Ask as you would in Bible study, in English or Chinese, and keep asking follow-u
     <div class="card" id="convCard">
       <div class="card-title" id="convTitle">新對話 · New conversation</div>
       <div id="convTurns"></div>
-      <textarea class="ask-input" id="askInput" placeholder="例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?"></textarea>
+      <textarea class="ask-input" id="askInput" placeholder="例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?"></textarea>
       <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出 · Send</button></div>
       <div class="help" id="waitText" style="margin-top:8px"></div>
     </div>
@@ -863,7 +980,7 @@ function showJoinCard(fixedName) {
 
 function saveJoinName() {
   const v = joinFixed || document.getElementById('nameInput').value.trim();
-  if (!joinFixed && !validNick(v)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return ''; }
+  if (!joinFixed && !validNick(v)) { showToast(T('請輸入 1 到 20 個字，不要用特殊符號')); return ''; }
   if (!joinFixed) nick = v;
   const sel = document.getElementById('denomSelect');
   if (sel && sel.value) denom = sel.value;
@@ -877,8 +994,8 @@ function saveJoinName() {
 function submitJoin(google) {
   if (!document.getElementById('joinConsent').checked) return;
   const typed = joinFixed ? '' : document.getElementById('nameInput').value.trim();
-  if (typed && !validNick(typed)) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
-  if (!google && !joinFixed && !typed) { showToast('請輸入 1 到 20 個字，不要用特殊符號'); return; }
+  if (typed && !validNick(typed)) { showToast(T('請輸入 1 到 20 個字，不要用特殊符號')); return; }
+  if (!google && !joinFixed && !typed) { showToast(T('請輸入 1 到 20 個字，不要用特殊符號')); return; }
   const named = !!joinFixed || !!typed;
   if (named) {
     const name = saveJoinName();
@@ -900,7 +1017,7 @@ function submitJoin(google) {
   if (google && !named) { go(); return; }  // consent is recorded after a first-time account picks its name
   api('/api/consent', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
     .then(r => { if (r.error) { showToast(r.error); return; } go(); })
-    .catch(() => showToast('無法連線，請稍後再試'));
+    .catch(() => showToast(T('無法連線，請稍後再試')));
 }
 
 function joinAnonymous() { submitJoin(false); }
@@ -931,8 +1048,8 @@ function doRecover() {
   pendingRecover = '';
   return api('/api/recover', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({token: token})})
-    .then(r => { showToast(r.error ? r.error : '已找回以前的紀錄（' + r.moved + ' 筆）'); })
-    .catch(() => showToast('找回失敗，請檢查網路'));
+    .then(r => { showToast(r.error ? r.error : T('已找回以前的紀錄（' + r.moved + ' 筆）')); })
+    .catch(() => showToast(T('找回失敗，請檢查網路')));
 }
 
 // On a temporary address, go to the fixed one (same link code), taking this browser's
@@ -957,12 +1074,12 @@ function showPastorCode() {
 
 function enterAs(role) {
   const pc = role === 'pastor' ? document.getElementById('pastorCode').value.trim() : '';
-  if (role === 'pastor' && !pc) { showToast('請輸入團契碼'); return; }
+  if (role === 'pastor' && !pc) { showToast(T('請輸入團契碼')); return; }
   fetch('/api/enter', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({role: role, code: pc})})
     .then(r => r.json())
     .then(r => { if (r.error) { showToast(r.error); return; } location.href = '/?t=' + encodeURIComponent(r.t); })
-    .catch(() => showToast('無法連線，請稍後再試'));
+    .catch(() => showToast(T('無法連線，請稍後再試')));
 }
 
 // ---- header avatar and account menu: the first character of the nickname
@@ -1031,16 +1148,16 @@ function giveConsent() {
       document.getElementById('consentOverlay').classList.add('hidden');
       start();
     })
-    .catch(() => showToast('無法連線，請稍後再試'));
+    .catch(() => showToast(T('無法連線，請稍後再試')));
 }
 
 function init() {
   const ae = new URLSearchParams(location.search).get('auth_error');
   if (ae) {
     history.replaceState(null, '', location.pathname + (code ? '?t=' + encodeURIComponent(code) : ''));
-    showToast(({disabled: '未開放 Google 登入', link: '連結無效，請重新進入', name: '請先輸入稱呼，再登入 Google',
+    showToast(T(({disabled: '未開放 Google 登入', link: '連結無效，請重新進入', name: '請先輸入稱呼，再登入 Google',
                 newname: '這是第一次用 Google 登入：請填寫您的稱呼，再按一次「用 Google 登入」完成（不用再登入 Google）。',
-                state: '登入逾時或已用過，請再試一次', denied: '已取消登入', failed: '登入失敗，請再試一次'})[ae] || '登入失敗，請再試一次');
+                state: '登入逾時或已用過，請再試一次', denied: '已取消登入', failed: '登入失敗，請再試一次'})[ae] || '登入失敗，請再試一次'));
   }
   if (!code) {
     document.getElementById('enterCard').classList.remove('hidden');
@@ -1095,8 +1212,8 @@ function start() {
     setHeader(s.rater, s.pastor);
     document.getElementById('verdictQuestion').textContent = s.rubric.verdict.question.replace(/（y = .*）/, '');
     const r = s.rubric, simple = r.verdict.auto_min !== undefined;
-    document.getElementById('scoreTitle').textContent = '評分 · Score（' + r.scale.min + '–' + r.scale.max + '，' + r.scale.max + ' 最好 · best' +
-      (r.allow_na ? '；N = 不適用' : '') + '）';
+    document.getElementById('scoreTitle').textContent = T('評分 · Score（' + r.scale.min + '–' + r.scale.max + '，' + r.scale.max + ' 最好 · best' +
+      (r.allow_na ? '；N = 不適用' : '') + '）');
     document.getElementById('anchors').innerHTML = '';
     r.anchors.forEach(a => {
       const d = document.createElement('div'); d.textContent = a.range + ' 分 · pts：' + a.meaning;
@@ -1121,7 +1238,7 @@ function start() {
 function progress() {
   const n = state.done.length, total = state.order.length;
   if (!total) { document.getElementById('progressInfo').textContent = ''; return; }
-  document.getElementById('progressInfo').textContent = '已評 ' + n + ' / ' + total;
+  document.getElementById('progressInfo').textContent = T('已評 ' + n + ' / ' + total);
   document.getElementById('progressFill').style.width = (n / total * 100) + '%';
 }
 
@@ -1193,10 +1310,10 @@ function refreshAsk() {
     const c = s.chat;
     const info = document.getElementById('askInfo');
     info.textContent = c.open
-      ? '今天還可以問 ' + c.remaining_today + ' 題。' : '本次測試的提問額度已用完，謝謝您的參與。';
+      ? T('今天還可以問 ' + c.remaining_today + ' 題。') : T('本次測試的提問額度已用完，謝謝您的參與。');
     if (nick && !accountNick) {
       const a = document.createElement('a');
-      a.href = '#'; a.textContent = '（以「' + nick + '」記錄；不是你？按這裡更換）';
+      a.href = '#'; a.textContent = T('（以「' + nick + '」記錄；不是你？按這裡更換）');
       a.onclick = (e) => { e.preventDefault(); changeName(); };
       info.appendChild(a);
     }
@@ -1221,7 +1338,7 @@ function refreshAsk() {
 
 function convNew() {
   convId = null;
-  document.getElementById('convTitle').textContent = '新對話 · New conversation';
+  document.getElementById('convTitle').textContent = T('新對話 · New conversation');
   document.getElementById('convTurns').innerHTML = '';
   document.getElementById('askInput').placeholder = document.getElementById('askInput').dataset.ph ||
     document.getElementById('askInput').placeholder;
@@ -1234,11 +1351,12 @@ function convOpen(id, openNewest) {
   api('/api/conversation?id=' + encodeURIComponent(id)).then(cv => {
     if (cv.error) { showToast(cv.error); return; }
     convId = id;
-    document.getElementById('convTitle').textContent = '對話：' + cv.turns[0].ask.split('\n').join(' ').slice(0, 40);
+    document.getElementById('convTitle').textContent = T('對話：' + cv.turns[0].ask.split('\n').join(' ').slice(0, 40));
     const box = document.getElementById('convTurns');
     const newest = openNewest ? cv.turns[cv.turns.length - 1].id : null;
     keepScroll(() => renderTurns(box, cv.turns, newest, null));
-    document.getElementById('askInput').placeholder = '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）';
+    if (voicePending) { voicePending = false; voiceAuto('convTurns'); }
+    document.getElementById('askInput').placeholder = T('接著問……（例如：那第 9 節呢？可以舉個例子嗎？）');
     refreshAsk();
     if (!openNewest) document.getElementById('convCard').scrollIntoView({behavior: 'smooth'});
   });
@@ -1246,7 +1364,7 @@ function convOpen(id, openNewest) {
 
 function ask() {
   const q = document.getElementById('askInput').value.trim();
-  if (q.length < 2) { showToast('請輸入問題'); return; }
+  if (q.length < 2) { showToast(T('請輸入問題')); return; }
   const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
   api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1254,11 +1372,11 @@ function ask() {
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
-        t => { text.textContent = t >= 0 ? '助手正在查經文並撰寫回答……已等 ' + t + ' 秒（通常 20 秒到一分鐘），請不要關閉頁面。' : '連線不穩，正在重試…'; },
-        j => { text.textContent = ''; btn.disabled = false; document.getElementById('askInput').value = ''; convOpen(j.conv, true); },
+        t => { text.textContent = t >= 0 ? T('助手正在查經文並撰寫回答……已等 ' + t + ' 秒（通常 20 秒到一分鐘），請不要關閉頁面。') : T('連線不穩，正在重試…'); },
+        j => { text.textContent = ''; btn.disabled = false; document.getElementById('askInput').value = ''; voicePending = true; convOpen(j.conv, true); },
         msg => { text.textContent = msg; btn.disabled = false; refreshAsk(); });
     })
-    .catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+    .catch(() => { btn.disabled = false; showToast(T('送出失敗，請檢查網路')); });
 }
 
 let wsCurrent = null;
@@ -1283,6 +1401,7 @@ function readableCites(text) {
 }
 
 function rich(text) {
+  let n = 0;
   return esc(readableCites(text || '')).split('\n').map(line => {
     const h = line.match(/^\s*#{1,4}\s*(.+)$/);
     if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
@@ -1290,11 +1409,552 @@ function rich(text) {
     line = line.replace(/（([^（）]{1,30}?(?:和合本|KJV))）|\(([^()]{1,30}?, KJV)\)/g, (m) => '<span class="ref">' + m + '</span>');
     if (/^\s*(【[^】]{1,20}】|[一二三四五六七八九十]+、|第[一二三四五六七八九十]+[點\u70b9段])/.test(line) && line.length < 60)
       line = '<span class="rh">' + line + '</span>';
-    return line;
+    // 每一行是一個朗讀段落：朗讀時可以逐段標示，畫面其餘部分完全不變。
+    return line ? '<span class="vseg" data-vseg="' + (n++) + '">' + line + '</span>' : '';
   }).join('\n');
 }
 
 function setRich(el, text) { el.classList.add('rich'); el.innerHTML = rich(text); }
+
+// ── 語音朗讀 ─────────────────────────────────────────────────────────────
+// 用瀏覽器自己的語音把回答讀出來：文字不經伺服器、不出這部裝置，也沒有額外的費用。
+// 朗讀稿取自畫面上已經顯示的字，所以聽到的和看到的完全一樣（書名已經換成書名，繁簡跟頁面一致）。
+const Voice = {on: false, voices: [], utter: null, btn: null, keep: null, name: '',
+  segs: [], idx: -1, paused: false, gen: 0, seeking: false};
+const VOICE_KEY = 'theoclaw_voice';
+const VOICE_NAME_KEY = 'theoclaw_voice_name';
+try {
+  Voice.on = localStorage.getItem(VOICE_KEY) === '1';
+  Voice.name = localStorage.getItem(VOICE_NAME_KEY) || '';
+} catch (e) {}
+
+function voiceSupported() {
+  return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined';
+}
+function voiceLoadVoices() {
+  if (!voiceSupported()) return;
+  try { Voice.voices = window.speechSynthesis.getVoices() || []; } catch (e) { Voice.voices = []; }
+  // 這個函式會在腳本初始化途中被呼叫；清單的重建放到腳本跑完之後，避免碰到還沒初始化的變數。
+  setTimeout(voicePaintPicker, 0);
+}
+if (voiceSupported()) {
+  voiceLoadVoices();
+  window.speechSynthesis.onvoiceschanged = voiceLoadVoices;
+}
+
+// 唸的是哪一種語言：看文字本身（頁面是中文，但用英文提問時回答是英文）。
+function voiceLangOf(t) {
+  const cjk = (t.match(/[぀-ヿ一-鿿]/g) || []).length;
+  const latin = (t.match(/[A-Za-zÀ-ÿÄÖÜäöüß]/g) || []).length;
+  if (cjk * 2 >= latin) return zhMode === 'hans' ? 'zh-CN' : 'zh-TW';   // 中文為主
+  // 回答本來就跟著頁面語言：德語、英語頁面的拉丁字母文字直接用該語言，
+  // 不必靠 ä ö ü 猜（例如 “Gott ist Liebe.” 一個變母音都沒有）。
+  if (zhMode === 'de') return 'de-DE';
+  if (zhMode === 'en') return 'en-US';
+  if (/[äöüßÄÖÜ]/.test(t)) return 'de-DE';
+  return 'en-US';
+}
+// 頁面語言 → 語音族
+function voiceGroupLang() {
+  return zhMode === 'en' ? 'en-US' : (zhMode === 'de' ? 'de-DE' : (zhMode === 'hans' ? 'zh-CN' : 'zh-TW'));
+}
+// 品質：線上自然語音最好（Edge 才有，比電腦裝的聲音自然得多），其次加強版、額外安裝的。
+function voiceQuality(v) {
+  const n = String(v.name || '') + ' ' + String(v.voiceURI || '');
+  if (/natural.*online|online.*natural|neural/i.test(n)) return 3;
+  if (/enhanced|premium|natural/i.test(n)) return 2;
+  if (/online/i.test(n)) return 1;
+  return 0;
+}
+// 這三個舊的中文聲音唸起來生硬，而且常被排在前面；清單和自動挑選都不再用它們。
+function voiceHidden(v) {
+  return /huihui|kangkang|yaoyao/i.test(String(v.name || '') + ' ' + String(v.voiceURI || ''));
+}
+// 中文聲音在後面標出粵語或普通話，使用者才不會選到唸錯的那一種。
+// 名字本身已經寫明（例如 Google 的「普通話（中國大陸）」的簡體寫法）就不再重複加。
+function voiceZhLabel(v, shown) {
+  const tag = String(v.lang || '').toLowerCase().replace('_', '-');
+  if (!tag.startsWith('zh') && !tag.startsWith('yue')) return '';
+  const yue = tag.startsWith('yue') || tag.startsWith('zh-yue') || /-(?:hk|mo)\b/.test(tag)
+    || /cantonese|hong kong|macau|粵|\u7ca4|澳門|澳\u95e8/i.test(String(v.name || ''));
+  if (yue ? /粵|\u7ca4|cantonese/i.test(shown) : /普通[話\u8bdd]|國語|\u56fd\u8bed|mandarin/i.test(shown)) return '';
+  return T(yue ? '（粵語）' : '（普通話）');
+}
+// 這個聲音屬於目前頁面語言嗎：中文頁只收普通話（zh）與粵語（yue），
+// 英語頁只收 en，德語頁只收 de；德語、英語的聲音不會出現在中文清單裡。
+function voiceFitsPage(v) {
+  const tag = String(v.lang || '').toLowerCase().replace('_', '-');
+  const group = voiceGroupLang().slice(0, 2).toLowerCase();
+  if (group === 'zh') return /^(zh|yue)(-|$)/.test(tag);
+  return tag === group || tag.startsWith(group + '-');
+}
+// 頁面語言 → 語音。繁體先找台灣、香港，簡體找普通話；都沒有就用任何中文語音，
+// 同一族裡再挑聽起來最自然的，使用者自己選過的優先。
+function voicePick(lang) {
+  const vs = (Voice.voices || []).filter(v => !voiceHidden(v));
+  if (!vs.length) return null;
+  const tag = v => String(v.lang || '').toLowerCase().replace('_', '-');
+  const want = lang === 'zh-TW' ? ['zh-tw', 'zh-hk', 'zh-hant']
+            : lang === 'zh-CN' ? ['zh-cn', 'zh-hans', 'zh-sg', 'zh']
+            : lang === 'en-US' ? ['en-us', 'en-gb', 'en']
+            : ['de-de', 'de-at', 'de-ch', 'de'];
+  let pool = [];
+  for (const w of want) { pool = vs.filter(v => tag(v) === w); if (pool.length) break; }
+  if (!pool.length) {
+    for (const w of want) { pool = vs.filter(v => tag(v).startsWith(w)); if (pool.length) break; }
+  }
+  if (!pool.length && want[0].startsWith('zh')) pool = vs.filter(v => tag(v).startsWith('zh'));
+  if (!pool.length) return null;
+  const two = lang.slice(0, 2).toLowerCase();
+  const named = vs.find(v => v.name === Voice.name && tag(v).startsWith(two)); // 使用者選的優先（同族、且這台裝置有）
+  if (named) return named;
+  pool.sort((a, b) => voiceQuality(b) - voiceQuality(a) || vs.indexOf(a) - vs.indexOf(b));
+  return pool[0];
+}
+// 節號要唸成「五章八節」，不是「5 比 8」。
+function voiceZhNum(n) {
+  const d = '〇一二三四五六七八九';
+  if (n < 10) return d[n];
+  if (n < 20) return '十' + (n % 10 ? d[n % 10] : '');
+  if (n < 100) return d[Math.floor(n / 10)] + '十' + (n % 10 ? d[n % 10] : '');
+  return String(n);
+}
+// 朗讀稿：畫面上的文字，去掉剩下的標記，數字改成唸得出來的形式。
+function voiceText(el) {
+  let t = (el && el.textContent) || '';
+  t = t.replace(/^\s*#{1,6}\s*/gm, '');              // 標題的井號（畫面上已經去掉，這裡再保險一次）
+  t = t.replace(/[*_`]/g, '');                       // 剩下的 markdown 標記
+  t = t.replace(/[，,]\s*第\s*\d+\s*[卷頁]\s*/g, '');  // 「，第 72 卷」這種出處編號，唸出來沒有意義
+  t = t.replace(/[ \t]+/g, ' ').replace(/\s*\n+\s*/g, ' ').trim();
+  if (!t) return '';
+  const lang = voiceLangOf(t);
+  if (lang === 'zh-CN' && zhMode === 'hans' && zhMap) t = toHans(t);
+  if (lang === 'en-US') t = t.replace(/(\d+)\s*:\s*(\d+)/g, 'chapter $1 verse $2');
+  else if (lang === 'de-DE') t = t.replace(/(\d+)\s*:\s*(\d+)/g, 'Kapitel $1, Vers $2');
+  else t = t.replace(/(\d+)\s*[:：]\s*(\d+)\s*[-–—~至到]\s*(\d+)/g,
+                    (m, a, b, c) => voiceZhNum(+a) + '章' + voiceZhNum(+b) + '至' + voiceZhNum(+c) + '節')
+           .replace(/(\d+)\s*[:：]\s*(\d+)/g, (m, a, b) => voiceZhNum(+a) + '章' + voiceZhNum(+b) + '節');
+  return t;
+}
+// 大約要唸多久：中文約每秒 4.2 字，英文約每秒 2.6 個詞。
+function voiceSeconds(text) {
+  const cjk = (text.match(/[぀-ヿ一-鿿]/g) || []).length;
+  const words = (text.replace(/[぀-ヿ一-鿿]/g, ' ').match(/[A-Za-zÀ-ÿÄÖÜäöüß]+/g) || []).length;
+  return Math.round(cjk / 4.2 + words / 2.6);
+}
+// 動態產生的文字：中文原句放在 dataset，換語言時重譯。
+function voiceSetText(el, zhText) {
+  if (!el) return;
+  el.dataset.vtext = zhText;
+  el.textContent = T(zhText);
+}
+function voiceRefresh() {
+  document.querySelectorAll('[data-vtext]').forEach(el => { el.textContent = T(el.dataset.vtext); });
+  voicePaintPicker();
+  voicePaintFloat();   // 「第 __ / 段」的標籤也要跟著換語言
+}
+// 回答依畫面行分成一段一段唸：讀到哪裡就標到哪裡，暫停時也看得到停在哪一段。
+function voiceSegments(el) {
+  if (!el) return [];
+  let parts = Array.from(el.querySelectorAll('.vseg'));
+  if (!parts.length) parts = [el];
+  const out = [];
+  for (const part of parts) {
+    const text = voiceText(part);
+    if (text) out.push({el: part, text: text});
+  }
+  return out;
+}
+function voicePaint(btn) {
+  if (btn) {
+    const row = btn.closest('.speak-row');
+    const active = Voice.btn === btn && Voice.segs.length > 0;
+    const paused = active && Voice.paused;
+    btn.classList.toggle('speaking', active);
+    btn.classList.toggle('paused', paused);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    voiceSetText(btn.querySelector('.vlabel'), active ? (paused ? '▶ 繼續' : '⏸ 暫停') : '🔊 朗讀');
+    if (row) {
+      const stop = row.querySelector('.speak-stop');
+      const pos = row.querySelector('.speak-pos');
+      const track = row.querySelector('.speak-track');
+      const fill = row.querySelector('.speak-fill');
+      const hint = row.querySelector('.speak-mins');
+      if (stop) stop.classList.toggle('hidden', !active);
+      if (hint) hint.classList.toggle('hidden', active);
+      const showProgress = active && Voice.segs.length > 1;
+      if (pos) pos.classList.toggle('hidden', !showProgress);
+      if (track) track.classList.toggle('hidden', !showProgress);
+      if (showProgress) {
+        voiceSetText(pos, '第 ' + (Voice.idx + 1) + ' / ' + Voice.segs.length + ' 段');
+        if (fill) fill.style.width = ((Voice.idx + 1) / Voice.segs.length * 100) + '%';
+      } else if (fill) {
+        fill.style.width = '0';
+      }
+    }
+  }
+  voicePaintFloat();
+}
+// 頁面上方正中間的浮動控制：手機上隨時暫停、拖進度或直接輸入段號。
+function voicePaintFloat() {
+  const box = document.getElementById('voiceFloat');
+  if (!box) return;
+  const active = Voice.segs.length > 0;
+  box.classList.toggle('hidden', !active);
+  if (!active) return;
+  box.setAttribute('aria-label', T('朗讀控制'));
+  const stop = document.getElementById('voiceFloatStop');
+  if (stop) stop.setAttribute('aria-label', T('停止朗讀'));
+  const b = document.getElementById('voiceFloatBtn');
+  const paused = Voice.paused;
+  if (b) {
+    b.classList.toggle('paused', paused);
+    voiceSetText(b.querySelector('.vlabel'), paused ? '▶ 繼續' : '⏸ 暫停');
+  }
+  const n = Voice.segs.length;
+  const cur = Math.max(1, Voice.idx + 1);
+  const showProgress = n > 1;
+  const pos = document.getElementById('voiceFloatPos');
+  const seek = document.getElementById('voiceFloatSeek');
+  if (pos) pos.classList.toggle('hidden', !showProgress);
+  if (seek) seek.classList.toggle('hidden', !showProgress);
+  if (!showProgress) return;
+  // 用現有的翻譯規則（第 3 / 6 段 → Part 3 of 6 → Abschnitt 3 von 6）拆成輸入框前後兩段文字。
+  const full = T('第 ' + cur + ' / ' + n + ' 段');
+  const at = full.indexOf(String(cur));
+  const pre = document.getElementById('voiceFloatPre');
+  const post = document.getElementById('voiceFloatPost');
+  if (pre && post && at >= 0) {
+    pre.textContent = full.slice(0, at);
+    post.textContent = full.slice(at + String(cur).length);
+  }
+  const num = document.getElementById('voiceFloatNum');
+  if (num) {
+    if (document.activeElement !== num && !Voice.seeking) num.value = String(cur);
+    num.setAttribute('aria-label', T('段落編號'));
+  }
+  if (seek) {
+    seek.min = '1'; seek.max = String(n);
+    if (!Voice.seeking) seek.value = String(cur);
+    voiceSeekFill(Number(seek.value) || cur);
+    seek.setAttribute('aria-label', T('朗讀進度'));
+    seek.setAttribute('aria-valuetext', full);
+  }
+}
+// 拖動時只移動顏色與數字，放開才真的換段（避免每拖一格就重新出聲）。
+function voiceSeekFill(v) {
+  const seek = document.getElementById('voiceFloatSeek');
+  if (!seek) return;
+  const n = Math.max(1, Voice.segs.length);
+  const pct = n > 1 ? (v - 1) / (n - 1) * 100 : 0;
+  seek.style.setProperty('--seek', Math.max(0, Math.min(100, pct)) + '%');
+}
+// 跳到第 i 段（從 0 起算）：取消目前這句，從選定的段落開始讀。
+function voiceSeek(i) {
+  if (!Voice.segs.length || !voiceSupported()) return;
+  const n = Voice.segs.length;
+  i = Math.max(0, Math.min(n - 1, i));
+  Voice.gen++;
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  Voice.utter = null;
+  Voice.paused = false;
+  voicePlay(i);
+}
+let voiceSeekLock = false;
+// 輸入框：按 Enter 或離開欄位時跳到該段；空白或亂填就還原成目前段號。
+function voiceSeekFromInput() {
+  const num = document.getElementById('voiceFloatNum');
+  if (!num || !Voice.segs.length || voiceSeekLock) return;
+  const v = parseInt(num.value, 10);
+  if (!Number.isFinite(v)) { num.value = String(Voice.idx + 1); return; }
+  const i = Math.max(0, Math.min(Voice.segs.length - 1, v - 1));
+  voiceSeekLock = true;
+  try {
+    voiceSeek(i);
+    num.value = String(i + 1);
+    num.blur();
+  } finally {
+    voiceSeekLock = false;
+  }
+}
+function voiceSeekSetup() {
+  const seek = document.getElementById('voiceFloatSeek');
+  const num = document.getElementById('voiceFloatNum');
+  if (seek) {
+    seek.addEventListener('pointerdown', () => { Voice.seeking = true; });
+    const release = () => {
+      if (!Voice.seeking) return;
+      Voice.seeking = false;
+      voicePaintFloat();
+    };
+    seek.addEventListener('pointerup', release);
+    seek.addEventListener('pointercancel', release);
+    window.addEventListener('pointerup', release);   // 手指拖出控制條外才放開，也一定會恢復更新
+    seek.addEventListener('input', () => {
+      const v = parseInt(seek.value, 10);
+      if (!Number.isFinite(v)) return;
+      const num = document.getElementById('voiceFloatNum');
+      if (num && document.activeElement !== num) num.value = String(v);
+      voiceSeekFill(v);
+    });
+    seek.addEventListener('change', () => {
+      const v = parseInt(seek.value, 10);
+      if (Number.isFinite(v)) voiceSeek(v - 1);
+    });
+  }
+  if (num) {
+    // 一點就全選，直接打新段號（等瀏覽器放好游標後再選，否則會被預設行為取消）。
+    num.addEventListener('focus', () => setTimeout(() => { try { num.select(); } catch (e) {} }, 0));
+    num.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); voiceSeekFromInput(); }
+      else if (e.key === 'Escape') { num.value = String(Math.max(1, Voice.idx + 1)); num.blur(); }
+    });
+    num.addEventListener('change', voiceSeekFromInput);
+  }
+}
+function voiceFloatToggle() {
+  if (!Voice.segs.length) return;
+  if (Voice.paused) voiceResume(); else voicePause();
+}
+function voiceMark(seg) {
+  document.querySelectorAll('.vseg-on').forEach(el => el.classList.remove('vseg-on'));
+  if (seg && seg.el) seg.el.classList.add('vseg-on');
+}
+// 目前段落若捲出畫面就帶回來；已經看得到時不動，避免一直跳。
+function voiceReveal(seg) {
+  if (!seg || !seg.el) return;
+  const det = seg.el.closest('details');
+  if (det && !det.open) det.open = true;
+  requestAnimationFrame(() => {
+    const r = seg.el.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (r.top < 88 || r.bottom > vh - 16) seg.el.scrollIntoView({behavior: 'smooth', block: 'center'});
+  });
+}
+function voicePlay(i) {
+  const seg = Voice.segs[i];
+  if (!seg) { voiceFinish(); return; }
+  Voice.idx = i;
+  Voice.paused = false;
+  const gen = ++Voice.gen;
+  const synth = window.speechSynthesis;
+  const u = new SpeechSynthesisUtterance(seg.text);
+  u.lang = voiceLangOf(seg.text);
+  const v = voicePick(u.lang);
+  if (v) u.voice = v;
+  u.rate = 0.95; u.pitch = 1; u.volume = 1;
+  u.onend = () => {
+    if (gen !== Voice.gen) return;
+    Voice.utter = null;
+    if (Voice.paused) return;
+    if (Voice.idx + 1 < Voice.segs.length) voicePlay(Voice.idx + 1);
+    else voiceFinish();
+  };
+  u.onerror = (e) => {
+    if (gen !== Voice.gen) return;
+    if (e.error === 'interrupted' || e.error === 'canceled') return;
+    voiceStop();
+  };
+  Voice.utter = u;
+  try { synth.speak(u); } catch (e) { voiceStop(); return; }
+  voiceMark(seg);
+  voiceReveal(seg);
+  voiceKeepAlive();
+  voicePaint(Voice.btn);
+}
+// el 是畫面上的回答；從第一段開始讀，並把控制列綁到它的朗讀鈕。
+function voiceSpeak(el, btn) {
+  if (!voiceSupported()) { showToast(T('這部裝置不支援語音朗讀')); return false; }
+  const segs = voiceSegments(el);
+  if (!segs.length) { showToast(T('這裡沒有可以讀出來的文字')); return false; }
+  voiceStop();
+  Voice.segs = segs;
+  Voice.btn = btn || null;
+  voicePlay(0);
+  return true;
+}
+// 短句（例如「語音已開啟」）：不標段落，也不顯示朗讀控制。
+function voiceSay(text) {
+  if (!voiceSupported() || !text) return false;
+  voiceStop();
+  const synth = window.speechSynthesis;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = voiceLangOf(text);
+  const v = voicePick(u.lang);
+  if (v) u.voice = v;
+  u.rate = 0.95; u.pitch = 1; u.volume = 1;
+  const gen = ++Voice.gen;
+  u.onend = () => { if (gen === Voice.gen) Voice.utter = null; };
+  u.onerror = () => { if (gen === Voice.gen) Voice.utter = null; };
+  Voice.utter = u;
+  try { synth.speak(u); } catch (e) { Voice.utter = null; return false; }
+  return true;
+}
+function voicePause() {
+  if (!Voice.segs.length || Voice.paused) return;
+  Voice.paused = true;
+  clearInterval(Voice.keep); Voice.keep = null;
+  const synth = window.speechSynthesis;
+  try { synth.pause(); } catch (e) {}
+  voicePaint(Voice.btn);
+  // 少數舊版 Android Chrome 不真的停下來：半秒後若還在唸，就取消這一段，
+  // 按「繼續」時從這一段開頭重讀，至少不會停不下來。
+  setTimeout(() => {
+    if (!Voice.paused || !Voice.utter) return;
+    try {
+      if (synth.speaking && !synth.paused) {
+        Voice.gen++;
+        synth.cancel();
+        Voice.utter = null;
+      }
+    } catch (e) {}
+  }, 500);
+}
+function voiceResume() {
+  if (!Voice.segs.length || !Voice.paused) return;
+  Voice.paused = false;
+  if (!Voice.utter) { voicePlay(Voice.idx); return; }   // 暫停時被引擎丟掉，重讀這一段
+  try { window.speechSynthesis.resume(); } catch (e) {}
+  voiceKeepAlive();
+  voicePaint(Voice.btn);
+}
+function voiceStop() {
+  Voice.gen++;
+  clearInterval(Voice.keep); Voice.keep = null;
+  if (voiceSupported()) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+  const b = Voice.btn;
+  document.querySelectorAll('.vseg-on').forEach(el => el.classList.remove('vseg-on'));
+  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.paused = false;
+  voicePaint(b);
+}
+function voiceFinish() {
+  clearInterval(Voice.keep); Voice.keep = null;
+  const b = Voice.btn;
+  document.querySelectorAll('.vseg-on').forEach(el => el.classList.remove('vseg-on'));
+  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.paused = false;
+  voicePaint(b);
+}
+// Chrome 有時在 15 秒左右把長句停掉；定期暫停再繼續，可以避開。使用者暫停時不做。
+function voiceKeepAlive() {
+  clearInterval(Voice.keep);
+  Voice.keep = setInterval(() => {
+    if (!Voice.utter || !Voice.segs.length || Voice.paused || document.hidden) return;
+    try { window.speechSynthesis.pause(); window.speechSynthesis.resume(); } catch (e) {}
+  }, 10000);
+}
+// 每個回答下面的朗讀控制：朗讀／暫停／繼續，另有停止，以及「第幾段／共幾段」的進度。
+function voiceButton(el) {
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-secondary btn-sm speak-btn';
+  btn.type = 'button';
+  const label = document.createElement('span'); label.className = 'vlabel';
+  voiceSetText(label, '🔊 朗讀');
+  btn.appendChild(label);
+
+  const stop = document.createElement('button');
+  stop.className = 'btn btn-secondary btn-sm speak-stop hidden';
+  stop.type = 'button';
+  voiceSetText(stop, '⏹ 停止');
+  stop.onclick = voiceStop;
+
+  const track = document.createElement('span');
+  track.className = 'speak-track hidden';
+  track.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  fill.className = 'speak-fill';
+  track.appendChild(fill);
+
+  const pos = document.createElement('span');
+  pos.className = 'speak-pos hidden';
+
+  const row = document.createElement('div'); row.className = 'speak-row';
+  row.appendChild(btn); row.appendChild(stop); row.appendChild(track); row.appendChild(pos);
+
+  btn.onclick = () => {
+    if (Voice.btn === btn && Voice.segs.length) {
+      if (Voice.paused) voiceResume(); else voicePause();
+      return;
+    }
+    voiceSpeak(el, btn);
+  };
+
+  const secs = voiceSeconds(voiceText(el));
+  if (secs >= 45) {
+    const mins = Math.max(1, Math.round(secs / 60));
+    const hint = document.createElement('span'); hint.className = 'help speak-mins';
+    voiceSetText(hint, '約 ' + mins + ' 分鐘');
+    row.appendChild(hint);
+  }
+  return row;
+}
+function voicePaintToggle() {
+  const b = document.getElementById('voiceBtn');
+  if (!b) return;
+  b.classList.toggle('on', Voice.on);
+  b.setAttribute('aria-pressed', Voice.on ? 'true' : 'false');
+  b.setAttribute('aria-label', T('語音'));
+  const ic = document.getElementById('voiceIcon');
+  if (ic) ic.textContent = Voice.on ? '🔊' : '🔇';
+  const sel = document.getElementById('voicePick');
+  if (sel) {
+    sel.classList.toggle('hidden', !Voice.on);   // 開了語音才出現，平時不佔地方
+    sel.setAttribute('aria-label', T('朗讀的聲音'));
+  }
+}
+// 語音選擇器：列出這種語言的聲音讓使用者自己選（自動 = 挑聽起來最自然的）。
+function voicePaintPicker() {
+  const sel = document.getElementById('voicePick');
+  if (!sel) return;
+  const pool = (Voice.voices || []).filter(v => voiceFitsPage(v) && !voiceHidden(v));
+  pool.sort((a, b) => voiceQuality(b) - voiceQuality(a) || Voice.voices.indexOf(a) - Voice.voices.indexOf(b));
+  sel.innerHTML = '';
+  const auto = document.createElement('option');
+  auto.value = ''; voiceSetText(auto, '自動（預設）');
+  sel.appendChild(auto);
+  pool.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v.name;
+    let core = String(v.name || '').replace(/^Microsoft\s*/i, '').replace(/\s*-\s*[^-]*$/, '')
+      .replace(/\s*Online\b/i, '').replace(/\s*\((?:Natural|Neural)\)/i, '').replace(/\u00a0/g, ' ').trim();
+    if (/online/i.test(String(v.name)) && /natural|neural/i.test(String(v.name))) core += T('（自然）');
+    core += voiceZhLabel(v, core);
+    o.textContent = core;
+    sel.appendChild(o);
+  });
+  if (!pool.find(v => v.name === Voice.name)) {
+    Voice.name = '';
+    try { localStorage.removeItem(VOICE_NAME_KEY); } catch (e) {}
+  }
+  sel.value = Voice.name;
+}
+function setVoice(name) {
+  Voice.name = name || '';
+  try { localStorage.setItem(VOICE_NAME_KEY, Voice.name); } catch (e) {}
+  // 選了就念一句：當下就聽得到這個聲音的好壞
+  voiceSay(T('你好，這是我的聲音。'));
+}
+function toggleVoice() {
+  if (!voiceSupported()) { showToast(T('這部裝置不支援語音朗讀')); return; }
+  Voice.on = !Voice.on;
+  try { localStorage.setItem(VOICE_KEY, Voice.on ? '1' : '0'); } catch (e) {}
+  voicePaintToggle();
+  // 開的時候先講一句：讓人聽得到聲音，也讓瀏覽器解鎖語音（iOS 需要一次點擊）。
+  if (Voice.on) voiceSay(T('語音已開啟，回答會讀出來。'));
+  else voiceStop();
+}
+// 新回答到了，自動唸出來（講章工作區的回答也一樣）。
+let voicePending = false, voicePendingWs = false;
+function voiceAuto(boxId) {
+  if (!Voice.on || !voiceSupported()) return;
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const turns = box.querySelectorAll('details.turn');
+  if (!turns.length) return;
+  const last = turns[turns.length - 1];
+  const rep = last.querySelector('.card-content');
+  if (!rep) return;
+  voiceSpeak(rep, last.querySelector('.speak-btn'));
+}
 
 function keepScroll(fn) {
   const y = window.scrollY;
@@ -1306,7 +1966,7 @@ function pollJob(jobId, onWait, onDone, onError) {
   clearInterval(polling);
   polling = setInterval(() => {
     api('/api/job?id=' + jobId).then(j => {
-      if (j.error && !j.status) { clearInterval(polling); onError('找不到這個工作（伺服器可能剛重新啟動），請再送出一次。'); return; }
+      if (j.error && !j.status) { clearInterval(polling); onError(T('找不到這個工作（伺服器可能剛重新啟動），請再送出一次。')); return; }
       if (j.status === 'running') { onWait(j.elapsed); return; }
       clearInterval(polling);
       if (j.status === 'error') onError(j.error); else onDone(j);
@@ -1319,7 +1979,7 @@ function refreshSermon() {
   document.getElementById('wsList').classList.remove('hidden');
   api('/api/sermon/list').then(r => {
     if (r.error) { showToast(r.error); return; }
-    document.getElementById('wsStartInfo').textContent = '今天還可以開 ' + r.starts_left + ' 篇新講章。';
+    document.getElementById('wsStartInfo').textContent = T('今天還可以開 ' + r.starts_left + ' 篇新講章。');
     document.getElementById('wsStartBtn').disabled = r.starts_left <= 0;
     wsProjectsCache = r.projects;
     wsSidebar();
@@ -1336,7 +1996,7 @@ function refreshSermon() {
 
 function wsStart() {
   const v = id => document.getElementById(id).value.trim();
-  if (v('sPassage').length < 2) { showToast('請填寫經文'); return; }
+  if (v('sPassage').length < 2) { showToast(T('請填寫經文')); return; }
   const btn = document.getElementById('wsStartBtn'), info = document.getElementById('wsStartInfo');
   btn.disabled = true;
   api('/api/sermon/start', {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1344,10 +2004,10 @@ function wsStart() {
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
-        t => { info.textContent = '正在研究經文、原文和衛斯理傳統……' + (t >= 0 ? '（已 ' + t + ' 秒，約需 1 分鐘）' : '（連線不穩，重試中）'); },
+        t => { info.textContent = T('正在研究經文、原文和衛斯理傳統……' + (t >= 0 ? '（已 ' + t + ' 秒，約需 1 分鐘）' : '（連線不穩，重試中）')); },
         j => { btn.disabled = false; info.textContent = ''; wsOpen(j.project); },
         msg => { btn.disabled = false; info.textContent = msg; });
-    }).catch(() => { btn.disabled = false; showToast('送出失敗，請檢查網路'); });
+    }).catch(() => { btn.disabled = false; showToast(T('送出失敗，請檢查網路')); });
 }
 
 function wsBack() { wsCurrent = null; refreshSermon(); }
@@ -1381,6 +2041,7 @@ function wsOpen(pid) {
     const newest = wsCurrent.openNewest && p.turns.length ? p.turns[p.turns.length - 1].id : null;
     wsCurrent.openNewest = false;
     keepScroll(() => { wsRenderBoard(p.board); wsRenderTurns(p.turns, newest); });
+    if (voicePendingWs) { voicePendingWs = false; voiceAuto('wsTurns'); }
     document.getElementById('wsSendBtn').disabled = p.busy;
     document.getElementById('wsAssembleBtn').disabled = p.busy;
   });
@@ -1389,11 +2050,11 @@ function wsOpen(pid) {
 function wsCheckText(c) {
   if (!c) return '';
   const parts = [];
-  if (c.claims !== null && c.claims !== undefined) parts.push('查核 ' + c.claims + ' 條陳述：未能核實 ' + c.unsupported + '、部分核實 ' + c.partial + '（「未能核實」是研究資料和這次查到的資料裡找不到依據，不一定是錯，請自行查證）');
-  if (c.failed_scripture && c.failed_scripture.length) parts.push('查不到的經文：' + c.failed_scripture.join('、'));
-  if (c.misquotes) parts.push('經文引用不一致：' + c.misquotes);
-  if (c.unknown_points && c.unknown_points.length) parts.push('不存在的要點編號：' + c.unknown_points.join('、'));
-  if (c.unsupported_claims && c.unsupported_claims.length) parts.push('未能核實的句子：' + c.unsupported_claims.join('；'));
+  if (c.claims !== null && c.claims !== undefined) parts.push(T('查核 ' + c.claims + ' 條陳述：未能核實 ' + c.unsupported + '、部分核實 ' + c.partial + '（「未能核實」是研究資料和這次查到的資料裡找不到依據，不一定是錯，請自行查證）'));
+  if (c.failed_scripture && c.failed_scripture.length) parts.push(T('查不到的經文：' + c.failed_scripture.join('、')));
+  if (c.misquotes) parts.push(T('經文引用不一致：' + c.misquotes));
+  if (c.unknown_points && c.unknown_points.length) parts.push(T('不存在的要點編號：' + c.unknown_points.join('、')));
+  if (c.unsupported_claims && c.unsupported_claims.length) parts.push(T('未能核實的句子：' + c.unsupported_claims.join('；')));
   return parts.join('。');
 }
 
@@ -1414,10 +2075,10 @@ function quickRateBar(t, tag, panel, onRated) {
   const wrap = document.createElement('div');
   const bar = document.createElement('div'); bar.className = 'quick-rate';
   const noteBtn = document.createElement('button'); noteBtn.className = 'btn btn-secondary btn-sm';
-  noteBtn.style.marginTop = '6px'; noteBtn.textContent = '提意見 ▾';
+  noteBtn.style.marginTop = '6px'; noteBtn.textContent = T('提意見 ▾');
   const notePanel = document.createElement('div'); notePanel.className = 'rate-panel hidden';
   const done = document.createElement('button'); done.className = 'btn btn-secondary btn-sm hidden';
-  done.textContent = '✓ 已評分（修改）';
+  done.textContent = T('✓ 已評分（修改）');
   const showDone = () => { bar.classList.add('hidden'); noteBtn.classList.add('hidden');
     notePanel.classList.add('hidden'); done.classList.remove('hidden'); };
   wrap.appendChild(bar); wrap.appendChild(noteBtn); wrap.appendChild(notePanel); wrap.appendChild(done);
@@ -1434,12 +2095,12 @@ function quickRateBar(t, tag, panel, onRated) {
   const draw = () => {
     const mine = t.myRating || {};
     bar.innerHTML = '';
-    const lab = document.createElement('span'); lab.className = 'q-label'; lab.textContent = '這個回答有幫助嗎？';
+    const lab = document.createElement('span'); lab.className = 'q-label'; lab.textContent = T('這個回答有幫助嗎？');
     bar.appendChild(lab);
-    bar.appendChild(mk('👍 有幫助', 'q-thumb', {quick: 'up'}, mine.quick === 'up'));
-    bar.appendChild(mk('👎 不太行', 'q-thumb', {quick: 'down'}, mine.quick === 'down'));
+    bar.appendChild(mk(T('👍 有幫助'), 'q-thumb', {quick: 'up'}, mine.quick === 'up'));
+    bar.appendChild(mk(T('👎 不太行'), 'q-thumb', {quick: 'down'}, mine.quick === 'down'));
     const sc = document.createElement('span'); sc.className = 'q-score';
-    const sl = document.createElement('span'); sl.className = 'q-label'; sl.textContent = '打分 0–10';
+    const sl = document.createElement('span'); sl.className = 'q-label'; sl.textContent = T('打分 0–10');
     sc.appendChild(sl);
     for (let v = 0; v <= 10; v++) sc.appendChild(mk(String(v), 'dim-btn', {quick: 'score', scores: {overall: v}}, mine.quick === v));
     bar.appendChild(sc);
@@ -1450,28 +2111,28 @@ function quickRateBar(t, tag, panel, onRated) {
     notePanel.classList.remove('hidden');
     if (notePanel.childElementCount) return;
     const h = document.createElement('div'); h.className = 'help';
-    h.textContent = '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。';
+    h.textContent = T('有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。');
     const ta = document.createElement('textarea'); ta.className = 'comment-input';
-    ta.placeholder = '例如：這一句讀不懂、用詞不自然、太長或太淺……';
+    ta.placeholder = T('例如：這一句讀不懂、用詞不自然、太長或太淺……');
     ta.value = t.noteText || '';
-    const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = '儲存意見';
+    const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = T('儲存意見');
     save.onclick = () => {
       const v = ta.value.trim();
-      if (!v) { showToast('請先寫下您的意見'); return; }
+      if (!v) { showToast(T('請先寫下您的意見')); return; }
       save.disabled = true;
       api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({comment: v, id: t.id, elapsed: elapsedOf(t.id)})})
         .then(r => { save.disabled = false;
           if (r.error) { showToast(r.error); return; }
-          t.noteText = v; noteBtn.textContent = '✓ 已留言';
-          notePanel.classList.add('hidden'); showToast('已儲存意見'); })
-        .catch(() => { save.disabled = false; showToast('儲存失敗，請檢查網路'); });
+          t.noteText = v; noteBtn.textContent = T('✓ 已留言');
+          notePanel.classList.add('hidden'); showToast(T('已儲存意見')); })
+        .catch(() => { save.disabled = false; showToast(T('儲存失敗，請檢查網路')); });
     };
     const act = document.createElement('div'); act.className = 'actions'; act.appendChild(save);
     notePanel.appendChild(h); notePanel.appendChild(ta); notePanel.appendChild(act);
   };
   if (panel) done.onclick = () => wsRatePanel(t, panel, done, tag); else noteBtn.classList.add('hidden');
-  if (t.rated) showDone(); else if (t.noteText) noteBtn.textContent = '✓ 已留言';
+  if (t.rated) showDone(); else if (t.noteText) noteBtn.textContent = T('✓ 已留言');
   return wrap;
 }
 
@@ -1494,12 +2155,13 @@ function renderTurns(box, turns, openId, onAdd) {
     tag.textContent = (t.rated ? '✓ 已評分' : '未評分') + (c.unsupported ? '｜未能核實 ' + c.unsupported : '');
     sm.appendChild(ask); sm.appendChild(tag); d.appendChild(sm);
     const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply);
+    d.appendChild(voiceButton(rep));   // 朗讀列放在回答最前面，不必先滑到最下面才能開始聽
     d.appendChild(rep);
     const chkText = wsCheckText(t.check);
     if (chkText) { const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '6px'; chk.textContent = chkText; d.appendChild(chk); }
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
     if (onAdd && t.kind !== 'sermon_draft') {
-      const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = '加入講稿';
+      const add = document.createElement('button'); add.className = 'btn btn-secondary btn-sm'; add.textContent = T('加入講稿');
       add.onclick = () => onAdd(t);
       act.appendChild(add);
     }
@@ -1535,10 +2197,10 @@ function wsRatePanel(t, panel, button, tag) {
     }
   };
   draw();
-  const note = document.createElement('textarea'); note.className = 'comment-input'; note.placeholder = '備註（選填）：哪裡要改、哪句不對、太長或太淺……';
-  const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = '儲存評分';
+  const note = document.createElement('textarea'); note.className = 'comment-input'; note.placeholder = T('備註（選填）：哪裡要改、哪句不對、太長或太淺……');
+  const save = document.createElement('button'); save.className = 'btn btn-sm'; save.textContent = T('儲存評分');
   save.onclick = () => {
-    if (score === null) { showToast('請選一個分數'); return; }
+    if (score === null) { showToast(T('請選一個分數')); return; }
     save.disabled = true;
     api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({id: t.id, scores: {overall: score}, comment: note.value.trim(), denomination: denom,
@@ -1546,11 +2208,11 @@ function wsRatePanel(t, panel, button, tag) {
       .then(r => {
         save.disabled = false;
         if (r.error) { showToast(r.error); return; }
-        t.rated = true; button.textContent = '✓ 已評分（修改）';
+        t.rated = true; button.textContent = T('✓ 已評分（修改）');
         tag.textContent = tag.textContent.replace('未評分', '✓ 已評分');
         t.noteText = note.value.trim();
-        panel.classList.add('hidden'); showToast('已儲存評分');
-      }).catch(() => { save.disabled = false; showToast('儲存失敗，請檢查網路'); });
+        panel.classList.add('hidden'); showToast(T('已儲存評分'));
+      }).catch(() => { save.disabled = false; showToast(T('儲存失敗，請檢查網路')); });
   };
   panel.appendChild(opts); panel.appendChild(note);
   const a = document.createElement('div'); a.className = 'actions'; a.appendChild(save); panel.appendChild(a);
@@ -1571,7 +2233,7 @@ function wsRenderBoard(board) {
     const body = document.createElement('details');
     const sm = document.createElement('summary'); sm.className = 'help'; sm.textContent = b.text.slice(0, 60) + (b.text.length > 60 ? '…' : '');
     const full = document.createElement('div'); full.className = 'card-content'; setRich(full, b.text);
-    body.appendChild(sm); body.appendChild(full);
+    body.appendChild(sm); body.appendChild(full); body.appendChild(voiceButton(full));
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
     [['↑', 'up'], ['↓', 'down'], ['改標題', 'label'], ['修改內容', 'text'], ['刪除', 'delete']].forEach(([t, a]) => {
       const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = t;
@@ -1592,7 +2254,7 @@ function wsRenderBoard(board) {
 function wsBoardAction(req) {
   req.project = wsCurrent.id;
   api('/api/sermon/board', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(req)})
-    .then(r => { if (r.error) { showToast(r.error); return; } wsCurrent.board = r.board; keepScroll(() => wsRenderBoard(r.board)); showToast('已更新講稿板'); });
+    .then(r => { if (r.error) { showToast(r.error); return; } wsCurrent.board = r.board; keepScroll(() => wsRenderBoard(r.board)); showToast(T('已更新講稿板')); });
 }
 
 function wsRun(path, body, waitText) {
@@ -1603,22 +2265,22 @@ function wsRun(path, body, waitText) {
     .then(r => {
       if (r.error) { showToast(r.error); send.disabled = asm.disabled = false; return; }
       pollJob(r.job,
-        t => { wait.textContent = waitText + (t >= 0 ? '（已 ' + t + ' 秒）' : '（連線不穩，重試中）'); },
+        t => { wait.textContent = waitText + (t >= 0 ? T('（已 ' + t + ' 秒）') : T('（連線不穩，重試中）')); },
         () => { wait.textContent = ''; if (path.endsWith('turn')) document.getElementById('wsInput').value = '';
-                wsCurrent.openNewest = true; wsOpen(wsCurrent.id); },
+                wsCurrent.openNewest = true; voicePendingWs = path.endsWith('turn'); wsOpen(wsCurrent.id); },
         msg => { wait.textContent = msg; send.disabled = asm.disabled = false; });
-    }).catch(() => { send.disabled = asm.disabled = false; showToast('送出失敗，請檢查網路'); });
+    }).catch(() => { send.disabled = asm.disabled = false; showToast(T('送出失敗，請檢查網路')); });
 }
 
 function wsSend() {
   const m = document.getElementById('wsInput').value.trim();
-  if (!m) { showToast('請輸入要求'); return; }
-  wsRun('/api/sermon/turn', {message: m}, '助手正在查資料和撰寫，通常 20 秒到 1 分鐘');
+  if (!m) { showToast(T('請輸入要求')); return; }
+  wsRun('/api/sermon/turn', {message: m}, T('助手正在查資料和撰寫，通常 20 秒到 1 分鐘'));
 }
 
 function wsAssemble() {
   if (!confirm(T('把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）'))) return;
-  wsRun('/api/sermon/assemble', {}, '正在組成完整講稿並查核，約 1 到 2 分鐘');
+  wsRun('/api/sermon/assemble', {}, T('正在組成完整講稿並查核，約 1 到 2 分鐘'));
 }
 
 function showId(id) {
@@ -1657,9 +2319,9 @@ function load(id) {
     if (it.word_study) document.getElementById('wordText').textContent = it.word_study;
     if (it.check_summary) {
       const c = it.check_summary;
-      document.getElementById('checkText').textContent = '查核了 ' + c.claims + ' 條事實陳述：沒有根據 ' + c.unsupported +
+      document.getElementById('checkText').textContent = T('查核了 ' + c.claims + ' 條事實陳述：沒有根據 ' + c.unsupported +
         ' 條、部分有根據 ' + c.partial + ' 條' + (c.failed_scripture && c.failed_scripture.length ? '；查不到的經文：' + c.failed_scripture.join('、') : '') +
-        (c.misquotes ? '；經文引用不一致：' + c.misquotes : '') + (it.revised ? '。草稿已按查核意見修改過一次。' : '。');
+        (c.misquotes ? '；經文引用不一致：' + c.misquotes : '') + (it.revised ? '。草稿已按查核意見修改過一次。' : '。'));
     }
     const tc = document.getElementById('toolCalls');
     tc.innerHTML = '';
@@ -1669,9 +2331,9 @@ function load(id) {
       d.className = 'tool-call' + (c.is_error ? ' error' : '');
       const s = document.createElement('summary');
       const ref = c.input.reference || JSON.stringify(c.input);
-      s.textContent = (k + 1) + '. ' + label(c.name) + '：' + ref + (c.is_error ? '（出錯）' : '');
+      s.textContent = (k + 1) + '. ' + label(c.name) + '：' + ref + (c.is_error ? T('（出錯）') : '');
       const pre = document.createElement('pre');
-      pre.textContent = c.output || '（空白）';
+      pre.textContent = c.output || T('（空白）');
       d.appendChild(s); d.appendChild(pre); tc.appendChild(d);
     });
     const prev = it.previous || {};
@@ -1686,8 +2348,8 @@ function load(id) {
 }
 
 function label(name) {
-  return {lookup_verse: '查經文', fill_quote: '填入經文', cross_references: '串珠', wesley_note: '衛斯理註釋',
-          kb_read_file: '知識庫', kb_get_page_content: '知識庫'}[name] || name;
+  return T({lookup_verse: '查經文', fill_quote: '填入經文', cross_references: '串珠', wesley_note: '衛斯理註釋',
+            kb_read_file: '知識庫', kb_get_page_content: '知識庫'}[name] || name);
 }
 
 function renderDims() {
@@ -1734,8 +2396,8 @@ function setVerdict(v) {
 
 function save() {
   const missing = state.rubric.dimensions.filter(d => !(d.key in scores));
-  if (missing.length) { showToast('還有「' + missing[0].name + '」沒有評分'); return; }
-  if (verdict === null && state.rubric.verdict.auto_min === undefined) { showToast('請選擇總評'); return; }
+  if (missing.length) { showToast(T('還有「' + missing[0].name + '」沒有評分')); return; }
+  if (verdict === null && state.rubric.verdict.auto_min === undefined) { showToast(T('請選擇總評')); return; }
   const btn = document.getElementById('saveBtn'); btn.disabled = true;
   api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({id: item.id, scores: scores, verdict: verdict, problems: [...problems], denomination: denom,
@@ -1743,7 +2405,7 @@ function save() {
     .then(r => {
       btn.disabled = false;
       if (r.error) { showToast(r.error); return; }
-      showToast('已儲存');
+      showToast(T('已儲存'));
       if (item.project) { mode('sermon'); wsOpen(item.project); return; }
       if (item.chat) { mode('ask'); return; }
       if (!state.done.includes(item.id)) state.done.push(item.id);
@@ -1751,7 +2413,7 @@ function save() {
       const any = state.order.findIndex(id => !state.done.includes(id));
       if (next >= 0) show(next); else if (any >= 0) show(any); else { progress(); done(); }
     })
-    .catch(() => { btn.disabled = false; showToast('儲存失敗，請檢查網路後再按一次'); });
+    .catch(() => { btn.disabled = false; showToast(T('儲存失敗，請檢查網路後再按一次')); });
 }
 
 // Language: Traditional (as written), Simplified (a character map from the server, OpenCC 繁 -> 簡),
@@ -1788,16 +2450,14 @@ const EN = {
     '🔒 Your questions and scores are visible only to you, on this device; no other user can see them. They are kept under your nickname only, to improve this assistant.',
   '· Your questions are private: only you, on this device, can see them.': '',
   '例如 e.g. 小明 / Tom': 'e.g. Tom',
-  '每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。':
-    'Each item is an answer from a Bible-study and sermon-preparation assistant. Read the question, then the answer, and score it by how useful you find it; no need to check sources: scripture text is checked word for word by the program, and whether the answer is grounded is checked automatically.',
-  '覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
-    'If a sentence seems odd, paste it into the comment. Each score is saved when you press Save; you can close the page any time and continue later with the same link.',
-  '像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
-    'Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.',
-  'Ask as you would in Bible study, in English or Chinese, and keep asking follow-up questions: the assistant remembers the conversation. Please score the answers.': '',
+  '每一題都是 TheoClaw 回答一個問題的結果。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。 覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
+    'Each item is an answer from TheoClaw to a question. Read the question, then the answer, and score it by how useful you find it; no need to check sources: scripture text is checked word for word by the program, and whether the answer is grounded is checked automatically. If a sentence seems odd, paste it into the comment. Each score is saved when you press Save; you can close the page any time and continue later with the same link.',
+  '用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
+    'Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.',
+  'Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.': '',
   '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Your past conversations are in the list on the left (on a phone, tap ☰ at the top left); tap one to continue it.',
-  '例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
-    'e.g. How can we discuss the parable of the prodigal son (Luke 15) in our Bible study?',
+  '例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
+    'e.g. I am afraid I do not really believe — is that normal? / How can we discuss the parable of the prodigal son (Luke 15) in our Bible study?',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Ask a follow-up… (e.g. And verse 9? Could you give an example?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'The question allowance for this trial has been used up. Thank you for taking part.',
   '開一篇新講章': 'Start a new sermon',
@@ -1817,6 +2477,7 @@ const EN = {
   '提意見 ▾': 'Comment ▾', '✓ 已留言': '✓ Commented', '儲存意見': 'Save comment',
   '已儲存意見': 'Comment saved', '請先寫下您的意見': 'Please write your comment first',
   '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。': 'Any comments, or a sentence that reads oddly? Write or paste it here; no score needed.',
+  '例如：這一句讀不懂、用詞不自然、太長或太淺……': 'e.g. This sentence is hard to follow, the wording sounds off, too long or too shallow…',
   '這個回答有幫助嗎？': 'Was this answer helpful?', '👍 有幫助': '👍 Helpful', '👎 不太行': '👎 Not really', '打分 0–10': 'Score 0–10',
   '跟隨系統': 'Follow system', '白天': 'Light', '黑夜': 'Dark',
   '帳號 · Account': 'Account',
@@ -1869,8 +2530,8 @@ const EN = {
   '回到第一題': 'Back to the first', '← 上一題': '← Previous', '下一題 →': 'Next →', '已評': 'scored',
   '（沒有呼叫工具）': '(no tools used)', '（空白）': '(empty)', '（出錯）': ' (error)',
   '查經文': 'Scripture lookup', '填入經文': 'Scripture filled in', '串珠': 'Cross references', '衛斯理註釋': 'Wesley’s Notes', '知識庫': 'Methodist sources',
-  '這個回答對你的查經或預備有多大幫助？ How helpful is this answer for your Bible study?': 'How helpful is this answer for your Bible study?',
-  '這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）': 'Can this answer be used as it is? (decided by the score: 7 or more = yes)',
+  '這個回答對你的提問有多大幫助？ How helpful is this answer for your question?': 'How helpful is this answer for your question?',
+  '這個回答對你的提問可以直接用嗎？（由分數決定：7 分以上 = 可以）': 'Can this answer be used as it is? (decided by the score: 7 or more = yes)',
   '經文引錯或出處錯': 'Scripture misquoted or wrong reference', '經文不是查來的（憑記憶寫）': 'Scripture written from memory, not looked up',
   '捏造或曲解衛斯理': 'Wesley invented or misrepresented', '史實、教義或條文錯誤': 'Wrong history, doctrine or rule',
   '查不到卻沒有說明': 'Did not say when something could not be found', '經文、註釋與推論混在一起': 'Scripture, commentary and inference mixed up',
@@ -1891,9 +2552,9 @@ const EN = {
   '模型服務暫時無法使用，請稍後再試': 'The language model is unavailable; please try again later', '研究時出錯，請稍後再試': 'Research failed; please try again later',
   '請選擇總評': 'Please choose a verdict',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Please agree to the training use of your questions first (tick “Agree” on the page to continue)',
-  '歡迎使用 TheoClaw 查經與講道助手': 'Welcome to TheoClaw, a Bible-study and sermon assistant',
-  '一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。':
-    'A Bible-study and sermon-preparation assistant in the Methodist tradition: scripture is looked up word for word by the program, and Wesley is quoted only from his own texts. Only you can see your questions.',
+  '歡迎使用 TheoClaw': 'Welcome to TheoClaw',
+  '一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'An AI assistant that answers questions of faith from the Bible and the Methodist tradition: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
   '我是信徒': 'I am a church member', '我是牧者': 'I am a pastor', '請輸入團契碼（向負責人索取）': 'Please enter the fellowship code (ask the organiser)',
   '進入牧者模式': 'Enter as a pastor', '請輸入團契碼': 'Please enter the fellowship code', '團契碼不正確': 'The fellowship code is not correct',
   '嘗試太多次，請一小時後再試': 'Too many tries; please try again in an hour', '牧者入口尚未開放': 'The pastors’ entrance is not open yet',
@@ -1905,6 +2566,18 @@ const EN = {
   '這一段的標題（例如：引言、第一點、例證、結語）': 'A title for this paragraph (e.g. Introduction, Point 1, Illustration, Conclusion)',
   '段落': 'Paragraph', '新標題': 'New title', '修改這一段（可直接改寫）': 'Edit this paragraph', '刪除這一段？': 'Delete this paragraph?',
   '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Assemble the paragraphs on the draft board into a full sermon? (about 1 to 2 minutes)',
+  // 語音朗讀
+  '語音': 'Voice', '🔊 朗讀': '🔊 Read aloud', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Resume', '⏹ 停止': '⏹ Stop',
+  '語音朗讀': 'Voice: answers are read aloud',
+  '朗讀的聲音': 'Voice to read aloud', '自動（預設）': 'Auto (best available)',
+  '朗讀控制': 'Reading controls', '停止朗讀': 'Stop reading',
+  '段落編號': 'Part number', '朗讀進度': 'Reading progress',
+  '（自然）': ' (natural)',
+  '（粵語）': ' (Cantonese)', '（普通話）': ' (Mandarin)',
+  '語音已開啟，回答會讀出來。': 'Voice is on. Answers will be read aloud.',
+  '這部裝置不支援語音朗讀': 'This device cannot read answers aloud',
+  '這裡沒有可以讀出來的文字': 'There is nothing here to read aloud',
+  '你好，這是我的聲音。': 'Hello, this is my voice.',
 };
 const EN_PATTERNS = [
   [/^今天還可以問 (\d+) 題。$/, 'You can ask $1 more questions today.'],
@@ -1929,6 +2602,8 @@ const EN_PATTERNS = [
   [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (edited)'],
   [/^查核 (\d+) 條陳述：未能核實 (\d+)、部分核實 (\d+)（[^）]*）/, 'Checked $1 statements: $2 could not be verified, $3 partly verified (“could not be verified” means no support was found in the research or this reply’s lookups; not necessarily wrong — please check)'],
   [/^查核了 (\d+) 條事實陳述：沒有根據 (\d+) 條、部分有根據 (\d+) 條/, 'Checked $1 statements: $2 unsupported, $3 partly supported'],
+  [/^約 (\d+) 分鐘$/, (m, a) => 'about ' + a + (a === '1' ? ' minute' : ' minutes')],
+  [/^第 (\d+) \/ (\d+) 段$/, 'Part $1 of $2'],
   [/^(.+)：(.+)$/, null],  // label: value pairs (tool calls) are left to the dictionary below
 ];
 const EN_LABELS = {'查不到的經文：': 'Passages not found: ', '經文引用不一致：': 'Scripture quotations not matching: ',
@@ -1939,21 +2614,20 @@ const DE = {
   '評分指定題目': 'Antworten bewerten', '對話並評分': 'Fragen & bewerten', '講道預備': 'Predigtvorbereitung',
   '說明': 'Über', '過去的對話': 'Frühere Gespräche', '我的對話': 'Meine Gespräche', '我的講章': 'Meine Predigten',
   '＋ 新對話': '＋ Neues Gespräch', '＋ 新講章': '＋ Neue Predigt', '還沒有': 'Noch nichts', '還沒有對話': 'Noch keine Gespräche',
+  '新對話 · New conversation': 'Neues Gespräch', 'Language · 語言': 'Sprache',
   '還沒有對話。': 'Noch kein Gespräch.', '還沒有講章': 'Noch keine Predigten',
   '用暱稱或名字的一個字即可，不必用全名；這部裝置會記住。同一個人請每次用同一個稱呼。':
     'Ein Spitzname genügt (kein voller Name nötig); dieses Gerät merkt ihn. Bitte verwenden Sie jedes Mal denselben Namen.',
   '🔒 您的提問和評分只有您自己在這部裝置上看得到，其他使用者看不到；資料只以暱稱匿名保存，用於改進這個助手。':
     '🔒 Ihre Fragen und Bewertungen sind nur für Sie auf diesem Gerät sichtbar; kein anderer Nutzer kann sie sehen. Sie werden nur unter Ihrem Spitznamen gespeichert, um diesen Assistenten zu verbessern.',
   '例如 e.g. 小明 / Tom': 'z. B. Tom',
-  '每一題是一個查經與講道預備助手的回答。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。':
-    'Jedes Element ist eine Antwort eines Assistenten für Bibelstudium und Predigtvorbereitung. Lesen Sie die Frage, dann die Antwort, und bewerten Sie nach Nutzen; Quellenprüfung ist nicht nötig: Bibeltexte werden vom Programm Wort für Wort geprüft, und die Fundierung der Antwort wird automatisch geprüft.',
-  '覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
-    'Wenn ein Satz seltsam klingt, kopieren Sie ihn in den Kommentar. Jede Bewertung wird mit „Speichern“ abgelegt; Sie können die Seite jederzeit schließen und mit demselben Link später weitermachen.',
-  '像平常查經時那樣提問，中文或英文都可以；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
-    'Fragen Sie wie im Bibelstudium — auf Deutsch, Englisch oder Chinesisch — und stellen Sie gerne Rückfragen: Der Assistent erinnert sich an das Gespräch. Bitte bewerten Sie die Antworten. Bitte geben Sie keine echten Namen oder privaten Daten ein.',
+  '每一題都是 TheoClaw 回答一個問題的結果。請先看題目，再看回答，憑你自己的使用感受打分，不需要查資料：經文文字已由程式逐字核對，回答有沒有根據也另有自動檢查。 覺得哪一句怪怪的，貼到備註就好。每題按「儲存」後就已存檔，可以隨時關閉頁面，下次用同一個連結回來會從還沒評的題目繼續。':
+    'Jedes Element ist eine Antwort von TheoClaw auf eine Frage. Lesen Sie die Frage, dann die Antwort, und bewerten Sie nach Nutzen; Quellenprüfung ist nicht nötig: Bibeltexte werden vom Programm Wort für Wort geprüft, und die Fundierung der Antwort wird automatisch geprüft. Wenn ein Satz seltsam klingt, kopieren Sie ihn in den Kommentar. Jede Bewertung wird mit „Speichern“ abgelegt; Sie können die Seite jederzeit schließen und mit demselben Link später weitermachen.',
+  '用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
+    'Fragen Sie mit Ihren eigenen Worten, auf Deutsch, Englisch oder Chinesisch: Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Stellen Sie gerne Rückfragen: Der Assistent erinnert sich an das Gespräch. Bitte bewerten Sie die Antworten. Bitte geben Sie keine echten Namen oder privaten Daten ein.',
   '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Ihre früheren Gespräche finden Sie in der Liste links (auf dem Handy: ☰ oben links); tippen Sie eines an, um fortzufahren.',
-  '例如：路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
-    'z. B. Wie können wir das Gleichnis vom verlorenen Sohn (Lukas 15) in unserer Bibelgruppe besprechen?',
+  '例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
+    'z. B. Ich fürchte, ich glaube nicht wirklich — ist das normal? / Wie können wir das Gleichnis vom verlorenen Sohn (Lukas 15) in unserer Bibelgruppe besprechen?',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Rückfrage stellen… (z. B. Und Vers 9? Ein Beispiel?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
   '開一篇新講章': 'Neue Predigt beginnen',
@@ -1973,6 +2647,7 @@ const DE = {
   '提意見 ▾': 'Anmerkung ▾', '✓ 已留言': '✓ Kommentiert', '儲存意見': 'Anmerkung speichern',
   '已儲存意見': 'Anmerkung gespeichert', '請先寫下您的意見': 'Bitte zuerst Ihren Hinweis schreiben',
   '有甚麼意見、或發現讀起來不通順的句子？寫或貼上來就好，可以不打分。': 'Anmerkungen oder ein ungeschickter Satz? Hier schreiben oder einfügen; eine Punktzahl ist nicht nötig.',
+  '例如：這一句讀不懂、用詞不自然、太長或太淺……': 'z. B. Dieser Satz ist schwer verständlich, der Ausdruck klingt unnatürlich, zu lang oder zu oberflächlich…',
   '這個回答有幫助嗎？': 'War diese Antwort hilfreich?', '👍 有幫助': '👍 Hilfreich', '👎 不太行': '👎 Eher nicht', '打分 0–10': 'Punkte 0–10',
   '跟隨系統': 'Systemeinstellung', '白天': 'Hell', '黑夜': 'Dunkel',
   '帳號 · Account': 'Konto',
@@ -2027,8 +2702,8 @@ const DE = {
   '回到第一題': 'Zur ersten Frage', '← 上一題': '← Zurück', '下一題 →': 'Weiter →', '已評': 'bewertet',
   '（沒有呼叫工具）': '(keine Tools)', '（空白）': '(leer)', '（出錯）': ' (Fehler)',
   '查經文': 'Bibeltext suchen', '填入經文': 'Bibeltext eingefügt', '串珠': 'Parallelstellen', '衛斯理註釋': 'Wesleys Anmerkungen', '知識庫': 'Methodistische Quellen',
-  '這個回答對你的查經或預備有多大幫助？ How helpful is this answer for your Bible study?': 'Wie hilfreich ist diese Antwort für Ihr Bibelstudium?',
-  '這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）': 'Ist diese Antwort direkt im Bibelstudium oder in der Vorbereitung verwendbar? (nach Punktzahl: ab 7 = ja)',
+  '這個回答對你的提問有多大幫助？ How helpful is this answer for your question?': 'Wie hilfreich ist diese Antwort für Ihre Frage?',
+  '這個回答對你的提問可以直接用嗎？（由分數決定：7 分以上 = 可以）': 'Kann diese Antwort so verwendet werden? (nach Punktzahl: ab 7 = ja)',
   '經文引錯或出處錯': 'Bibeltext falsch zitiert oder falsche Stelle', '經文不是查來的（憑記憶寫）': 'Bibeltext aus dem Gedächtnis, nicht nachgeschlagen',
   '捏造或曲解衛斯理': 'Wesley erfunden oder verdreht', '史實、教義或條文錯誤': 'Fehler in Geschichte, Lehre oder Ordnung',
   '查不到卻沒有說明': 'Nichts gefunden, aber nicht gesagt', '經文、註釋與推論混在一起': 'Text, Anmerkung und Schlussfolgerung vermischt',
@@ -2049,9 +2724,9 @@ const DE = {
   '模型服務暫時無法使用，請稍後再試': 'Der Sprachdienst ist vorübergehend nicht verfügbar; bitte später erneut', '研究時出錯，請稍後再試': 'Recherche fehlgeschlagen; bitte später erneut versuchen',
   '請選擇總評': 'Bitte Gesamturteil wählen',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Bitte stimmen Sie zuerst der Nutzung Ihrer Fragen zur Verbesserung zu (haken Sie auf der Seite „Zustimmen“ an, um fortzufahren)',
-  '歡迎使用 TheoClaw 查經與講道助手': 'Willkommen bei TheoClaw, dem Bibelstudien- und Predigt-Assistenten',
-  '一個以循道衛理傳統為本的查經與講道預備助手：經文由程式從聖經原文逐字查出，衛斯理的話只引用查到的原文。您的提問只有您自己看得到。':
-    'Ein Assistent für Bibelstudium und Predigtvorbereitung in methodistischer Tradition: Bibeltexte werden vom Programm Wort für Wort nachgeschlagen, und Wesley wird nur aus seinen eigenen Texten zitiert. Nur Sie sehen Ihre Fragen.',
+  '歡迎使用 TheoClaw': 'Willkommen bei TheoClaw',
+  '一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'Ein KI-Assistent, der Glaubensfragen aus der Bibel und der methodistischen Tradition beantwortet: Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
   '我是信徒': 'Ich bin Gemeindeglied', '我是牧者': 'Ich bin Pastor/in', '請輸入團契碼（向負責人索取）': 'Bitte Gruppencode eingeben (beim Verantwortlichen erfragen)',
   '進入牧者模式': 'Als Pastor/in eintreten', '請輸入團契碼': 'Bitte Gruppencode eingeben', '團契碼不正確': 'Der Gruppencode ist nicht richtig',
   '嘗試太多次，請一小時後再試': 'Zu viele Versuche; bitte in einer Stunde erneut', '牧者入口尚未開放': 'Der Zugang für Pastoren ist noch nicht offen',
@@ -2063,6 +2738,18 @@ const DE = {
   '這一段的標題（例如：引言、第一點、例證、結語）': 'Titel dieses Absatzes (z. B. Einleitung, Punkt 1, Beispiel, Schluss)',
   '段落': 'Absatz', '新標題': 'Neuer Titel', '修改這一段（可直接改寫）': 'Absatz bearbeiten (direkt umschreiben)', '刪除這一段？': 'Diesen Absatz löschen?',
   '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Absätze vom Entwurfsbrett zu einer Gesamtpredigt zusammenfügen? (etwa 1 bis 2 Minuten)',
+  // 語音朗讀
+  '語音': 'Sprache', '🔊 朗讀': '🔊 Vorlesen', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Weiter', '⏹ 停止': '⏹ Stopp',
+  '語音朗讀': 'Sprache: Antworten werden vorgelesen',
+  '朗讀的聲音': 'Sprechstimme', '自動（預設）': 'Automatisch (beste Stimme)',
+  '朗讀控制': 'Vorlesesteuerung', '停止朗讀': 'Vorlesen beenden',
+  '段落編號': 'Abschnittsnummer', '朗讀進度': 'Vorlesefortschritt',
+  '（自然）': ' (natürlich)',
+  '（粵語）': ' (Kantonesisch)', '（普通話）': ' (Mandarin)',
+  '語音已開啟，回答會讀出來。': 'Sprache ist an. Antworten werden vorgelesen.',
+  '這部裝置不支援語音朗讀': 'Dieses Gerät kann Antworten nicht vorlesen',
+  '這裡沒有可以讀出來的文字': 'Hier gibt es nichts zum Vorlesen',
+  '你好，這是我的聲音。': 'Hallo, das ist meine Stimme.',
 };
 const DE_PATTERNS = [
   [/^今天還可以問 (\d+) 題。$/, 'Heute können Sie noch $1 Fragen stellen.'],
@@ -2087,6 +2774,8 @@ const DE_PATTERNS = [
   [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (bearbeitet)'],
   [/^查核 (\d+) 條陳述：未能核實 (\d+)、部分核實 (\d+)（[^）]*）/, '$1 Aussagen geprüft: $2 unbestätigt, $3 teilweise bestätigt („unbestätigt“ = in Recherche oder Nachweisen keine Stütze gefunden; nicht zwingend falsch — bitte prüfen)'],
   [/^查核了 (\d+) 條事實陳述：沒有根據 (\d+) 條、部分有根據 (\d+) 條/, '$1 Tatsachenaussagen geprüft: $2 ohne Grundlage, $3 teilweise begründet'],
+  [/^約 (\d+) 分鐘$/, (m, a) => 'etwa ' + a + (a === '1' ? ' Minute' : ' Minuten')],
+  [/^第 (\d+) \/ (\d+) 段$/, 'Abschnitt $1 von $2'],
   [/^(.+)：(.+)$/, null],
 ];
 const DE_LABELS = {'查不到的經文：': 'Nicht gefundene Bibelstellen: ', '經文引用不一致：': 'Zitierte Bibeltexte stimmen nicht überein: ',
@@ -2094,8 +2783,9 @@ const DE_LABELS = {'查不到的經文：': 'Nicht gefundene Bibelstellen: ', '�
 
 function toDe(t) {
   const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], s = t.trim().replace(/\s*\n\s*/g, ' ');
-  if (!s || !/[㐀-鿿（）【】《》]/.test(s)) return t;
-  if (s in DE) return DE[s] ? lead + DE[s] + trail : '';
+  if (!s) return t;
+  if (s in DE) return DE[s] ? lead + DE[s] + trail : '';   // '' drops the English half of a bilingual line
+  if (!/[㐀-鿿（）【】《》]/.test(s)) return t;
   for (const [re, rep] of DE_PATTERNS) {
     if (rep === null || !re.test(s)) continue;
     return lead + s.replace(re, rep).replace(/查不到的經文：|經文引用不一致：|不存在的要點編號：|未能核實的句子：/g, x => DE_LABELS[x])
@@ -2108,8 +2798,9 @@ function toDe(t) {
 
 function toEn(t) {
   const lead = t.match(/^\s*/)[0], trail = t.match(/\s*$/)[0], s = t.trim().replace(/\s*\n\s*/g, ' ');
-  if (!s || !/[㐀-鿿（）【】《》]/.test(s)) return t;
-  if (s in EN) return EN[s] ? lead + EN[s] + trail : '';
+  if (!s) return t;
+  if (s in EN) return EN[s] ? lead + EN[s] + trail : '';   // '' drops the English half of a bilingual line
+  if (!/[㐀-鿿（）【】《》]/.test(s)) return t;
   for (const [re, rep] of EN_PATTERNS) {
     if (rep === null || !re.test(s)) continue;
     return lead + s.replace(re, rep).replace(/查不到的經文：|經文引用不一致：|不存在的要點編號：|未能核實的句子：/g, x => EN_LABELS[x])
@@ -2152,16 +2843,29 @@ function convertNode(node) {
     if (!node.dataset.ph) node.dataset.ph = node.placeholder;
     node.placeholder = shown(node.dataset.ph);
   }
+  if (node.title) {
+    if (!node.dataset.t) node.dataset.t = node.title;
+    node.title = shown(node.dataset.t);
+  }
   node.childNodes.forEach(convertNode);
 }
 
 function applyScript() {
   document.getElementById('langSel').value = zhMode;
   document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant'));
-  document.title = zhMode === 'de' ? 'TheoClaw – Bibelstudium & Predigt' : 'TheoClaw';
+  document.title = zhMode === 'de' ? 'TheoClaw – Fragen zum Glauben' : 'TheoClaw';
   renderAccount();
   convertNode(document.body);
+  voiceRefresh();
+  voicePaintToggle();
+  syncHeaderHeight();
   applyTheme();
+}
+
+// 浮動朗讀列貼在頁首下方；語言或視窗寬度改變時，頁首高度可能不同。
+function syncHeaderHeight() {
+  const h = document.querySelector('.header');
+  if (h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px');
 }
 
 function setLang(m) {
@@ -2234,6 +2938,10 @@ new MutationObserver(muts => {
 if (zhMode === 'hans') fetch('/zhmap.json').then(r => r.json()).then(m => { zhMap = m; applyScript(); });
 else applyScript();
 applyTheme();
+syncHeaderHeight();
+voiceSeekSetup();
+window.addEventListener('resize', syncHeaderHeight);
+if (window.ResizeObserver) new ResizeObserver(syncHeaderHeight).observe(document.querySelector('.header'));
 
 function showToast(msg) {
   const t = document.getElementById('toast');

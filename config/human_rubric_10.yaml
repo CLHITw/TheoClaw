@@ -9,14 +9,14 @@ allow_na: false
 dimensions:
   - key: overall
     name: 整體分數 · Overall
-    question: 這個回答對你的查經或預備有多大幫助？ How helpful is this answer for your Bible study?
+    question: 這個回答對你的提問有多大幫助？ How helpful is this answer for your question?
 
 anchors:
   - {range: "0–3", meaning: 不能用：有明顯錯誤、答非所問，或讓人誤解 · Not usable – wrong, off-topic or misleading}
   - {range: "4–6", meaning: 有可用的部分，但要大改才能用 · Some useful parts, needs a lot of change}
   - {range: "7–8", meaning: 小改就能用 · Usable with small changes}
-  - {range: "9–10", meaning: 可以直接拿到團契或講道預備用 · Ready to use as it is}
+  - {range: "9–10", meaning: 可以直接拿去用（團契、講道預備，或自己的問題） · Ready to use as it is (fellowship, sermon preparation, or your own question)}
 
 verdict:
   auto_min: 7
-  question: 這個回答可以直接用在查經聚會或講道預備嗎？（由分數決定：7 分以上 = 可以）
+  question: 這個回答對你的提問可以直接用嗎？（由分數決定：7 分以上 = 可以）

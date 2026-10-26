@@ -326,8 +326,9 @@ class Store:
     default, or the database); the blind-scoring answers (packaged eval runs) and the questions
     asked here are also held in memory."""
 
-    def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path = CHAT_DIR,
+    def __init__(self, path: Path = ASSIGNMENT, chat: dict | None = None, chat_dir: Path | None = None,
                  rubric: Path = RUBRIC_10, db=None, storage: str | None = None):
+        chat_dir = chat_dir or CHAT_DIR
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"items": [], "raters": {}}
         run_dirs = sorted({_abs(e["run_dir"]) for e in data["items"]})
         if db is None and (storage or STORAGE) == "files":

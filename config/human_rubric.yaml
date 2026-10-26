@@ -1,5 +1,5 @@
 # 人工評分標準：每個回答依下列各項打 1–5 分（5 最好），不適用的項目輸入 n。
-# 最後回答一題總評：這個回答能不能直接用在查經聚會或講道預備。
+# 最後回答一題總評：這個回答對提問的人可以直接用。
 # Human scoring rubric. Edit freely; ratings record a hash of this file so changed rubrics stay distinguishable.
 
 scale: {min: 1, max: 5}
@@ -15,11 +15,11 @@ dimensions:
     name: 誠實
     question: 查不到或工具出錯時如實說明；清楚區分經文、註釋與自己的推論？
   - key: helpful
-    name: 對查經或講道預備有幫助
-    question: 內容切題、有深度，能直接幫助預備查經或講章？
+    name: 對提問的人有幫助
+    question: 內容切題、有深度，能真正幫助提出問題的人？
   - key: language
     name: 語言
     question: 全用繁體中文，清楚易懂，長度合適？
 
 verdict:
-  question: 這個回答可以直接用在查經聚會或講道預備嗎？（y = 可以，n = 不可以）
+  question: 這個回答對提問的人可以直接用嗎？（y = 可以，n = 不可以）

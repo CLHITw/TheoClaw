@@ -41,7 +41,7 @@ TOOL_DEFS: list[dict] = [
                 "version": {
                     "type": "string",
                     "enum": list(VERSIONS),
-                    "description": "cuv = 和合本（繁體）；kjv = King James Version；web = World English Bible（現代英文，公共領域）。",
+                    "description": "cuv = 和合本（繁體）；kjv = King James Version；web = World English Bible（現代英文，公共領域）；lut = Luther-Bibel 1912（德文，公共領域）。",
                 },
             },
             "required": ["reference", "version"],
@@ -101,7 +101,8 @@ def lookup_verse(inp: dict, corpus: Corpus) -> str:
         verses = corpus.passage(ref, version)
     except KeyError as e:
         raise ToolError(f"經文不存在：{ref.zh()}（{e.args[0]}）") from e
-    lines = [f"【{VERSIONS[version]}】{ref.zh()}"]
+    label = ref.zh() if version == "cuv" else (ref.de() if version == "lut" else ref.en())
+    lines = [f"【{VERSIONS[version]}】{label}"]
     for v, text in verses:
         lines.append(f"{ref.chapter}:{v} {text or EMPTY_VERSE}")
     return "\n".join(lines)

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "theoclaw"
 version = "0.4.0"
-description = "A Bible-study agent for a Methodist fellowship, and the eval harness that measures it"
+description = "An assistant that answers questions of faith from the Bible and the Methodist tradition, and the eval harness that measures it"
 requires-python = ">=3.10,<3.14"
 dependencies = ["anthropic>=1.0", "litellm==1.87.2", "pyyaml>=6", "opencc-python-reimplemented>=0.1.7"]
 

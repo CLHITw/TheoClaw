@@ -1,4 +1,5 @@
-"""TheoClaw: a Bible-study agent for a Methodist fellowship, and the harness that measures it.
+"""TheoClaw: an assistant that answers questions of faith from the Bible and the Methodist
+tradition, and the harness that measures it.
 
 Modules
     theoclaw.agent        the agent: loop, system prompt, scripture tools

@@ -126,6 +126,16 @@ def test_scripture_placeholders_are_filled_from_the_lookup_tool(corpus):
     assert run.model_text == text
 
 
+def test_scripture_placeholders_fill_luther(corpus):
+    text = "〔經文：Römer 5:8，LUT〕\n〔經文：Römer 5,8，LUT〕"  # German book name; colon or German comma
+    client = Scripted([resp([_Block("text", text=text)], "end_turn")], [])
+    run = run_agent(client, "Frage", model="qwen3.8-max", handlers=make_handlers(corpus))
+    line = ("„Darum preiset Gott seine Liebe gegen uns, daß Christus für uns gestorben ist, "
+            "da wir noch Sünder waren.“ (Römer 5,8, Luther 1912)")
+    assert run.final_text == f"{line}\n{line}"
+    assert run.model_text == text
+
+
 def test_placeholders_go_through_injected_faults(corpus):
     client = Scripted([resp([_Block("text", text="〔經文：羅馬書 5:8〕")], "end_turn")], [])
     injector = FaultInjector([FaultSpec(tool="lookup_verse", mode="error")])

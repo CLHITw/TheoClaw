@@ -58,7 +58,8 @@ WRITER = """你是講章寫作助理，替循道衛理的牧者寫講章草稿�
 2. 依序寫：講題、經文、大綱（三到四點）、講章正文、結語與回應。
 3. 凡是關於經文意思、衛斯理或歷史的陳述，句末用方括號標明所根據的摘要要點，例如 [A2] 或 [B1]；摘要裡沒有的事不要寫成事實。
    你自己的應用、例證和勸勉可以寫，但不要標成摘要要點。
-4. 引用整節或整段經文時，不要自己寫出經文文字，只寫標記〔經文：書卷 章:節〕（英文講章寫〔經文：Romans 5:8，WEB〕；牧者要 King James Version 時寫〔經文：Romans 5:8，KJV〕），系統會自動填入。
+4. 引用整節或整段經文時，不要自己寫出經文文字，只寫標記〔經文：書卷 章:節〕（英文講章寫〔經文：Romans 5:8，WEB〕；
+   牧者要 King James Version 時寫〔經文：Romans 5:8，KJV〕；德文講章寫〔經文：Römer 5:8，LUT〕），系統會自動填入。
    每段經文只放一次標記。
 5. 不要提到摘要、要點編號以外的內部用語，不要提到工具或規則。"""
 
@@ -81,9 +82,11 @@ GERMAN_BRIEF = """
 Write the whole brief in German for a German-speaking pastor: the heading in German
 ("## Predigttext-Recherche" or "## Wesley und die methodistische Tradition"), the points in
 plain German, sources as usual (e.g. "Römer 5,8", "Wesleys Anmerkungen, Römer 5,8", "ISBE: GRACE").
-Keep the [A1] / [B1] numbering. Scripture quotations stay in English (World English Bible),
-with the German reference in brackets, e.g. "while we were yet sinners" (Römer 5,8, WEB).
-Original-language words: the Greek or Hebrew word, transliteration and meaning in German.
+Look scripture up with the version "lut" (Luther 1912) and quote it in German exactly as the
+tool returns it, e.g. „Also hat Gott die Welt geliebt“ (Römer 5,8, LUT). Wesley's words: give
+the key phrase as a German translation marked (Übersetzung) with its source, or a short
+English key phrase in quotation marks with the source.
+Keep the [A1] / [B1] numbering. Original-language words: the Greek or Hebrew word, transliteration and meaning in German.
 Where the instructions say 查不到, write "nicht gefunden"."""
 
 _POINT = re.compile(r"\[([AB]\d{1,2})\]")

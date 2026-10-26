@@ -16,9 +16,12 @@ def corpus(tmp_path):
         "Gen.1.1": "起初，神創造天地。",
     }
     kjv = {k: f"KJV {k}" for k in cuv}
+    lut = {"Rom.5.8": "Darum preiset Gott seine Liebe gegen uns, daß Christus für uns gestorben ist, "
+                     "da wir noch Sünder waren.",
+           "John.3.16": "Also hat Gott die Welt geliebt, daß er seinen eingeborenen Sohn gab."}
     xrefs = {"John.3.16": [["Rom.5.8", 96], ["1John.4.9", 80]]}
     wesley = {"John.3.16": "Yea, and this was the very design of God's love."}
-    for name, obj in [("cuv", cuv), ("kjv", kjv), ("crossrefs", xrefs), ("wesley_nt", wesley)]:
+    for name, obj in [("cuv", cuv), ("kjv", kjv), ("lut", lut), ("crossrefs", xrefs), ("wesley_nt", wesley)]:
         (tmp_path / f"{name}.json").write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
     return Corpus(tmp_path)
 
