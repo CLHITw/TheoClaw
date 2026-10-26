@@ -844,3 +844,29 @@ def test_no_api_key_is_reported_at_once(tmp_path):
             break
         time.sleep(0.05)
     assert "金鑰" in store.job(code, job, me)["error"]
+
+
+def test_two_scores_earn_one_more_question(tmp_path, storage):
+    path = tmp_path / "assignment.json"
+    hs.prepare([], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 2, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
+    fake = lambda q: {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
+                      "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    nick = ("Ruth", "r" * 20)
+    _consent(store, code, nick)
+    for q in ("第一題", "第二題"):
+        assert "job" in store.ask(code, q, runner=fake, nick=nick)
+        time.sleep(0.3)
+    assert "每評分 2 個回答，可以多問一題" in store.ask(code, "第三題", runner=fake, nick=nick)["error"]
+    chat = store.state(code, nick)["chat"]
+    assert chat["remaining_today"] == 0 and chat["ratings_to_bonus"] == 2
+    first, second = [q["id"] for q in chat["questions"]]
+    assert store.rate(code, {"id": first, "quick": "up"}, nick) is None
+    assert store.rate(code, {"id": first, "scores": {"overall": 8}}, nick) is None  # the same answer again: still one
+    assert store.rate(code, {"id": second, "skip": True}, nick) is None              # a skip is not a score
+    assert store.state(code, nick)["chat"]["ratings_to_bonus"] == 1
+    assert store.rate(code, {"id": second, "quick": "down"}, nick) is None
+    chat = store.state(code, nick)["chat"]
+    assert chat["remaining_today"] == 1 and chat["ratings_to_bonus"] == 2
+    assert "job" in store.ask(code, "第三題", runner=fake, nick=nick)

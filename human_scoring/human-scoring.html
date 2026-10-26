@@ -1315,12 +1315,19 @@ let convId = null;
 
 function refreshAsk() {
   api('/api/state').then(s => {
+    const before = state.chat ? state.chat.remaining_today : null;
     state.chat = s.chat;
     const c = s.chat;
     const info = document.getElementById('askInfo');
-    // the day's last question used up: say so, and that tomorrow brings new ones (the button is off)
+    // scoring answers earns questions (two scores, one more question today); asking only lowers
+    // the count, so a rise means a score just earned one
+    if (before !== null && c.remaining_today > before) showToast(T('謝謝您的評分！今天多了一次提問機會。'));
+    const k = c.ratings_to_bonus;
+    // the day's last question used up: say so, how to earn another, and that tomorrow brings new ones
     info.textContent = !c.open ? T('本次測試的提問額度已用完，謝謝您的參與。')
-      : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。') : T('今天的提問次數已經用完，明天可以再問。');
+      : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。') + (k ? ' ' + T('再評分 ' + k + ' 個回答，可以多問一題。') : '')
+      : k ? T('今天的提問次數已經用完。') + ' ' + T('再評分 ' + k + ' 個回答，就可以多問一題；明天也會有新的提問次數。')
+      : T('今天的提問次數已經用完，明天可以再問。');
     if (nick && !accountNick) {
       const a = document.createElement('a');
       a.href = '#'; a.textContent = T('（以「' + nick + '」記錄；不是你？按這裡更換）');
@@ -2142,7 +2149,7 @@ function quickRateBar(t, tag, panel, onRated) {
   wrap.appendChild(bar); wrap.appendChild(noteBtn); wrap.appendChild(notePanel); wrap.appendChild(done);
   const send = (body) => api('/api/rate', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...body, comment: t.noteText || '', id: t.id, elapsed: elapsedOf(t.id)})})
-    .then(r => { if (r.error) { showToast(r.error); return false; } markRated(t, tag); return true; });
+    .then(r => { if (r.error) { showToast(r.error); return false; } markRated(t, tag); refreshAsk(); return true; });
   const mk = (label, cls, body, active) => {
     const b = document.createElement('button'); b.className = cls; b.textContent = label;
     if (active) b.classList.add('active');
@@ -2266,7 +2273,7 @@ function wsRatePanel(t, panel, button, tag) {
       .then(r => {
         save.disabled = false;
         if (r.error) { showToast(r.error); return; }
-        t.rated = true; button.textContent = T('✓ 已評分（修改）');
+        t.rated = true; button.textContent = T('✓ 已評分（修改）'); refreshAsk();
         tag.textContent = tag.textContent.replace('未評分', '✓ 已評分');
         t.noteText = note.value.trim();
         panel.classList.add('hidden'); showToast(T('已儲存評分'));
@@ -2519,6 +2526,8 @@ const EN = {
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Ask a follow-up… (e.g. And verse 9? Could you give an example?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'The question allowance for this trial has been used up. Thank you for taking part.',
   '今天的提問次數已經用完，明天可以再問。': "You've used all of today's questions. You can ask again tomorrow.",
+  '今天的提問次數已經用完。': "You've used all of today's questions.",
+  '謝謝您的評分！今天多了一次提問機會。': 'Thank you for scoring! You have one more question today.',
   '開一篇新講章': 'Start a new sermon',
   '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
     'Enter the passage and the assistant first researches the text, the original language and the Wesleyan / Methodist tradition (about a minute). Then you can work step by step: the meaning of a word, an introduction, an illustration, a shorter version of a paragraph… Add the replies you like to the draft board, then press “Assemble full sermon”.',
@@ -2659,6 +2668,9 @@ const EN_PATTERNS = [
   [/^(\S+) 分 · pts：.*· (.+)$/, '$1 pts: $2'],
   [/^還有「(.+)」沒有評分$/, (m, a) => toEn(a) + ' is not scored yet'],
   [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'You have asked $1 today; please come back tomorrow'],
+  [/^今天已問了 (\d+) 題，請明天再來；每評分 (\d+) 個回答，可以多問一題$/, 'You have asked $1 today; please come back tomorrow. Every $2 answers you score earn one more question'],
+  [/^再評分 (\d+) 個回答，可以多問一題。$/, (m, n) => 'Score ' + n + (n === '1' ? ' more answer' : ' more answers') + ' to get one more question.'],
+  [/^再評分 (\d+) 個回答，就可以多問一題；明天也會有新的提問次數。$/, (m, n) => 'Score ' + n + (n === '1' ? ' more answer' : ' more answers') + ' to get one more question; tomorrow brings new questions too.'],
   [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'You have started $1 sermons today; please come back tomorrow'],
   [/^「(.+)」(還沒有評分|需要打分|的分數無效)$/, (m, a, b) => toEn(a) + ({'還沒有評分': ' is not scored yet', '需要打分': ' needs a score', '的分數無效': ': invalid score'})[b]],
   [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (edited)'],
@@ -2693,6 +2705,8 @@ const DE = {
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Rückfrage stellen… (z. B. Und Vers 9? Ein Beispiel?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
   '今天的提問次數已經用完，明天可以再問。': 'Ihre Fragen für heute sind aufgebraucht. Morgen können Sie wieder fragen.',
+  '今天的提問次數已經用完。': 'Ihre Fragen für heute sind aufgebraucht.',
+  '謝謝您的評分！今天多了一次提問機會。': 'Danke für Ihre Bewertung! Sie können heute eine Frage mehr stellen.',
   '開一篇新講章': 'Neue Predigt beginnen',
   '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
     'Geben Sie die Textstelle ein; der Assistent erforscht zuerst Text, Ursprache und die Wesley- bzw. methodistische Tradition (etwa 1 Minute). Dann arbeiten Sie Schritt für Schritt: Bedeutung eines Worts, eine Einleitung, ein Beispiel, eine kürzere Fassung eines Absatzes … Fügen Sie gelungene Antworten mit „In Entwurf übernehmen“ dem Brett hinzu, dann „Gesamtpredigt zusammenfügen“.',
@@ -2835,6 +2849,9 @@ const DE_PATTERNS = [
   [/^(\S+) 分 · pts：.*· (.+)$/, '$1 Pkt.: $2'],
   [/^還有「(.+)」沒有評分$/, (m, a) => toDe(a) + ' ist noch nicht bewertet'],
   [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'Sie haben heute $1 Fragen gestellt; bitte morgen wiederkommen'],
+  [/^今天已問了 (\d+) 題，請明天再來；每評分 (\d+) 個回答，可以多問一題$/, 'Sie haben heute $1 Fragen gestellt; bitte morgen wiederkommen. Für je $2 bewertete Antworten können Sie eine Frage mehr stellen'],
+  [/^再評分 (\d+) 個回答，可以多問一題。$/, (m, n) => (n === '1' ? 'Bewerten Sie noch eine Antwort' : 'Bewerten Sie noch ' + n + ' Antworten') + ', dann können Sie eine Frage mehr stellen.'],
+  [/^再評分 (\d+) 個回答，就可以多問一題；明天也會有新的提問次數。$/, (m, n) => (n === '1' ? 'Bewerten Sie noch eine Antwort' : 'Bewerten Sie noch ' + n + ' Antworten') + ', dann können Sie eine Frage mehr stellen; morgen gibt es auch wieder neue Fragen.'],
   [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'Sie haben heute $1 Predigten begonnen; bitte morgen wiederkommen'],
   [/^「(.+)」(還沒有評分|需要打分|的分數無效)$/, (m, a, b) => toDe(a) + ({'還沒有評分': ' ist noch nicht bewertet', '需要打分': ' braucht eine Punktzahl', '的分數無效': ': ungültige Punktzahl'})[b]],
   [/^(\d+)\. (.+?)（已修改）$/, '$1. $2 (bearbeitet)'],

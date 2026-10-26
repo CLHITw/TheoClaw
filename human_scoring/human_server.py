@@ -89,6 +89,7 @@ BIBLE_NAMES = {"web": "World English Bible", "bsb": "Berean Standard Bible", "kj
                "asv": "American Standard Version", "lut": "Luther 1912", "elb": "Elberfelder 1905"}
 BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses up with version \"{version}\".)",
               "de": "\n\n(Zitieren Sie die Bibel nach der {name} ({tag}): Verse mit version \"{version}\" nachschlagen.)"}
+RATINGS_PER_QUESTION = 2   # 每天每評分兩個回答，當天可多問一題（2026-10-26 新政策）
 PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
@@ -553,7 +554,10 @@ class Store:
         if self.chat:
             mine = sorted((i for i, n in self.owner.items() if n == r["name"]),
                           key=lambda i: self.items[i].trace.get("asked_at", ""))
-            chat = {"remaining_today": max(0, self.chat["daily_limit"] - self._today(r["name"])),
+            rated = self._rated_today(r["name"])
+            chat = {"remaining_today": max(0, self._daily_limit(r["name"]) - self._today(r["name"])),
+                    # scores still needed today for the next extra question
+                    "ratings_to_bonus": RATINGS_PER_QUESTION - rated % RATINGS_PER_QUESTION,
                     "open": self._spent() < self.chat["budget_usd"],
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
@@ -684,6 +688,17 @@ class Store:
                       if j["name"] == name and j["status"] == "running" and j.get("kind", "question") == kind)
         return asked + running
 
+    def _rated_today(self, name: str) -> int:
+        """Answers this person scored today (a thumb, a tap or a full rating; not a skip or a note
+        alone); each answer counts once, however often it was re-scored."""
+        today = time.strftime("%Y-%m-%d")
+        return sum(1 for r in self.db.ratings(rater=name)
+                   if str(r.get("rated_at", "")).startswith(today) and r.get("method") not in ("skip", "note"))
+
+    def _daily_limit(self, name: str) -> int:
+        """The day's questions: the daily limit, plus one for every RATINGS_PER_QUESTION answers scored today."""
+        return self.chat["daily_limit"] + self._rated_today(name) // RATINGS_PER_QUESTION
+
     def _today_group(self, group: str) -> int:
         today = time.strftime("%Y%m%d")
         asked = sum(1 for t in self._chat_traces()
@@ -730,8 +745,9 @@ class Store:
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的提問額度已用完，謝謝您的參與"}
-            if self._today(r["name"]) >= self.chat["daily_limit"]:
-                return {"error": f"今天已問了 {self.chat['daily_limit']} 題，請明天再來"}
+            limit = self._daily_limit(r["name"])
+            if self._today(r["name"]) >= limit:
+                return {"error": f"今天已問了 {limit} 題，請明天再來；每評分 {RATINGS_PER_QUESTION} 個回答，可以多問一題"}
             group_limit = self.chat.get("group_daily_limit")
             if r.get("group") and group_limit and self._today_group(r["group"]) >= group_limit:
                 return {"error": "今天團契的提問額度已用完，請明天再來"}
