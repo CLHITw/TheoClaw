@@ -50,6 +50,7 @@ NO_MEMORY = "不可憑記憶寫出經文。若工具出錯、回傳空白或查�
 WESLEY = ("引用衛斯理的看法之前，必須先用工具查到他的原文；原文是英文，中文回答時可以翻譯成中文，但要註明是翻譯；"
           "德文回答時譯成德文，同樣註明是譯文（Übersetzung），新約註釋的出處寫 John Wesleys Anmerkungen zum Neuen Testament；英文回答時直接引用原文，不要說是翻譯。")
 LAYERS = "清楚區分三種內容：經文本身說了什麼、衛斯理的註釋怎麼說、你自己的推論或應用。"
+FORMAT = "排版用 Markdown（## 小標題、**粗體**、- 列點），不要用 HTML 標籤（例如 <p>、<strong>、<h3>）。"
 TRADITION = "遇到宗派之間有爭議的問題，以衛斯理宗（循道衛理）傳統為主，並說明其他傳統可能有不同理解。"
 
 
@@ -58,7 +59,7 @@ def system_prompt(groups: list[str]) -> str:
     rules = [LANGUAGE, SAFETY, SCOPE, SCRIPTURE_TOOL if tool else SCRIPTURE_KB, NO_MEMORY_TOOL if tool else NO_MEMORY]
     if "wesley" in groups or "kb" in groups or "rag" in groups:
         rules.append(WESLEY)
-    rules += [LAYERS, TRADITION]
+    rules += [LAYERS, TRADITION, FORMAT]
     return INTRO + "".join(f"{i}. {r}\n" for i, r in enumerate(rules, 1))
 
 

@@ -1447,9 +1447,20 @@ function readableCites(text, lang) {
 }
 // </cites>
 
+// An answer the model wrote in HTML (<p>, <strong>, <h3>) is shown as the Markdown it means; the
+// server converts new answers the same way (quotes.html_to_markdown), this covers older ones.
+function htmlToMd(t) {
+  if (!/<\/?(?:p|strong|b|em|i|h[1-4]|li|ul|ol|br|div|blockquote)\b[^>]*>/i.test(t)) return t;
+  return t.replace(/<h[1-4][^>]*>\s*([\s\S]*?)\s*<\/h[1-4]>/gi, '\n\n## $1\n\n')
+    .replace(/<li[^>]*>\s*([\s\S]*?)\s*<\/li>/gi, '\n- $1')
+    .replace(/<\/?(?:strong|b)>/gi, '**').replace(/<\/?(?:em|i)>/gi, '*')
+    .replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(?:p|div|ul|ol|blockquote)[^>]*>/gi, '\n\n')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function rich(text, lang) {
   let n = 0;
-  return esc(readableCites(text || '', lang || answerLang())).split('\n').map(line => {
+  return esc(readableCites(htmlToMd(text || ''), lang || answerLang())).split('\n').map(line => {
     const h = line.match(/^\s*#{1,4}\s*(.+)$/);
     if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
     line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');

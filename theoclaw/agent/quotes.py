@@ -76,6 +76,27 @@ def scrub_internal(text: str) -> tuple[str, list[str]]:
     return text, changed
 
 
+# The model sometimes answers in HTML (<p>, <strong>, <h3>) instead of Markdown; the page shows
+# text, not HTML, so the common tags become their Markdown. Other tags are left as they are.
+_HTML_MD = [
+    (re.compile(r"<h[1-4][^>]*>\s*(.*?)\s*</h[1-4]>", re.I | re.S), r"\n\n## \1\n\n"),
+    (re.compile(r"<li[^>]*>\s*(.*?)\s*</li>", re.I | re.S), r"\n- \1"),
+    (re.compile(r"</?(?:strong|b)>", re.I), "**"),
+    (re.compile(r"</?(?:em|i)>", re.I), "*"),
+    (re.compile(r"<br\s*/?>", re.I), "\n"),
+    (re.compile(r"</?(?:p|div|ul|ol|blockquote)[^>]*>", re.I), "\n\n"),
+]
+
+
+def html_to_markdown(text: str) -> str:
+    if not re.search(r"</?(?:p|strong|b|em|i|h[1-4]|li|ul|ol|br|div|blockquote)\b[^>]*>", text, re.I):
+        return text
+    for pattern, repl in _HTML_MD:
+        text = pattern.sub(repl, text)
+    text = text.replace("&nbsp;", " ").replace("&amp;", "&")
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None = None) -> tuple[str, list[Any]]:
     """Replace every placeholder in ``text``; returns the new text and one ToolCall per
     placeholder (name fill_quote), so traces and graders see where the text came from.

@@ -110,3 +110,10 @@ def test_page_bible_reaches_the_agent(tmp_path, monkeypatch):
     assert 'Elberfelder 1905 (ELB): Verse mit version "elb"' in seen[3]
     assert seen[4].endswith("(Please answer in English.)")  # not a version on offer
     assert [r.get("bible") for r in store.db.answers()] == ["bsb", None, None, "elb", None]
+
+
+def test_html_answers_become_markdown():
+    from theoclaw.agent.quotes import html_to_markdown
+    text = "<p><strong>2. 懶惰的特徵</strong></p>\n<p>箴言說<em>再睡片時</em>。<br>下一行</p>\n<h3>三、順服</h3><ul><li>一</li><li>二</li></ul>"
+    assert html_to_markdown(text) == "**2. 懶惰的特徵**\n\n箴言說*再睡片時*。\n下一行\n\n## 三、順服\n\n- 一\n- 二"
+    assert html_to_markdown("a < b and **bold**") == "a < b and **bold**"  # no HTML: untouched

@@ -17,7 +17,7 @@ from ..common import zh
 from ..common.tooling import Handler, ToolError
 from ..llm import ProviderAPIError, anthropic_usage, supports_effort
 from .prompt import SYSTEM_PROMPT
-from .quotes import fill_placeholders, scrub_internal
+from .quotes import fill_placeholders, html_to_markdown, scrub_internal
 from .tools import TOOL_DEFS
 
 
@@ -188,6 +188,7 @@ def run_agent(
                 fixed, run.simplified_fixed = zh.fix_simplified(run.final_text)
                 if run.simplified_fixed:
                     run.final_text = fixed
+            run.final_text = html_to_markdown(run.final_text)  # the page shows Markdown, not HTML
             if fill_quotes:
                 run.final_text, fills = fill_placeholders(run.final_text, handlers, bible)
                 step.tool_calls.extend(fills)
