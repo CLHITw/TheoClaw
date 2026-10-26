@@ -578,7 +578,7 @@ class Store:
                  for s in t["steps"] for c in s["tool_calls"]]
         prev = self.done(r["name"]).get(item_id)
         chat = item_id in self.owner
-        extra = {k: t[k] for k in ("kind", "briefs", "word_study", "check_summary", "revised", "project", "ask") if k in t}
+        extra = {k: t[k] for k in ("kind", "briefs", "word_study", "check_summary", "revised", "project", "ask", "lang") if k in t}
         return {**extra, "id": item_id, "chat": chat,
                 "position": None if chat else r["order"].index(item_id) + 1, "total": len(r["order"]),
                 "prompt": t["prompt"], "tools": calls, "answer": t.get("final_text") or "（沒有回答）",
@@ -697,7 +697,8 @@ class Store:
             return None
         done = self.done(r["name"])
         return {"id": conv, "turns": [{"id": i, "ask": self.items[i].trace.get("prompt", ""),
-                                       "reply": self.items[i].trace.get("final_text") or "", "rated": i in done}
+                                       "reply": self.items[i].trace.get("final_text") or "", "rated": i in done,
+                                       "lang": self.items[i].trace.get("lang")}
                                       for i in ids]}
 
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
@@ -833,10 +834,10 @@ class Store:
         done = self.done(r["name"])
         turns = sorted((i for i, it in self.items.items() if it.trace.get("project") == pid),
                        key=lambda i: self.items[i].trace.get("asked_at", ""))
-        return {k: p.get(k) for k in ("id", "passage", "theme", "audience", "length", "briefs", "word_study", "board")} | {
+        return {k: p.get(k) for k in ("id", "passage", "theme", "audience", "length", "briefs", "word_study", "board", "lang")} | {
             "turns": [{"id": i, "kind": self.items[i].trace.get("kind"), "ask": self.items[i].trace.get("ask", ""),
                        "reply": self.items[i].trace.get("final_text") or "", "check": self.items[i].trace.get("check_summary"),
-                       "rated": i in done} for i in turns],
+                       "rated": i in done, "lang": self.items[i].trace.get("lang")} for i in turns],
             "busy": self._busy(pid)}
 
     def ws_start(self, code: str, body: dict, nick: str | None = None, runner=None) -> dict:

@@ -1384,25 +1384,54 @@ let wsCurrent = null;
 function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 // Headings, **bold** and scripture references stand out; everything else stays plain text.
-// Citations as readers know them: the knowledge base's file names become book titles, and the
-// search-passage numbers (段落 N, which only the citation check uses) are not shown.
+// Citations as readers know them: the knowledge base's file names become book titles in the
+// answer's own language (an English or German answer must not show 《衛斯理講道集》), hymn
+// numbers read "第 N 首" / "Wesley Hymns No. N" / "Wesley-Gesangbuch Nr. N", and the
+// search-passage numbers (段落 N / paragraph N / Absatz N, which only the citation check uses)
+// are not shown. tests/test_cites.py runs this block in Node.
+// <cites>
 const BOOKS = [
-  [/standard-sermons/, '《衛斯理講道集》'], [/wesley-journal/, '《衛斯理日記》'], [/wesley-hymns(?:-1780)?/, '《衛斯理聖詩集》'],
-  [/plain-account(?:-of-christian-perfection)?/, '《基督徒完全論》'], [/articles-of-religion/, '《循道衛理信條》'],
-  [/general-rules-1743-en|總規-中文/, '《總規》'], [/課程0\d-[^\s*`.，。、；：）)]+/, null], [/屬靈恩賜(?=\*|`)/, '《屬靈恩賜》'],
+  [/standard-sermons/, {zh: '《衛斯理講道集》', en: "Wesley's Standard Sermons", de: 'Wesleys Lehrpredigten'}],
+  [/wesley-journal/, {zh: '《衛斯理日記》', en: "Wesley's Journal", de: 'Wesleys Tagebuch'}],
+  [/wesley-hymns(?:-1780)?/, {zh: '《衛斯理聖詩集》', en: 'Wesley Hymns', de: 'Wesley-Gesangbuch'}],
+  [/plain-account(?:-of-christian-perfection)?/, {zh: '《基督徒完全論》', en: 'A Plain Account of Christian Perfection',
+    de: 'Wesley, Christliche Vollkommenheit (A Plain Account)'}],
+  [/articles-of-religion/, {zh: '《循道衛理信條》', en: 'The Articles of Religion', de: 'Die Glaubensartikel der Methodisten'}],
+  [/general-rules-1743-en|總規-中文/, {zh: '《總規》', en: 'The General Rules', de: 'Die Allgemeinen Regeln'}],
+  // the fellowship's own course notes are in Chinese: an English or German answer names the lesson, not its Chinese title
+  [/課程0(\d)-[^\s*`.，。、；：）)]+/, {zh: n => '《信仰課程：' + n.replace(/^課程0\d-/, '') + '》',
+    en: (n, k) => 'Faith Course, Lesson ' + k, de: (n, k) => 'Glaubenskurs, Lektion ' + k}],
+  [/屬靈恩賜(?=\*|`)/, {zh: '《屬靈恩賜》', en: 'Spiritual Gifts', de: 'Geistliche Gaben'}],
 ];
-function readableCites(text) {
-  for (const [re, title] of BOOKS) {
-    const g = new RegExp('[*`]*(' + re.source + ')(?:\.(?:md|json|pdf))?[*`]*', 'g');
-    text = text.replace(g, (m, name) => title || '《信仰課程：' + name.replace(/^課程0\d-/, '') + '》');
-  }
-  text = text.replace(/\s*[·，,、]?\s*段落\s*\d+(?:\s*[–\-—~至到]\s*\d+)?(?:\s*附近)?/g, '');
-  return text.replace(/（\s*[，,、]\s*/g, '（').replace(/\s*[，,、]\s*）/g, '）').replace(/（\s*）|\(\s*\)/g, '');
+const HYMN = {en: 'Wesley Hymns No. ', de: 'Wesley-Gesangbuch Nr. '};
+function citeLang(text, lang) {
+  if (/[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/.test((text || '').replace(/課程0\d-[^\s*`.，。、；：）)]+|屬靈恩賜|總規-中文/g, ''))) return 'zh';
+  return lang === 'en' || lang === 'de' ? lang : 'zh';
 }
+function readableCites(text, lang) {
+  lang = citeLang(text, lang);
+  for (const [re, titles] of BOOKS) {
+    const g = new RegExp('[*`]*(' + re.source + ')(?:\\.(?:md|json|pdf))?[*`]*', 'g');
+    const t = titles[lang];
+    text = text.replace(g, (m, name, k) => typeof t === 'function' ? t(name, k) : t);
+  }
+  if (lang === 'zh') {
+    text = text.replace(/\s*[·，,、]?\s*段落\s*\d+(?:\s*[–\-—~至到]\s*\d+)?(?:\s*附近)?/g, '');
+    return text.replace(/（\s*[，,、]\s*/g, '（').replace(/\s*[，,、]\s*）/g, '）').replace(/（\s*）|\(\s*\)/g, '');
+  }
+  // "Wesley Hymns, Hymn 12", "Hymn No. 12", "Lied 12" -> one form; a bare number after the title gets its "No."
+  const title = BOOKS[2][1][lang];
+  text = text.replace(new RegExp(title.replace(/[-.]/g, '\\$&') + '[,\\s]*(?:Hymn|Lied)?\\s*(?:No\\.?|Nr\\.?|#)?\\s*(\\d+)', 'g'),
+    (m, n) => HYMN[lang] + n);
+  text = text.replace(/(^|[^\w.-])(?:Hymn|Lied)\s+(?:No\.?\s*|Nr\.?\s*|#)?(\d+)/g, (m, pre, n) => pre + HYMN[lang] + n);
+  text = text.replace(/\s*[·,;]?\s*(?:paragraphs?|paras?\.|Absatz|Absätze)\s*\d+(?:\s*[–\-—~]\s*\d+)?/gi, '');
+  return text.replace(/\(\s*[,;]\s*/g, '(').replace(/\s*[,;]\s*\)/g, ')').replace(/\(\s*\)/g, '');
+}
+// </cites>
 
-function rich(text) {
+function rich(text, lang) {
   let n = 0;
-  return esc(readableCites(text || '')).split('\n').map(line => {
+  return esc(readableCites(text || '', lang || answerLang())).split('\n').map(line => {
     const h = line.match(/^\s*#{1,4}\s*(.+)$/);
     if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
     line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -1414,7 +1443,7 @@ function rich(text) {
   }).join('\n');
 }
 
-function setRich(el, text) { el.classList.add('rich'); el.innerHTML = rich(text); }
+function setRich(el, text, lang) { el.classList.add('rich'); el.innerHTML = rich(text, lang); }
 
 // ── 語音朗讀 ─────────────────────────────────────────────────────────────
 // 用瀏覽器自己的語音把回答讀出來：文字不經伺服器、不出這部裝置，也沒有額外的費用。
@@ -2035,7 +2064,7 @@ function wsOpen(pid) {
     document.getElementById('wsList').classList.add('hidden');
     document.getElementById('wsProject').classList.remove('hidden');
     document.getElementById('wsTitle').textContent = p.passage + (p.theme ? '｜' + p.theme : '') + (p.audience ? '｜' + p.audience : '');
-    setRich(document.getElementById('wsBriefs'), p.briefs);
+    setRich(document.getElementById('wsBriefs'), p.briefs, p.lang);
     document.getElementById('wsWordCard').classList.toggle('hidden', !p.word_study);
     document.getElementById('wsWords').textContent = p.word_study || '';
     const newest = wsCurrent.openNewest && p.turns.length ? p.turns[p.turns.length - 1].id : null;
@@ -2154,7 +2183,7 @@ function renderTurns(box, turns, openId, onAdd) {
     const c = t.check || {};
     tag.textContent = (t.rated ? '✓ 已評分' : '未評分') + (c.unsupported ? '｜未能核實 ' + c.unsupported : '');
     sm.appendChild(ask); sm.appendChild(tag); d.appendChild(sm);
-    const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply);
+    const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply, t.lang);
     d.appendChild(voiceButton(rep));   // 朗讀列放在回答最前面，不必先滑到最下面才能開始聽
     d.appendChild(rep);
     const chkText = wsCheckText(t.check);
@@ -2232,7 +2261,7 @@ function wsRenderBoard(board) {
     head.textContent = (i + 1) + '. ' + b.label + (b.edited ? '（已修改）' : '');
     const body = document.createElement('details');
     const sm = document.createElement('summary'); sm.className = 'help'; sm.textContent = b.text.slice(0, 60) + (b.text.length > 60 ? '…' : '');
-    const full = document.createElement('div'); full.className = 'card-content'; setRich(full, b.text);
+    const full = document.createElement('div'); full.className = 'card-content'; setRich(full, b.text, wsCurrent && wsCurrent.lang);
     body.appendChild(sm); body.appendChild(full); body.appendChild(voiceButton(full));
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
     [['↑', 'up'], ['↓', 'down'], ['改標題', 'label'], ['修改內容', 'text'], ['刪除', 'delete']].forEach(([t, a]) => {
@@ -2311,10 +2340,10 @@ function load(id) {
     document.getElementById('posInfo').innerHTML = it.chat ? '' : '第 ' + it.position + ' / ' + it.total + ' 題' +
       (state.done.includes(it.id) ? ' <span class="saved-tag">已評</span>' : '');
     document.getElementById('questionText').textContent = it.prompt;
-    setRich(document.getElementById('answerText'), it.answer);
+    setRich(document.getElementById('answerText'), it.answer, it.lang);
     document.getElementById('briefsCard').classList.toggle('hidden', !it.briefs);
     document.getElementById('checkCard').classList.toggle('hidden', !it.check_summary);
-    if (it.briefs) setRich(document.getElementById('briefsText'), it.briefs);
+    if (it.briefs) setRich(document.getElementById('briefsText'), it.briefs, it.lang);
     document.getElementById('wordCard').classList.toggle('hidden', !it.word_study);
     if (it.word_study) document.getElementById('wordText').textContent = it.word_study;
     if (it.check_summary) {
