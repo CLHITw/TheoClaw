@@ -57,3 +57,9 @@ def test_hymn_numbers():
 
 def test_a_chinese_answer_keeps_chinese_titles_whatever_the_page_language():
     assert cites([("（*wesley-journal*）", "en")]) == ["（《衛斯理日記》）"]
+
+
+def test_german_titles_are_the_ones_german_methodists_use():
+    assert cites([("(*plain-account*)", "de"), ("(*articles-of-religion*)", "de"), ("(*general-rules-1743-en*)", "de")]) == [
+        "(Eine klare Darstellung der christlichen Vollkommenheit)", "(Die Glaubensartikel der Methodistischen Kirche)",
+        "(Die Allgemeinen Regeln)"]

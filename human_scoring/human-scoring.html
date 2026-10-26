@@ -1390,13 +1390,17 @@ function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // search-passage numbers (段落 N / paragraph N / Absatz N, which only the citation check uses)
 // are not shown. tests/test_cites.py runs this block in Node.
 // <cites>
+// German titles as German Methodists know them: Lehrpredigten (Marquardt's edition, Methodistische
+// Quellentexte 1), the Glaubensartikel and Allgemeinen Regeln as named in the EmK's Verfassung, Lehre
+// und Ordnung, Eine klare Darstellung (the German edition of the Plain Account). The Journal and the
+// 1780 hymn book have no German edition, so they get plain descriptions.
 const BOOKS = [
   [/standard-sermons/, {zh: '《衛斯理講道集》', en: "Wesley's Standard Sermons", de: 'Wesleys Lehrpredigten'}],
   [/wesley-journal/, {zh: '《衛斯理日記》', en: "Wesley's Journal", de: 'Wesleys Tagebuch'}],
   [/wesley-hymns(?:-1780)?/, {zh: '《衛斯理聖詩集》', en: 'Wesley Hymns', de: 'Wesley-Gesangbuch'}],
   [/plain-account(?:-of-christian-perfection)?/, {zh: '《基督徒完全論》', en: 'A Plain Account of Christian Perfection',
-    de: 'Wesley, Christliche Vollkommenheit (A Plain Account)'}],
-  [/articles-of-religion/, {zh: '《循道衛理信條》', en: 'The Articles of Religion', de: 'Die Glaubensartikel der Methodisten'}],
+    de: 'Eine klare Darstellung der christlichen Vollkommenheit'}],
+  [/articles-of-religion/, {zh: '《循道衛理信條》', en: 'The Articles of Religion', de: 'Die Glaubensartikel der Methodistischen Kirche'}],
   [/general-rules-1743-en|總規-中文/, {zh: '《總規》', en: 'The General Rules', de: 'Die Allgemeinen Regeln'}],
   // the fellowship's own course notes are in Chinese: an English or German answer names the lesson, not its Chinese title
   [/課程0(\d)-[^\s*`.，。、；：）)]+/, {zh: n => '《信仰課程：' + n.replace(/^課程0\d-/, '') + '》',
