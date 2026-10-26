@@ -747,7 +747,7 @@
 
   <div id="enterCard" class="card hidden">
     <div class="card-title">歡迎使用 TheoClaw</div>
-    <div class="help">一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
+    <div class="help">AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
     <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
       <button class="btn" onclick="enterAs('lay')">我是信徒</button>
       <button class="btn btn-secondary" onclick="showPastorCode()">我是牧者</button>
@@ -2589,8 +2589,8 @@ const EN = {
   '請選擇總評': 'Please choose a verdict',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Please agree to the training use of your questions first (tick “Agree” on the page to continue)',
   '歡迎使用 TheoClaw': 'Welcome to TheoClaw',
-  '一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
-    'An AI assistant that answers questions of faith from the Bible and the Methodist tradition: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
+  'AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'An AI assistant for the life of faith: it answers questions of faith from the Bible and the Methodist tradition. Everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
   '我是信徒': 'I am a church member', '我是牧者': 'I am a pastor', '請輸入團契碼（向負責人索取）': 'Please enter the fellowship code (ask the organiser)',
   '進入牧者模式': 'Enter as a pastor', '請輸入團契碼': 'Please enter the fellowship code', '團契碼不正確': 'The fellowship code is not correct',
   '嘗試太多次，請一小時後再試': 'Too many tries; please try again in an hour', '牧者入口尚未開放': 'The pastors’ entrance is not open yet',
@@ -2761,8 +2761,8 @@ const DE = {
   '請選擇總評': 'Bitte Gesamturteil wählen',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Bitte stimmen Sie zuerst der Nutzung Ihrer Fragen zur Verbesserung zu (haken Sie auf der Seite „Zustimmen“ an, um fortzufahren)',
   '歡迎使用 TheoClaw': 'Willkommen bei TheoClaw',
-  '一個依據聖經和循道衛理傳統回答信仰問題的 AI 助手：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
-    'Ein KI-Assistent, der Glaubensfragen aus der Bibel und der methodistischen Tradition beantwortet: Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
+  'AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'Ein KI-Assistent für das Glaubensleben: Er beantwortet Glaubensfragen aus der Bibel und der methodistischen Tradition. Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
   '我是信徒': 'Ich bin Gemeindeglied', '我是牧者': 'Ich bin Pastor/in', '請輸入團契碼（向負責人索取）': 'Bitte Gruppencode eingeben (beim Verantwortlichen erfragen)',
   '進入牧者模式': 'Als Pastor/in eintreten', '請輸入團契碼': 'Bitte Gruppencode eingeben', '團契碼不正確': 'Der Gruppencode ist nicht richtig',
   '嘗試太多次，請一小時後再試': 'Zu viele Versuche; bitte in einer Stunde erneut', '牧者入口尚未開放': 'Der Zugang für Pastoren ist noch nicht offen',
@@ -2889,7 +2889,7 @@ function convertNode(node) {
 function applyScript() {
   document.getElementById('langSel').value = zhMode;
   document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant'));
-  document.title = zhMode === 'de' ? 'TheoClaw – Fragen zum Glauben' : 'TheoClaw';
+  document.title = zhMode === 'de' ? 'TheoClaw – KI-Assistent für das Glaubensleben' : 'TheoClaw';
   renderAccount();
   convertNode(document.body);
   voiceRefresh();
