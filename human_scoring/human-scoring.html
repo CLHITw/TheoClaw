@@ -1309,8 +1309,9 @@ function refreshAsk() {
     state.chat = s.chat;
     const c = s.chat;
     const info = document.getElementById('askInfo');
-    info.textContent = c.open
-      ? T('今天還可以問 ' + c.remaining_today + ' 題。') : T('本次測試的提問額度已用完，謝謝您的參與。');
+    // the day's last question used up: say so, and that tomorrow brings new ones (the button is off)
+    info.textContent = !c.open ? T('本次測試的提問額度已用完，謝謝您的參與。')
+      : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。') : T('今天的提問次數已經用完，明天可以再問。');
     if (nick && !accountNick) {
       const a = document.createElement('a');
       a.href = '#'; a.textContent = T('（以「' + nick + '」記錄；不是你？按這裡更換）');
@@ -2496,6 +2497,7 @@ const EN = {
     'e.g. I am afraid I do not really believe — is that normal? / How can we discuss the parable of the prodigal son (Luke 15) in our Bible study?',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Ask a follow-up… (e.g. And verse 9? Could you give an example?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'The question allowance for this trial has been used up. Thank you for taking part.',
+  '今天的提問次數已經用完，明天可以再問。': "You've used all of today's questions. You can ask again tomorrow.",
   '開一篇新講章': 'Start a new sermon',
   '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
     'Enter the passage and the assistant first researches the text, the original language and the Wesleyan / Methodist tradition (about a minute). Then you can work step by step: the meaning of a word, an introduction, an illustration, a shorter version of a paragraph… Add the replies you like to the draft board, then press “Assemble full sermon”.',
@@ -2616,7 +2618,7 @@ const EN = {
   '你好，這是我的聲音。': 'Hello, this is my voice.',
 };
 const EN_PATTERNS = [
-  [/^今天還可以問 (\d+) 題。$/, 'You can ask $1 more questions today.'],
+  [/^今天還可以問 (\d+) 題。$/, (m, n) => 'You can ask ' + n + (n === '1' ? ' more question today.' : ' more questions today.')],
   [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (saved as “$1”; not you? change it here)'],
   [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' question' : ' questions') + (b ? ', ' + b + ' not scored' : '') + (c || '')],
   [/^講稿板 (\d+) 段( · .+)?$/, (m, a, c) => a + ' on the draft board' + (c || '')],
@@ -2666,6 +2668,7 @@ const DE = {
     'z. B. Ich fürchte, ich glaube nicht wirklich — ist das normal? / Wie können wir das Gleichnis vom verlorenen Sohn (Lukas 15) in unserer Bibelgruppe besprechen?',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Rückfrage stellen… (z. B. Und Vers 9? Ein Beispiel?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
+  '今天的提問次數已經用完，明天可以再問。': 'Ihre Fragen für heute sind aufgebraucht. Morgen können Sie wieder fragen.',
   '開一篇新講章': 'Neue Predigt beginnen',
   '填好經文後，助手會先研究經文、原文和衛斯理／循道傳統（約 1 分鐘），之後您就可以一步一步問： 某個字的意思、寫引言、給一個例子、把某段改短……滿意的回答按「加入講稿」，最後按「組成完整講稿」。':
     'Geben Sie die Textstelle ein; der Assistent erforscht zuerst Text, Ursprache und die Wesley- bzw. methodistische Tradition (etwa 1 Minute). Dann arbeiten Sie Schritt für Schritt: Bedeutung eines Worts, eine Einleitung, ein Beispiel, eine kürzere Fassung eines Absatzes … Fügen Sie gelungene Antworten mit „In Entwurf übernehmen“ dem Brett hinzu, dann „Gesamtpredigt zusammenfügen“.',
@@ -2788,7 +2791,7 @@ const DE = {
   '你好，這是我的聲音。': 'Hallo, das ist meine Stimme.',
 };
 const DE_PATTERNS = [
-  [/^今天還可以問 (\d+) 題。$/, 'Heute können Sie noch $1 Fragen stellen.'],
+  [/^今天還可以問 (\d+) 題。$/, (m, n) => n === '1' ? 'Heute können Sie noch eine Frage stellen.' : 'Heute können Sie noch ' + n + ' Fragen stellen.'],
   [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (als „$1“ gespeichert; nicht Sie? Hier klicken)'],
   [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' Frage' : ' Fragen') + (b ? ', ' + b + ' nicht bewertet' : '') + (c || '')],
   [/^講稿板 (\d+) 段( · .+)?$/, (m, a, c) => a + ' auf dem Entwurfsbrett' + (c || '')],
