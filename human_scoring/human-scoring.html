@@ -674,7 +674,7 @@
       <button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw<span id="h1Sep" class="hidden"> · </span><span id="h1Label"></span></h1>
       <span id="modeBadge" class="mode-badge hidden">傳道模式</span>
     </div>
-    <div style="display:flex;gap:10px;align-items:center">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div class="progress-info" id="progressInfo"></div>
       <label class="lang-pick" title="Language · 語言">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -686,6 +686,15 @@
         <select id="langSel" class="notr" onchange="setLang(this.value)" aria-label="Language · 語言">
           <option value="hant">繁體</option><option value="hans">&#31616;&#20307;</option><option value="en">English</option><option value="de">Deutsch</option>
         </select>
+      </label>
+      <label id="biblePick" class="lang-pick hidden" title="Bible version">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/>
+          <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>
+          <path d="M12 6v7M9.5 8.5h5"/>
+        </svg>
+        <select id="bibleSel" class="notr" onchange="setBible(this.value)" aria-label="Bible version"></select>
       </label>
       <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()" aria-pressed="false" title="語音朗讀">
         <span id="voiceIcon" aria-hidden="true">🔇</span><span>語音</span>
@@ -1369,7 +1378,7 @@ function ask() {
   const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
   api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({question: q, denomination: denom, conv: convId, lang: answerLang()})})
+    body: JSON.stringify({question: q, denomination: denom, conv: convId, lang: answerLang(), bible: bibleOf(answerLang())})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,
@@ -1444,7 +1453,7 @@ function rich(text, lang) {
     const h = line.match(/^\s*#{1,4}\s*(.+)$/);
     if (h) line = '<span class="rh">' + h[1].replace(/\*\*/g, '') + '</span>';
     line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    line = line.replace(/（([^（）]{1,30}?(?:和合本|KJV))）|\(([^()]{1,30}?, KJV)\)/g, (m) => '<span class="ref">' + m + '</span>');
+    line = line.replace(/（([^（）]{1,30}?(?:和合本|KJV))）|\(([^()]{1,30}?, (?:KJV|WEB|BSB|ASV|Luther 1912|Elberfelder 1905))\)/g, (m) => '<span class="ref">' + m + '</span>');
     if (/^\s*(【[^】]{1,20}】|[一二三四五六七八九十]+、|第[一二三四五六七八九十]+[點\u70b9段])/.test(line) && line.length < 60)
       line = '<span class="rh">' + line + '</span>';
     // 每一行是一個朗讀段落：朗讀時可以逐段標示，畫面其餘部分完全不變。
@@ -2901,6 +2910,7 @@ function applyScript() {
   document.documentElement.lang = zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : (zhMode === 'hans' ? 'zh-Hans' : 'zh-Hant'));
   document.title = zhMode === 'de' ? 'TheoClaw – KI-Assistent für das Glaubensleben' : 'TheoClaw';
   renderAccount();
+  paintBible();
   convertNode(document.body);
   voiceRefresh();
   voicePaintToggle();
@@ -2921,6 +2931,30 @@ function setLang(m) {
 
 // what the assistant should answer in: follow the page (English or German) unless it is Chinese
 function answerLang() { return zhMode === 'en' ? 'en' : (zhMode === 'de' ? 'de' : 'zh'); }
+
+// Bible version for English and German answers (public-domain texts only; the first is the default).
+// Chinese answers always quote the 和合本, so the picker is hidden on the Chinese pages.
+const BIBLES = {
+  en: [['web', 'WEB', 'World English Bible'], ['bsb', 'BSB', 'Berean Standard Bible'],
+       ['kjv', 'KJV', 'King James Version'], ['asv', 'ASV', 'American Standard Version (1901)']],
+  de: [['lut', 'Luther', 'Lutherbibel 1912'], ['elb', 'Elberfelder', 'Elberfelder Bibel 1905']],
+};
+function bibleOf(lang) {
+  const list = BIBLES[lang];
+  if (!list) return '';
+  let v = '';
+  try { v = localStorage.getItem('theoclaw_bible_' + lang) || ''; } catch (e) {}
+  return list.some(b => b[0] === v) ? v : list[0][0];
+}
+function setBible(v) { try { localStorage.setItem('theoclaw_bible_' + answerLang(), v); } catch (e) {} paintBible(); }
+function paintBible() {
+  const lang = answerLang(), list = BIBLES[lang], sel = document.getElementById('bibleSel');
+  document.getElementById('biblePick').classList.toggle('hidden', !list);
+  if (!list) return;
+  sel.innerHTML = list.map(b => '<option value="' + b[0] + '" title="' + b[2] + '">' + b[1] + '</option>').join('');
+  sel.value = bibleOf(lang);
+  sel.title = list.find(b => b[0] === sel.value)[2];
+}
 
 // Theme: an explicit choice of 跟隨系統 / 白天 / 黑夜, kept in localStorage.
 let themeMode = 'auto';

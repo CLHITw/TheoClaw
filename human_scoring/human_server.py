@@ -58,6 +58,7 @@ sys.path.insert(0, str(ROOT))
 from theoclaw.evals.human import (Item, calibration_sample, load_items,  # noqa: E402
                                   load_rubric, rating_record)
 from human_scoring import db as db_mod  # noqa: E402
+from theoclaw.common.corpus import TAGS  # noqa: E402
 from human_scoring.db import DB, import_files, run_key  # noqa: E402
 from human_scoring.files_store import FileStore  # noqa: E402
 
@@ -81,6 +82,13 @@ MAX_BODY = 64 * 1024
 DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
+# 經文版本：每種頁面語言可選的版本，第一個是預設（不必另外提示模型）。只放公有領域的版本：
+# NIV、ESV、NRSV 等有版權，沒有授權不能用。
+PAGE_BIBLES = {"zh": ("cuv",), "en": ("web", "bsb", "kjv", "asv"), "de": ("lut", "elb")}
+BIBLE_NAMES = {"web": "World English Bible", "bsb": "Berean Standard Bible", "kjv": "King James Version",
+               "asv": "American Standard Version", "lut": "Luther 1912", "elb": "Elberfelder 1905"}
+BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses up with version \"{version}\".)",
+              "de": "\n\n(Zitieren Sie die Bibel nach der {name} ({tag}): Verse mit version \"{version}\" nachschlagen.)"}
 PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
@@ -703,9 +711,11 @@ class Store:
                                       for i in ids]}
 
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
-            denomination: str | None = None, conv: str | None = None, lang: str | None = None) -> dict:
+            denomination: str | None = None, conv: str | None = None, lang: str | None = None,
+            bible: str | None = None) -> dict:
         """Start answering in the background; returns {"job": id} or {"error": ...}. With conv, the
-        question continues that conversation and is answered with its earlier turns."""
+        question continues that conversation and is answered with its earlier turns. bible is the
+        Bible version the reader picked for the page's language (PAGE_BIBLES); others are ignored."""
         if not self.chat:
             return {"error": "提問模式沒有開啟"}
         r = self.who(code, nick)
@@ -743,11 +753,16 @@ class Store:
             prompt += "\n\n(Bitte antworten Sie auf Deutsch.)"
         elif lang == "en":
             prompt += "\n\n(Please answer in English.)"
+        bible = bible if bible in PAGE_BIBLES.get(lang or "zh", ())[1:] else None  # the page default needs no note
+        if bible:
+            prompt += BIBLE_NOTE[lang].format(name=BIBLE_NAMES[bible], version=bible, tag=TAGS[bible])
 
         def run(_q):
-            rec = (runner or self._run_agent)(prompt)
+            rec = (runner or (lambda p: self._run_agent(p, bible)))(prompt)
             rec.update(prompt=question, conv=conv, turn=len(history) + 1,  # shown and graded as the person asked it
                        lang=lang if lang in ("en", "de") else "zh")
+            if bible:
+                rec["bible"] = bible
             return rec
 
         threading.Thread(target=self._answer, args=(job, r["name"], question, run, denom), daemon=True).start()
@@ -1066,7 +1081,7 @@ class Store:
                     self._lay_ts = build_tool_set("scripture,wesley")
             return self._lay_ts
 
-    def _run_agent(self, question: str) -> dict:
+    def _run_agent(self, question: str, bible: str | None = None) -> dict:
         from theoclaw.agent.loop import run_agent
         from theoclaw.agent.tools import build_tool_set
         from theoclaw.common.pricing import cost
@@ -1075,7 +1090,7 @@ class Store:
         ts = self._lay_tools()
         run = run_agent(make_client(provider=rl.provider, params=rl.params, timeout=CALL_TIMEOUT), question, model=rl.model,
                         handlers=ts.handlers, tools=ts.defs, system=ts.system, effort=rl.effort,
-                        max_tokens=rl.max_tokens)
+                        max_tokens=rl.max_tokens, bible=bible)
         rec = {"toolset": ts.meta, "llm": rl.describe(), **run.to_dict()}
         rec["cost_usd"] = cost(rec["usage_total"], rl.model)
         return rec
@@ -1369,7 +1384,7 @@ def make_handler(store: Store):
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             if u.path == "/api/ask":
                 out = store.ask(code, body.get("question", ""), nick=nick, denomination=body.get("denomination"),
-                                conv=body.get("conv") or None, lang=body.get("lang"))
+                                conv=body.get("conv") or None, lang=body.get("lang"), bible=body.get("bible"))
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             ws = {"/api/sermon/start": store.ws_start, "/api/sermon/turn": store.ws_turn,
                   "/api/sermon/assemble": store.ws_assemble, "/api/sermon/board": store.ws_board}

@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..common.corpus import VERSIONS, Corpus, default_corpus
+from ..common.corpus import VERSION_LANG, VERSIONS, Corpus, default_corpus
 from ..common.refs import NT_BOOKS, Ref, RefError, parse_ref
 from ..common.tooling import Handler, ToolError
 
@@ -41,7 +41,9 @@ TOOL_DEFS: list[dict] = [
                 "version": {
                     "type": "string",
                     "enum": list(VERSIONS),
-                    "description": "cuv = 和合本（繁體）；kjv = King James Version；web = World English Bible（現代英文，公共領域）；lut = Luther-Bibel 1912（德文，公共領域）。",
+                    "description": ("cuv = 和合本（繁體）；kjv = King James Version；web = World English Bible（現代英文，公共領域）；"
+                                    "bsb = Berean Standard Bible（現代英文，公共領域）；asv = American Standard Version 1901；"
+                                    "lut = Luther-Bibel 1912（德文，公共領域）；elb = Elberfelder 1905（德文，公共領域）。"),
                 },
             },
             "required": ["reference", "version"],
@@ -90,6 +92,12 @@ def _parse(reference: str) -> Ref:
         raise ToolError(str(e)) from e
 
 
+def ref_label(ref: Ref, version: str) -> str:
+    """The reference written the way the version's language writes it."""
+    lang = VERSION_LANG[version]
+    return ref.zh() if lang == "zh" else (ref.de() if lang == "de" else ref.en())
+
+
 def lookup_verse(inp: dict, corpus: Corpus) -> str:
     ref = _parse(str(inp.get("reference", "")))
     version = inp.get("version", "cuv")
@@ -101,7 +109,7 @@ def lookup_verse(inp: dict, corpus: Corpus) -> str:
         verses = corpus.passage(ref, version)
     except KeyError as e:
         raise ToolError(f"經文不存在：{ref.zh()}（{e.args[0]}）") from e
-    label = ref.zh() if version == "cuv" else (ref.de() if version == "lut" else ref.en())
+    label = ref_label(ref, version)
     lines = [f"【{VERSIONS[version]}】{label}"]
     for v, text in verses:
         lines.append(f"{ref.chapter}:{v} {text or EMPTY_VERSE}")

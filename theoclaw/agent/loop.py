@@ -133,6 +133,7 @@ def run_agent(
     fix_simplified: bool = True,
     fill_quotes: bool = True,
     script: str | None = None,  # "hant" (繁體) or "hans" (簡體); None: follow the question
+    bible: str | None = None,  # the Bible version the reader picked (corpus.VERSIONS); None: the defaults
 ) -> AgentRun:
     run = AgentRun(model=model, prompt=prompt)
     run.script = script or (zh.script_of(prompt) if zh.available() else "hant")
@@ -188,7 +189,7 @@ def run_agent(
                 if run.simplified_fixed:
                     run.final_text = fixed
             if fill_quotes:
-                run.final_text, fills = fill_placeholders(run.final_text, handlers)
+                run.final_text, fills = fill_placeholders(run.final_text, handlers, bible)
                 step.tool_calls.extend(fills)
                 run.final_text, _ = scrub_internal(run.final_text)
             if run.script == "hans":

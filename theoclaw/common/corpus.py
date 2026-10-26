@@ -7,6 +7,8 @@ Data files live in ``data/`` and are flat JSON objects keyed by OSIS verse id
 - kjv.json      King James Version
 - web.json      World English Bible (public domain; scripts/build_web.py)
 - lut.json      Luther-Bibel 1912 (public domain; scripts/build_lut.py)
+- bsb.json, asv.json, elb.json  Berean Standard Bible, American Standard Version 1901,
+                Elberfelder 1905 (all public domain; scripts/build_web.py --version)
 - crossrefs.json  {"John.3.16": [["Rom.5.8", 96], ...]}  (OpenBible.info, CC-BY)
 - wesley_nt.json  {"John.3.16": "Yea, and this was ..."}  (Wesley, Explanatory Notes upon the NT)
 """
@@ -22,7 +24,13 @@ from pathlib import Path
 from .paths import DATA_DIR
 from .refs import Ref
 
-VERSIONS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB", "lut": "Luther 1912"}
+VERSIONS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB", "bsb": "BSB", "asv": "ASV",
+            "lut": "Luther 1912", "elb": "Elberfelder 1905"}
+# the language each version is in, and the one a language uses unless the reader picks another
+VERSION_LANG = {"cuv": "zh", "kjv": "en", "web": "en", "bsb": "en", "asv": "en", "lut": "de", "elb": "de"}
+DEFAULT_VERSION = {"zh": "cuv", "en": "web", "de": "lut"}
+# what a marker or citation calls each version: 〔經文：Romans 5:8，BSB〕, (Römer 5,8, ELB)
+TAGS = {"cuv": "和合本", "kjv": "KJV", "web": "WEB", "bsb": "BSB", "asv": "ASV", "lut": "LUT", "elb": "ELB"}
 
 
 class Corpus:
@@ -110,8 +118,9 @@ def normalize_de(text: str) -> str:
 
 
 def normalize(text: str, version: str) -> str:
-    if version == "cuv":
+    lang = VERSION_LANG.get(version, "en")
+    if lang == "zh":
         return normalize_zh(text)
-    if version == "lut":
+    if lang == "de":
         return normalize_de(text)
     return normalize_en(text)

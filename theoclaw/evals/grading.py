@@ -97,11 +97,11 @@ def quotation_citations(text: str) -> list[tuple[str, str, list[Ref]]]:
             continue
         cite_text = cite.group(1) or cite.group(2)
         refs = extract_refs(cite_text)
-        if not refs and re.search(r"\b(KJV|WEB|LUT|LUTHER)\b", cite_text.upper()):
+        if not refs and re.search(r"\b(KJV|WEB|BSB|ASV|LUT|LUTHER|ELB|ELBERFELDER)\b", cite_text.upper()):
             # "Romans 5:8, WEB" or "Römer 5,8, LUT" (the German chapter,verse comma is inside the
             # reference), so the version tag comes off the end before parsing, not just the
             # first comma-segment.
-            stripped = re.sub(r"[,，;；]\s*(?:KJV|WEB|LUT|LUTHER\s*1912)[^（）()]*$", "", cite_text,
+            stripped = re.sub(r"[,，;；]\s*(?:KJV|WEB|BSB|ASV|LUT|LUTHER\s*1912|ELB|ELBERFELDER\s*1905)[^（）()]*$", "", cite_text,
                               flags=re.I).strip()
             for cand in dict.fromkeys((stripped, re.split(r"[,，;；(（]", cite_text)[0].strip())):
                 if not cand:
@@ -118,16 +118,19 @@ def quotation_citations(text: str) -> list[tuple[str, str, list[Ref]]]:
 
 def quotation_version(span: str, cite: str) -> str | None:
     """The Bible version a cited quotation is in: Chinese is 和合本 (cuv); a Latin-script
-    quotation counts only when the citation names its version: KJV, WEB or LUT."""
+    quotation counts only when the citation names its version: KJV, WEB, BSB, ASV, LUT or ELB."""
     if re.search(r"[㐀-鿿]", span):
         return "cuv"
     up = cite.upper()
     if "KJV" in up:
         return "kjv"
-    if re.search(r"\bWEB\b", up):
-        return "web"
+    for tag in ("WEB", "BSB", "ASV"):
+        if re.search(rf"\b{tag}\b", up):
+            return tag.lower()
     if re.search(r"\bLUT\b|\bLUTHER\b", up):
         return "lut"
+    if re.search(r"\bELB\b|\bELBERFELDER\b", up):
+        return "elb"
     return None
 
 
