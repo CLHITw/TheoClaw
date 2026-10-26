@@ -29,7 +29,7 @@ def test_titles_follow_the_answer_language():
     ])
     assert zh == "衛斯理說（《衛斯理講道集》，第 327 頁）。"
     assert en == '"leave the whole event to God" (Wesley, Wesley\'s Standard Sermons, page 328).'
-    assert de == "„das ganze Ereignis Gott überlassen“ (Wesleys Lehrpredigten, Seite 328)."
+    assert de == "„das ganze Ereignis Gott überlassen“ (Die Lehrpredigten John Wesleys, Seite 328)."
 
 
 def test_every_source_has_an_english_and_a_german_title():
@@ -63,3 +63,12 @@ def test_german_titles_are_the_ones_german_methodists_use():
     assert cites([("(*plain-account*)", "de"), ("(*articles-of-religion*)", "de"), ("(*general-rules-1743-en*)", "de")]) == [
         "(Eine klare Darstellung der christlichen Vollkommenheit)", "(Die Glaubensartikel der Methodistischen Kirche)",
         "(Die Allgemeinen Regeln)"]
+
+
+def test_new_testament_notes_get_the_emk_title_in_german_only():
+    assert cites([
+        ("(Wesleys Anmerkungen, Römer 5,8)", "de"),
+        ("(Wesley's Explanatory Notes upon the New Testament, Römer 5,8)", "de"),
+        ("(John Wesleys Anmerkungen zum Neuen Testament, Römer 5,8)", "de"),
+        ("(Wesley's Explanatory Notes, Romans 5:8)", "en"),
+    ]) == ["(John Wesleys Anmerkungen zum Neuen Testament, Römer 5,8)"] * 3 + ["(Wesley's Explanatory Notes, Romans 5:8)"]

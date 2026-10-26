@@ -81,7 +81,7 @@ GERMAN_BRIEF = """
 
 Write the whole brief in German for a German-speaking pastor: the heading in German
 ("## Predigttext-Recherche" or "## Wesley und die methodistische Tradition"), the points in
-plain German, sources as usual (e.g. "Römer 5,8", "Wesleys Anmerkungen, Römer 5,8", "ISBE: GRACE").
+plain German, sources as usual (e.g. "Römer 5,8", "John Wesleys Anmerkungen zum Neuen Testament, Römer 5,8", "ISBE: GRACE").
 Look scripture up with the version "lut" (Luther 1912) and quote it in German exactly as the
 tool returns it, e.g. „Also hat Gott die Welt geliebt“ (Römer 5,8, LUT). Wesley's words: give
 the key phrase as a German translation marked (Übersetzung) with its source, or a short

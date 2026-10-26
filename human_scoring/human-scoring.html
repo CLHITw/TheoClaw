@@ -1390,12 +1390,12 @@ function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // search-passage numbers (段落 N / paragraph N / Absatz N, which only the citation check uses)
 // are not shown. tests/test_cites.py runs this block in Node.
 // <cites>
-// German titles as German Methodists know them: Lehrpredigten (Marquardt's edition, Methodistische
-// Quellentexte 1), the Glaubensartikel and Allgemeinen Regeln as named in the EmK's Verfassung, Lehre
-// und Ordnung, Eine klare Darstellung (the German edition of the Plain Account). The Journal and the
-// 1780 hymn book have no German edition, so they get plain descriptions.
+// German titles as the EmK names them: Die Lehrpredigten John Wesleys, Die Glaubensartikel der
+// Methodistischen Kirche, Die Allgemeinen Regeln, John Wesleys Anmerkungen zum Neuen Testament;
+// Eine klare Darstellung is the German edition of the Plain Account. The Journal and the 1780 hymn
+// book have no German edition, so they get plain descriptions.
 const BOOKS = [
-  [/standard-sermons/, {zh: '《衛斯理講道集》', en: "Wesley's Standard Sermons", de: 'Wesleys Lehrpredigten'}],
+  [/standard-sermons/, {zh: '《衛斯理講道集》', en: "Wesley's Standard Sermons", de: 'Die Lehrpredigten John Wesleys'}],
   [/wesley-journal/, {zh: '《衛斯理日記》', en: "Wesley's Journal", de: 'Wesleys Tagebuch'}],
   [/wesley-hymns(?:-1780)?/, {zh: '《衛斯理聖詩集》', en: 'Wesley Hymns', de: 'Wesley-Gesangbuch'}],
   [/plain-account(?:-of-christian-perfection)?/, {zh: '《基督徒完全論》', en: 'A Plain Account of Christian Perfection',
@@ -1406,6 +1406,9 @@ const BOOKS = [
   [/課程0(\d)-[^\s*`.，。、；：）)]+/, {zh: n => '《信仰課程：' + n.replace(/^課程0\d-/, '') + '》',
     en: (n, k) => 'Faith Course, Lesson ' + k, de: (n, k) => 'Glaubenskurs, Lektion ' + k}],
   [/屬靈恩賜(?=\*|`)/, {zh: '《屬靈恩賜》', en: 'Spiritual Gifts', de: 'Geistliche Gaben'}],
+  // the New Testament notes come from a tool, not a file: a German answer's short or English name gets the EmK title
+  [/(?:John )?Wesleys Anmerkungen(?! zum Neuen Testament)|(?:(?:John )?Wesley['’]?s )?Explanatory Notes(?: upon the New Testament)?/,
+    {zh: n => n, en: n => n, de: 'John Wesleys Anmerkungen zum Neuen Testament'}],
 ];
 const HYMN = {en: 'Wesley Hymns No. ', de: 'Wesley-Gesangbuch Nr. '};
 function citeLang(text, lang) {
