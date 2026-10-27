@@ -256,8 +256,31 @@ def _as_traditional(run: dict) -> str:
     text = run.get("final_text") or ""
     if run.get("script") == "hans":
         from ..common import zh
-        text = zh.to_traditional(text)
+        text = zh.to_hant(text)  # with the 和合本's forms (為, not 爲)
     return text
+
+
+class _RoundTripCorpus(Corpus):
+    """The 和合本 as a Simplified answer's quotation reads once converted back to 繁體: the
+    conversion is not exact both ways (顯明了 comes back as 顯明瞭), so the gold text takes the
+    same round trip and a quotation the program filled in still matches."""
+
+    def __init__(self, base: Corpus):
+        super().__init__(base.data_dir)
+        self._base = base
+
+    def bible(self, version: str) -> dict[str, str]:
+        if version != "cuv":
+            return self._base.bible(version)
+        if "cuv" not in self._bibles:
+            from ..common import zh
+            self._bibles["cuv"] = {k: zh.to_hant(zh.to_simplified(v)) for k, v in self._base.bible("cuv").items()}
+        return self._bibles["cuv"]
+
+
+@lru_cache(maxsize=1)
+def _round_trip_corpus() -> Corpus:
+    return _RoundTripCorpus(default_corpus())
 
 
 @grader("no_misquotes")
@@ -272,6 +295,7 @@ def no_misquotes(task, run) -> Grade:
     to have checked) is the user's wording, not the agent's quotation, and is skipped."""
     bad, checked = [], 0
     asked = normalize_zh(getattr(task, "prompt", "") or "")
+    corpus = _round_trip_corpus() if run.get("script") == "hans" else None
     for span, cite, refs in quotation_citations(_as_traditional(run)):
         if _NOT_SCRIPTURE_RE.search(cite):
             continue
@@ -282,12 +306,12 @@ def no_misquotes(task, run) -> Grade:
             continue
         if len(normalize(span, version)) < 6:
             continue
-        texts = [t for t in (verse_text(r, version) for r in refs) if t]
+        texts = [t for t in (verse_text(r, version, corpus) for r in refs) if t]
         if texts and not any(_attempts_quote(span, t, version) for t in texts):
             continue  # a label or paraphrase that shares little with the verse, e.g. 「神的愛／神賜下兒子」（羅 5:8）
         checked += 1
         parts = [p for p in _ELLIPSIS_RE.split(span) if normalize(p, version)]
-        if not all(any(is_verbatim(p, r, version) for r in refs) for p in parts):
+        if not all(any(is_verbatim(p, r, version, corpus) for r in refs) for p in parts):
             bad.append(span)
     return Grade(not bad, f"引錯：{bad[:2]}" if bad else f"{checked} cited quotations, all word for word")
 
