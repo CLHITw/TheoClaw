@@ -35,3 +35,13 @@ def test_questions_left_singular_and_plural():
     out = translate(["今天還可以問 1 題。", "今天還可以問 3 題。"])
     assert out["en"] == ["You can ask 1 more question today.", "You can ask 3 more questions today."]
     assert out["de"] == ["Heute können Sie noch eine Frage stellen.", "Heute können Sie noch 3 Fragen stellen."]
+
+
+def test_share_words_in_every_language():
+    words = ["分享", "已分享", "複製連結", "取消分享", "連結已複製", "由 TheoClaw 生成，僅供參考",
+             "這個分享已取消，或者不存在。", "今天分享的次數已達上限，請明天再來"]
+    out = translate(words)
+    assert out["en"][:4] == ["Share", "Shared", "Copy link", "Stop sharing"]
+    assert out["de"][:4] == ["Teilen", "Geteilt", "Link kopieren", "Nicht mehr teilen"]
+    for lang in ("en", "de"):
+        assert not any(re.search(r"[一-鿿]", t) for t in out[lang]), out[lang]

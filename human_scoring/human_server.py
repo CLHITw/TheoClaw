@@ -36,6 +36,7 @@ import base64
 import hashlib
 import re
 import hmac
+import html
 import json
 import os
 import random
@@ -89,6 +90,7 @@ BIBLE_NAMES = {"web": "World English Bible", "bsb": "Berean Standard Bible", "kj
                "asv": "American Standard Version", "lut": "Luther 1912", "elb": "Elberfelder 1905"}
 BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses up with version \"{version}\".)",
               "de": "\n\n(Zitieren Sie die Bibel nach der {name} ({tag}): Verse mit version \"{version}\" nachschlagen.)"}
+SHARE_DAILY_LIMIT = 50     # links one person may make in a day (revoked ones count too)
 RATINGS_PER_QUESTION = 2   # 每天每評分兩個回答，當天可多問一題（2026-10-26 新政策）
 PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
@@ -720,10 +722,73 @@ class Store:
         if not ids:
             return None
         done = self.done(r["name"])
+        shared = self._shared(r["name"])
         return {"id": conv, "turns": [{"id": i, "ask": self.items[i].trace.get("prompt", ""),
                                        "reply": self.items[i].trace.get("final_text") or "", "rated": i in done,
-                                       "lang": self.items[i].trace.get("lang")}
+                                       "lang": self.items[i].trace.get("lang"),
+                                       "share": shared.get(self.items[i].trace["task_id"])}
                                       for i in ids]}
+
+    # ------------------------------------------------------------ sharing one answer
+    def _shared(self, name: str) -> dict[str, str]:
+        """task id -> the working share token of each answer this person shared."""
+        return {s["task_id"]: s["token"] for s in self.db.shares(name) if not s.get("revoked_at")}
+
+    def _own_question(self, r: dict, item_id: str) -> Item | None:
+        """One of this person's own questions (not a sermon step, never someone else's)."""
+        it = self.items.get(item_id or "")
+        if it is None or self.owner.get(item_id) != r["name"] or it.trace.get("kind", "question") != "question":
+            return None
+        return it
+
+    def share(self, code: str, item_id: str, nick=None) -> dict:
+        """A read-only link to one answer: {"token"} or {"error"}. The same answer shared again
+        gives back the link it already has."""
+        r = self.who(code, nick)
+        if r is None:
+            return {"error": "請先輸入您的稱呼"}
+        it = self._own_question(r, item_id)
+        if it is None:
+            return {"error": "找不到這個回答"}
+        with self.lock:
+            mine = self.db.shares(r["name"])
+            task = it.trace["task_id"]
+            for s in mine:
+                if s["task_id"] == task and not s.get("revoked_at"):
+                    return {"token": s["token"]}
+            today = time.strftime("%Y%m%d")
+            if sum(1 for s in mine if str(s.get("created", "")).startswith(today)) >= SHARE_DAILY_LIMIT:
+                return {"error": "今天分享的次數已達上限，請明天再來"}
+            token = secrets.token_urlsafe(16)
+            self.db.add_share(token, task, r["name"])
+        return {"token": token}
+
+    def unshare(self, code: str, item_id: str, nick=None) -> dict:
+        r = self.who(code, nick)
+        if r is None:
+            return {"error": "請先輸入您的稱呼"}
+        it = self._own_question(r, item_id)
+        if it is None:
+            return {"error": "找不到這個回答"}
+        with self.lock:
+            for s in self.db.shares(r["name"]):
+                if s["task_id"] == it.trace["task_id"] and not s.get("revoked_at"):
+                    self.db.revoke_share(s["token"])
+        return {"ok": True}
+
+    def shared(self, token: str) -> dict | None:
+        """What a share link shows: the question and the answer, nothing else (no name, no other
+        turn, no score or model). None for a revoked or unknown token; each view is counted."""
+        s = self.db.share(token) if token else None
+        if s is None or s.get("revoked_at"):
+            return None
+        for i, n in self.owner.items():
+            t = self.items[i].trace
+            if t.get("task_id") == s["task_id"] and n == s["owner"]:
+                with self.lock:
+                    self.db.view_share(token)
+                return {"ask": t.get("prompt", ""), "reply": t.get("final_text") or "", "lang": t.get("lang") or "zh"}
+        return None
 
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
             denomination: str | None = None, conv: str | None = None, lang: str | None = None,
@@ -1163,6 +1228,37 @@ def zh_map() -> bytes:
     return _ZH_MAP
 
 
+SHARE_PATH = re.compile(r"^/s/([A-Za-z0-9_-]{1,64})$")
+
+
+def _plain(text: str, limit: int) -> str:
+    """A short plain-text preview of an answer or question: no Markdown, no HTML, one line."""
+    from theoclaw.agent.quotes import html_to_markdown
+    t = html_to_markdown(text or "")
+    t = re.sub(r"〔[^〕]*〕", "", t)                    # any placeholder left unfilled
+    t = re.sub(r"^\s*(#{1,6}|>|[-*]\s)\s*", "", t, flags=re.M)
+    t = re.sub(r"[*_`#]+", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t if len(t) <= limit else t[:limit].rstrip() + "…"
+
+
+def share_page(shared: dict | None) -> bytes:
+    """The page itself, opened on one shared answer: the link preview (Open Graph) and the data
+    are written into its head, so a chat app's preview shows the question without running the
+    page. None: the link was revoked or never existed (the page says so, for both alike)."""
+    page = PAGE.read_text(encoding="utf-8")
+    head = ['<meta name="robots" content="noindex, nofollow">', '<meta property="og:site_name" content="TheoClaw">']
+    if shared:
+        head += ['<meta property="og:type" content="article">',
+                 f'<meta property="og:title" content="{html.escape(_plain(shared["ask"], 60))}">',
+                 f'<meta property="og:description" content="{html.escape(_plain(shared["reply"], 100))}">']
+    else:
+        head.append('<meta property="og:title" content="TheoClaw">')
+    data = json.dumps(shared or {"gone": True}, ensure_ascii=False).replace("<", "\\u003c")
+    head.append(f'<script id="shareData" type="application/json">{data}</script>')
+    return page.replace("<title>TheoClaw</title>", "<title>TheoClaw</title>\n" + "\n".join(head), 1).encode("utf-8")
+
+
 def make_handler(store: Store):
     class Handler(BaseHTTPRequestHandler):
         server_version = "TheoClawScoring/2.0"
@@ -1235,6 +1331,15 @@ def make_handler(store: Store):
             host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").split(",")[0].strip()
             return f"{proto}://{host}/auth/google/callback"
 
+        def _share_url(self, token: str) -> str:
+            """THEOCLAW_URL when set (the fixed address), else the address this request came to."""
+            base = os.environ.get("THEOCLAW_URL", "").strip().rstrip("/")
+            if not base:
+                proto = (self.headers.get("X-Forwarded-Proto") or "http").split(",")[0].strip() or "http"
+                host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").split(",")[0].strip()
+                base = f"{proto}://{host}"
+            return f"{base}/s/{token}"
+
         def _identity(self, q):
             """Who a request belongs to: a signed-in account (session cookie) if any, set for who();
             plus the link code and the browser's (nick, key)."""
@@ -1277,6 +1382,19 @@ def make_handler(store: Store):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            m = SHARE_PATH.match(u.path)
+            if m or u.path.startswith("/s/"):  # one shared answer: no link code, read-only
+                shared = store.shared(m.group(1)) if m else None
+                body = share_page(shared)
+                self.send_response(HTTPStatus.OK if shared else HTTPStatus.NOT_FOUND)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("X-Robots-Tag", "noindex, nofollow")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -1352,6 +1470,9 @@ def make_handler(store: Store):
                 return self._json(item) if item else self._json({"error": "找不到這一題"}, HTTPStatus.NOT_FOUND)
             if u.path == "/api/conversation":
                 c = store.conversation(code, (q.get("id") or [""])[0], nick)
+                if c:
+                    for t in c["turns"]:
+                        t["share"] = self._share_url(t["share"]) if t["share"] else None
                 return self._json(c) if c else self._json({"error": "找不到這個對話"}, HTTPStatus.NOT_FOUND)
             if u.path == "/api/sermon/list":
                 return self._json(store.ws_list(code, nick))
@@ -1381,7 +1502,8 @@ def make_handler(store: Store):
             if code is None:
                 return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
             if u.path not in ("/api/rate", "/api/ask", "/api/sermon", "/api/sermon/start", "/api/sermon/turn",
-                              "/api/sermon/assemble", "/api/sermon/board", "/api/recover", "/api/consent"):
+                              "/api/sermon/assemble", "/api/sermon/board", "/api/recover", "/api/consent",
+                              "/api/share", "/api/share/revoke"):
                 return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
@@ -1397,6 +1519,14 @@ def make_handler(store: Store):
                     return self._json({"error": "請先輸入您的稱呼"}, HTTPStatus.BAD_REQUEST)
                 store.db.record_consent(r)
                 return self._json({"ok": True})
+            if u.path == "/api/share":
+                out = store.share(code, str(body.get("id") or ""), nick)
+                if "token" in out:
+                    out["url"] = self._share_url(out.pop("token"))
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            if u.path == "/api/share/revoke":
+                out = store.unshare(code, str(body.get("id") or ""), nick)
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             if u.path == "/api/recover":
                 out = store.recover(code, str(body.get("token") or ""), nick)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)

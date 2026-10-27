@@ -870,3 +870,100 @@ def test_two_scores_earn_one_more_question(tmp_path, storage):
     chat = store.state(code, nick)["chat"]
     assert chat["remaining_today"] == 1 and chat["ratings_to_bonus"] == 2
     assert "job" in store.ask(code, "第三題", runner=fake, nick=nick)
+
+
+def _post(base, path, body):
+    req = urllib.request.Request(base + path, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        return json.loads(urllib.request.urlopen(req).read())
+    except urllib.error.HTTPError as e:
+        return json.loads(e.read())
+
+
+def _open(url):
+    """(status, headers, body text) of a page, 404 included."""
+    try:
+        r = urllib.request.urlopen(url)
+    except urllib.error.HTTPError as e:
+        r = e
+    return r.status if hasattr(r, "status") else r.code, r.headers, r.read().decode("utf-8")
+
+
+def test_sharing_one_answer(tmp_path, monkeypatch):
+    monkeypatch.delenv("THEOCLAW_URL", raising=False)
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("祕密團契", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me, other = ("小明祕密暱稱", "k" * 20), ("小華", "m" * 20)
+    _consent(store, code, me)
+    _consent(store, code, other)
+    answers = iter(["# 重點\n**神的愛**：羅馬書 8 章說<b>沒有</b>定罪。" + "長" * 200, "第二輪的祕密回答"])
+
+    def fake(prompt):
+        return {"model": "secret-model", "prompt": prompt, "final_text": next(answers), "outcome": "completed",
+                "steps": [], "usage_total": {}, "cost_usd": 0.0123}
+
+    first = store.ask(code, "羅馬書 8 章的<重點>？", runner=fake, nick=me)
+    item = _wait(store, code, first["job"], me)["item"]
+    second = store.ask(code, "第二輪的祕密問題", runner=fake, nick=me, conv=first["conv"])
+    _wait(store, code, second["job"], me)
+    srv, base = _serve(store)
+    q = "?" + urlencode({"t": code, "u": me[0], "k": me[1]})
+    q_other = "?" + urlencode({"t": code, "u": other[0], "k": other[1]})
+    try:
+        assert "error" in _post(base, "/api/share" + q_other, {"id": item})  # not theirs
+        url = _post(base, "/api/share" + q, {"id": item})["url"]
+        assert url.startswith(base + "/s/") and _post(base, "/api/share" + q, {"id": item})["url"] == url  # same link again
+        conv = json.loads(urllib.request.urlopen(base + "/api/conversation" + q + "&id=" + first["conv"]).read())
+        assert [t["share"] for t in conv["turns"]] == [url, None]  # the state survives a reload
+
+        status, headers, page = _open(url)
+        assert status == 200 and headers["X-Robots-Tag"].startswith("noindex") and headers["Referrer-Policy"] == "no-referrer"
+        assert 'name="robots" content="noindex' in page
+        assert '<meta property="og:title" content="羅馬書 8 章的&lt;重點&gt;？">' in page
+        desc = page.split('og:description" content="')[1].split('"')[0]
+        assert desc.startswith("重點 神的愛：羅馬書 8 章說") and "**" not in desc and "<b>" not in desc and desc.endswith("…")
+        for secret in ("小明祕密暱稱", code, "第二輪的祕密", "secret-model", "0.0123", "祕密團契"):
+            assert secret not in page
+        data = json.loads(page.split('<script id="shareData" type="application/json">')[1].split("</script>")[0])
+        assert set(data) == {"ask", "reply", "lang"} and data["ask"] == "羅馬書 8 章的<重點>？"
+        assert "<重點>" not in page  # escaped inside the script tag too
+        assert store.db.share(url.rsplit("/", 1)[1])["views"] == 1
+
+        assert "error" in _post(base, "/api/share/revoke" + q_other, {"id": item})
+        assert _open(url)[0] == 200  # still works after someone else tried
+        assert _post(base, "/api/share/revoke" + q, {"id": item}) == {"ok": True}
+        gone = _open(url)
+        unknown = _open(base + "/s/doesNotExist123")
+        assert gone[0] == unknown[0] == 404 and gone[2] == unknown[2]  # revoked and unknown look the same
+        assert '"gone": true' in gone[2] and "羅馬書" not in gone[2]
+        assert _open(base + "/s/bad!token")[0] == 404
+        again = _post(base, "/api/share" + q, {"id": item})["url"]
+        assert again != url  # a new link after revoking; the old one stays dead
+        assert _open(url)[0] == 404 and _open(again)[0] == 200
+    finally:
+        srv.shutdown()
+
+
+def test_share_limits_and_sermon_answers(tmp_path, monkeypatch):
+    monkeypatch.setattr(hs, "SHARE_DAILY_LIMIT", 1)
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me = ("小明", "k" * 20)
+    _consent(store, code, me)
+    fake = lambda p: {"model": "m", "prompt": p, "final_text": "答", "outcome": "completed", "steps": [],
+                      "usage_total": {}, "cost_usd": 0.0}
+    items = [_wait(store, code, store.ask(code, f"問題{i}", runner=fake, nick=me)["job"], me)["item"] for i in range(2)]
+    assert "token" in store.share(code, items[0], me)
+    assert "token" in store.share(code, items[0], me)  # the same link again is not a new one
+    assert "明天" in store.share(code, items[1], me)["error"]
+    assert "error" in store.share(code, "nope", me) and store.shared("") is None
+    sermon_fake = lambda p: {"kind": "sermon_turn", **fake(p)}
+    j = _wait(store, code, store.ask(code, "講章的一步", runner=sermon_fake, nick=me)["job"], me)
+    assert "error" in store.share(code, j["item"], me)  # only plain questions are shared for now

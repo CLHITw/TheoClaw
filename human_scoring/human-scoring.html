@@ -418,6 +418,8 @@
 
   /* Hidden */
   .hidden { display: none !important; }
+  /* a shared answer (/s/...): only the answer, the language and theme switches */
+  .share-view #acctWrap, .share-view #sbBtn, .share-view #biblePick, .share-view #progressInfo { display: none !important; }
 
   /* Stats summary */
   .stats-grid {
@@ -1161,7 +1163,9 @@ function giveConsent() {
 }
 
 function init() {
-  const ae = new URLSearchParams(location.search).get('auth_error');
+  const shared = shareData();
+  if (shared) { shareView(shared); return; }
+  const ae =new URLSearchParams(location.search).get('auth_error');
   if (ae) {
     history.replaceState(null, '', location.pathname + (code ? '?t=' + encodeURIComponent(code) : ''));
     showToast(T(({disabled: '未開放 Google 登入', link: '連結無效，請重新進入', name: '請先輸入稱呼，再登入 Google',
@@ -2232,12 +2236,87 @@ function renderTurns(box, turns, openId, onAdd) {
       add.onclick = () => onAdd(t);
       act.appendChild(add);
     }
+    if (!onAdd) act.appendChild(shareBar(t));  // questions only; the sermon workspace has no share links yet
     const panel = document.createElement('div'); panel.className = 'rate-panel hidden';
     if (act.children.length) d.appendChild(act);
     d.appendChild(quickRateBar(t, tag, panel));
     d.appendChild(panel);
     box.appendChild(d);
   });
+}
+
+// Share one answer: a read-only link that shows this question and this answer only (no nickname,
+// no other turns). Once shared, the card offers the link again and a way to withdraw it.
+function copyLink(url) {
+  const ask = () => prompt(T('複製這個連結：'), url);
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(url).then(() => showToast(T('連結已複製')), ask);
+  else ask();
+}
+function shareBar(t) {
+  const bar = document.createElement('span'); bar.style.cssText = 'display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap';
+  const draw = () => {
+    bar.innerHTML = '';
+    const btn = (label, fn) => {
+      const b = document.createElement('button'); b.className = 'btn btn-secondary btn-sm'; b.textContent = T(label);
+      b.onclick = fn; bar.appendChild(b); return b;
+    };
+    if (!t.share) {
+      const b = btn('分享', () => {
+        if (!confirm(T('分享這個回答？看到連結的人只會看到這一題的問題和回答，看不到您的稱呼，也看不到其他對話。'))) return;
+        b.disabled = true;
+        api('/api/share', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: t.id})})
+          .then(r => {
+            b.disabled = false;
+            if (r.error) { showToast(r.error); return; }
+            t.share = r.url; draw(); copyLink(r.url);
+          }).catch(() => { b.disabled = false; showToast(T('送出失敗，請檢查網路')); });
+      });
+      return;
+    }
+    const on = document.createElement('span'); on.className = 'help'; on.textContent = T('已分享'); bar.appendChild(on);
+    btn('複製連結', () => copyLink(t.share));
+    btn('取消分享', () => {
+      if (!confirm(T('取消分享？這個連結會立即失效。'))) return;
+      api('/api/share/revoke', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: t.id})})
+        .then(r => {
+          if (r.error) { showToast(r.error); return; }
+          t.share = null; draw(); showToast(T('已取消分享，連結已失效'));
+        }).catch(() => showToast(T('送出失敗，請檢查網路')));
+    });
+  };
+  draw();
+  return bar;
+}
+
+// /s/<token>: the server wrote the shared question and answer into the page; nothing else is
+// loaded, no link code is needed, and the visitor's own records on this device are not touched.
+function shareData() {
+  const el = document.getElementById('shareData');
+  if (!el) return null;
+  try { return JSON.parse(el.textContent); } catch (e) { return {gone: true}; }
+}
+function shareView(s) {
+  document.body.classList.add('share-view');
+  const box = document.createElement('div'); box.className = 'card';
+  const home = document.createElement('a'); home.href = '/'; home.className = 'btn btn-sm';
+  home.textContent = T('前往 TheoClaw 首頁');
+  if (s.gone) {
+    const msg = document.createElement('div'); msg.className = 'card-content'; msg.textContent = T('這個分享已取消，或者不存在。');
+    box.appendChild(msg);
+  } else {
+    const qt = document.createElement('div'); qt.className = 'card-title'; qt.textContent = T('問題');
+    const q = document.createElement('div'); q.className = 'card-content notr'; q.textContent = s.ask;
+    const at = document.createElement('div'); at.className = 'card-title'; at.style.marginTop = '16px'; at.textContent = T('回答');
+    const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, s.reply, s.lang);
+    const note = document.createElement('div'); note.className = 'help'; note.style.marginTop = '12px';
+    note.textContent = T('由 TheoClaw 生成，僅供參考');
+    [qt, q, at, voiceButton(rep), rep, note].forEach(e => box.appendChild(e));
+  }
+  const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
+  act.appendChild(home); box.appendChild(act);
+  const c = document.querySelector('.container');
+  c.insertBefore(box, c.firstChild);
 }
 
 function wsRenderTurns(turns, openId) {
@@ -2651,6 +2730,16 @@ const EN = {
   '這部裝置不支援語音朗讀': 'This device cannot read answers aloud',
   '這裡沒有可以讀出來的文字': 'There is nothing here to read aloud',
   '你好，這是我的聲音。': 'Hello, this is my voice.',
+  // 分享一個回答
+  '分享': 'Share', '已分享': 'Shared', '複製連結': 'Copy link', '取消分享': 'Stop sharing',
+  '分享這個回答？看到連結的人只會看到這一題的問題和回答，看不到您的稱呼，也看不到其他對話。':
+    'Share this answer? People with the link will see only this question and this answer, not your name or any other conversation.',
+  '取消分享？這個連結會立即失效。': 'Stop sharing? The link will stop working right away.',
+  '連結已複製': 'Link copied', '複製這個連結：': 'Copy this link:', '已取消分享，連結已失效': 'Sharing stopped; the link no longer works',
+  '今天分享的次數已達上限，請明天再來': 'You have shared as many answers as allowed today; please come back tomorrow',
+  '找不到這個回答': 'Answer not found',
+  '問題': 'Question', '回答': 'Answer', '由 TheoClaw 生成，僅供參考': 'Generated by TheoClaw, for reference only',
+  '前往 TheoClaw 首頁': 'Go to TheoClaw', '這個分享已取消，或者不存在。': 'This shared answer has been withdrawn or does not exist.',
 };
 const EN_PATTERNS = [
   [/^今天還可以問 (\d+) 題。$/, (m, n) => 'You can ask ' + n + (n === '1' ? ' more question today.' : ' more questions today.')],
@@ -2833,6 +2922,16 @@ const DE = {
   '這部裝置不支援語音朗讀': 'Dieses Gerät kann Antworten nicht vorlesen',
   '這裡沒有可以讀出來的文字': 'Hier gibt es nichts zum Vorlesen',
   '你好，這是我的聲音。': 'Hallo, das ist meine Stimme.',
+  // 分享一個回答
+  '分享': 'Teilen', '已分享': 'Geteilt', '複製連結': 'Link kopieren', '取消分享': 'Nicht mehr teilen',
+  '分享這個回答？看到連結的人只會看到這一題的問題和回答，看不到您的稱呼，也看不到其他對話。':
+    'Diese Antwort teilen? Wer den Link hat, sieht nur diese Frage und diese Antwort, nicht Ihren Namen und keine anderen Gespräche.',
+  '取消分享？這個連結會立即失效。': 'Nicht mehr teilen? Der Link funktioniert dann sofort nicht mehr.',
+  '連結已複製': 'Link kopiert', '複製這個連結：': 'Diesen Link kopieren:', '已取消分享，連結已失效': 'Nicht mehr geteilt; der Link funktioniert nicht mehr',
+  '今天分享的次數已達上限，請明天再來': 'Sie haben heute so viele Antworten geteilt wie möglich; bitte morgen wieder',
+  '找不到這個回答': 'Antwort nicht gefunden',
+  '問題': 'Frage', '回答': 'Antwort', '由 TheoClaw 生成，僅供參考': 'Von TheoClaw erstellt, nur zur Orientierung',
+  '前往 TheoClaw 首頁': 'Zu TheoClaw', '這個分享已取消，或者不存在。': 'Diese geteilte Antwort wurde zurückgezogen oder existiert nicht.',
 };
 const DE_PATTERNS = [
   [/^今天還可以問 (\d+) 題。$/, (m, n) => n === '1' ? 'Heute können Sie noch eine Frage stellen.' : 'Heute können Sie noch ' + n + ' Fragen stellen.'],

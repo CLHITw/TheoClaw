@@ -152,6 +152,16 @@ google_accounts = Table(
     Column("last_login", String(20)),
     **_opts)
 
+shares = Table(
+    "shares", meta,                                   # one answer shared by a read-only link /s/<token>
+    Column("token", String(ID), primary_key=True),    # secrets.token_urlsafe(16)
+    Column("task_id", String(ID), nullable=False, index=True),
+    Column("owner", String(NAME), nullable=False, index=True),
+    Column("created", String(20), index=True),
+    Column("revoked_at", String(20)),                 # empty while the link works
+    Column("views", Integer, nullable=False, default=0),  # a count only: no address or visitor is kept
+    **_opts)
+
 
 def db_url(sqlite_file: Path = SQLITE_FILE) -> str:
     try:
@@ -352,6 +362,28 @@ class DB:
             return [{"by": r.by_name, "kind": r.kind, "cost_usd": float(r.cost_usd or 0), "project": r.project, "at": r.at}
                     for r in c.execute(select(costs).order_by(costs.c.id))]
 
+    # ---- shares: one answer behind a read-only link
+    def add_share(self, token: str, task_id: str, owner: str) -> None:
+        with self.engine.begin() as c:
+            c.execute(insert(shares).values(token=token, task_id=task_id, owner=owner, created=_stamp(), views=0))
+
+    def share(self, token: str) -> dict | None:
+        with self.engine.connect() as c:
+            r = c.execute(select(shares).where(shares.c.token == (token or ""))).first()
+            return dict(r._mapping) if r else None
+
+    def shares(self, owner: str) -> list[dict]:
+        with self.engine.connect() as c:
+            return [dict(r._mapping) for r in c.execute(select(shares).where(shares.c.owner == owner).order_by(shares.c.created))]
+
+    def revoke_share(self, token: str) -> None:
+        with self.engine.begin() as c:
+            c.execute(update(shares).where(shares.c.token == token).values(revoked_at=_stamp()))
+
+    def view_share(self, token: str) -> None:
+        with self.engine.begin() as c:
+            c.execute(update(shares).where(shares.c.token == token).values(views=shares.c.views + 1))
+
     # ---- identities: recovery after a browser lost its key
     def identities(self, group: str) -> list[dict]:
         """The people on a group link: name, nickname, first and last use, number of answers. No content."""
@@ -393,6 +425,7 @@ class DB:
                 c.execute(update(projects).where(projects.c.id == r.id).values(owner=new, data={**r.data, "owner": new}))
                 n += 1
             c.execute(update(costs).where(costs.c.by_name == old).values(by_name=new))
+            c.execute(update(shares).where(shares.c.owner == old).values(owner=new))
             o = c.execute(select(users).where(users.c.name == old)).first()
             if o is not None:
                 cur = c.execute(select(users).where(users.c.name == new)).first()

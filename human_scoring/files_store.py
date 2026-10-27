@@ -162,6 +162,41 @@ class FileStore:
     def costs(self) -> list[dict]:
         return _jsonl(self.chat_dir / "costs.jsonl")
 
+    # ---- shares: one answer behind a read-only link (shares.json, token -> row)
+    def _shares(self) -> dict:
+        path = self.chat_dir / "shares.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def _save_shares(self, s: dict) -> None:
+        self.chat_dir.mkdir(parents=True, exist_ok=True)
+        (self.chat_dir / "shares.json").write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def add_share(self, token: str, task_id: str, owner: str) -> None:
+        import time
+        s = self._shares()
+        s[token] = {"token": token, "task_id": task_id, "owner": owner, "created": time.strftime("%Y%m%d-%H%M%S"),
+                    "revoked_at": None, "views": 0}
+        self._save_shares(s)
+
+    def share(self, token: str) -> dict | None:
+        return self._shares().get(token or "")
+
+    def shares(self, owner: str) -> list[dict]:
+        return sorted((r for r in self._shares().values() if r["owner"] == owner), key=lambda r: r["created"])
+
+    def revoke_share(self, token: str) -> None:
+        import time
+        s = self._shares()
+        if token in s:
+            s[token]["revoked_at"] = time.strftime("%Y%m%d-%H%M%S")
+            self._save_shares(s)
+
+    def view_share(self, token: str) -> None:
+        s = self._shares()
+        if token in s:
+            s[token]["views"] = s[token].get("views", 0) + 1
+            self._save_shares(s)
+
     # ---- identities: recovery after a browser lost its key
     def identities(self, group: str) -> list[dict]:
         seen: dict[str, dict] = {}
@@ -227,6 +262,9 @@ class FileStore:
             (self.chat_dir / "costs.jsonl").write_text(
                 "".join(json.dumps({**c, "by": new} if c["by"] == old else c, ensure_ascii=False) + "\n" for c in costs),
                 encoding="utf-8")
+        shares = self._shares()
+        if any(r["owner"] == old for r in shares.values()):
+            self._save_shares({t: {**r, "owner": new} if r["owner"] == old else r for t, r in shares.items()})
         consents = self._consents()
         if old in consents:  # the agreement follows the person into the account
             consents.setdefault(new, consents.pop(old))
