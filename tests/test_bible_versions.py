@@ -2,6 +2,7 @@
 lookups, placeholder filling, grading, and the version carried from the page to the agent."""
 
 import importlib.util
+import re
 import time
 from pathlib import Path
 
@@ -161,3 +162,14 @@ def test_unversioned_markers_follow_the_answer_language():
     assert calls[0].input["version"] == "bsb"   # the reader's pick, not the 和合本
     text, calls = fill_placeholders(zh, _handlers())
     assert calls[0].input["version"] == "cuv" and "和合本" in text
+
+
+def test_no_chinese_in_english_or_german_answers():
+    from theoclaw.agent.quotes import scrub_internal
+    en = "Jesus speaks of God's love for the whole world in this verse: 〔經文：John 3:16，和合本〕 and also 〔經文：Hezekiah 9:9〕"
+    text, calls = fill_placeholders(en, _handlers())
+    assert calls[0].input["version"] == "web"            # a 和合本 tag in an English answer: WEB
+    assert "[Bible passage not found: Hezekiah 9:9]" in text
+    de = "Ich habe das mit lookup_verse und wesley_note nachgeschlagen, und das ist nicht schwer."
+    assert scrub_internal(de, "de")[0] == "Ich habe das mit die Bibelsuche und Wesleys Anmerkungen nachgeschlagen, und das ist nicht schwer."
+    assert not re.search(r"[㐀-鿿]", text + scrub_internal("I used lookup_verse here.", "en")[0])

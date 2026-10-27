@@ -17,7 +17,7 @@ from ..common import zh
 from ..common.tooling import Handler, ToolError
 from ..llm import ProviderAPIError, anthropic_usage, supports_effort
 from .prompt import SYSTEM_PROMPT
-from .quotes import fill_placeholders, html_to_markdown, scrub_internal
+from .quotes import answer_language, fill_placeholders, html_to_markdown, scrub_internal
 from .tools import TOOL_DEFS
 
 FINAL_STEP_NOTE = "（查詢的次數已經用完：不要再使用工具，現在就根據已經查到的資料，完整回答使用者的問題。）"
@@ -197,10 +197,11 @@ def run_agent(
                 if run.simplified_fixed:
                     run.final_text = fixed
             run.final_text = html_to_markdown(run.final_text)  # the page shows Markdown, not HTML
+            lang = answer_language(run.final_text)
             if fill_quotes:
                 run.final_text, fills = fill_placeholders(run.final_text, handlers, bible)
                 step.tool_calls.extend(fills)
-                run.final_text, _ = scrub_internal(run.final_text)
+                run.final_text, _ = scrub_internal(run.final_text, lang)
             if run.script == "hans":
                 run.final_text = zh.to_simplified(run.final_text)
             if run.final_text != model_text:

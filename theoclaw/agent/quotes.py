@@ -81,10 +81,25 @@ _INTERNAL = [
 ]
 
 
-def scrub_internal(text: str) -> tuple[str, list[str]]:
-    """Rewrite internal words in the final answer; returns the text and what was changed."""
+# an English or German answer gets no Chinese words: the tool names become words in its language
+_INTERNAL_EN = [
+    (re.compile(r"`?(?:lookup_verse|fill_quote)`?"), "the Bible lookup"),
+    (re.compile(r"`?cross_references`?"), "the cross-references"),
+    (re.compile(r"`?wesley_note`?"), "Wesley's notes"),
+]
+_INTERNAL_DE = [
+    (re.compile(r"`?(?:lookup_verse|fill_quote)`?"), "die Bibelsuche"),
+    (re.compile(r"`?cross_references`?"), "die Querverweise"),
+    (re.compile(r"`?wesley_note`?"), "Wesleys Anmerkungen"),
+]
+LOOKUP_FAILED = {"zh": "〔經文查詢失敗：{}〕", "en": "[Bible passage not found: {}]", "de": "[Bibelstelle nicht gefunden: {}]"}
+
+
+def scrub_internal(text: str, lang: str = "zh") -> tuple[str, list[str]]:
+    """Rewrite internal words in the final answer (in its language, zh, en or de); returns the
+    text and what was changed."""
     changed = []
-    for pattern, repl in _INTERNAL:
+    for pattern, repl in {"en": _INTERNAL_EN, "de": _INTERNAL_DE}.get(lang, _INTERNAL):
         def sub(m, repl=repl):
             changed.append(m.group(0))
             return repl
@@ -139,12 +154,15 @@ def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None
     calls: list[ToolCall] = []
     # an English or German answer never quotes the 和合本: a marker without a version there
     # (〔經文：Matthäus 28,19〕) takes that language's Bible, not the Chinese default
-    default = DEFAULT_VERSION[answer_language(text)]
+    lang = answer_language(text)
+    default = DEFAULT_VERSION[lang]
 
     def replace(m: re.Match) -> str:
         body = m.group(1)
         v = _VERSION_RE.search(body)
         version = _TAG_VERSION.get(v.group(1).lower(), default) if v else default
+        if lang != "zh" and VERSION_LANG[version] == "zh":
+            version = default  # 〔經文：John 3:16，和合本〕 in an English answer: no Chinese there either
         if bible in VERSIONS and version == DEFAULT_VERSION.get(VERSION_LANG[bible]):
             version = bible
         reference = _VERSION_RE.sub("", body).strip()
@@ -162,7 +180,7 @@ def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None
         calls.append(ToolCall(id=f"fill-{len(calls)}", name="fill_quote", input=inp, output=output,
                               is_error=is_error, latency_s=time.perf_counter() - start))
         if is_error:
-            return f"〔經文查詢失敗：{reference}〕"
+            return LOOKUP_FAILED[lang].format(reference)
         try:
             ref = parse_ref(reference)
             label = ref_label(ref, version)
