@@ -2283,7 +2283,7 @@ function shareBar(t) {
     const on = document.createElement('span'); on.className = 'help'; on.textContent = T('已分享'); bar.appendChild(on);
     if (t.votes && t.votes.count) {
       const v = document.createElement('span'); v.className = 'help'; v.style.cursor = 'pointer';
-      v.textContent = T('共 ' + t.votes.count + ' 人評分') + (t.votes.mean !== null ? ' · ' + T('平均 ' + t.votes.mean + ' 分') : '') + ' ▾';
+      voteSummary(v, t.votes).appendChild(document.createTextNode(' ▾'));
       const dist = voteView(t.votes); dist.classList.add('hidden'); dist.style.flexBasis = '100%';
       v.onclick = () => dist.classList.toggle('hidden');
       bar.appendChild(v); bar.appendChild(dist);
@@ -2309,14 +2309,24 @@ function shareData() {
   if (!el) return null;
   try { return JSON.parse(el.textContent); } catch (e) { return {gone: true}; }
 }
+// "共 3 人評分 · 平均 7.5 分 · 👍 1 · 👎 0", each part its own text so the language switch can translate it.
+function voteSummary(el, v) {
+  const parts = [T('共 ' + v.count + ' 人評分')];
+  if (v.mean !== null) parts.push(T('平均 ' + v.mean + ' 分'));
+  if (v.up || v.down) parts.push('👍 ' + v.up, '👎 ' + v.down);
+  parts.forEach((t, k) => {
+    if (k) el.appendChild(document.createTextNode(' · '));
+    const sp = document.createElement('span'); sp.textContent = t; el.appendChild(sp);
+  });
+  return el;
+}
+
 // How an answer was scored: count, mean and a 0-10 histogram, plus the thumbs; never who.
 // mine: the viewer's own score, marked in the histogram.
 function voteView(v, mine) {
   const box = document.createElement('div'); box.className = 'votes';
   const head = document.createElement('div'); head.className = 'help';
-  head.textContent = T('共 ' + v.count + ' 人評分') + (v.mean !== null ? ' · ' + T('平均 ' + v.mean + ' 分') : '') +
-    (v.up || v.down ? ' · 👍 ' + v.up + ' · 👎 ' + v.down : '');
-  box.appendChild(head);
+  box.appendChild(voteSummary(head, v));
   if (v.scored) {
     const top = Math.max(...v.hist);
     const bars = document.createElement('div'); bars.className = 'vote-bars';
@@ -2368,7 +2378,9 @@ function shareRate(token, box) {
     box.innerHTML = '';
     const head = document.createElement('div'); head.className = 'help';
     const m = v.mine || {};
-    head.textContent = T(m.score !== null && m.score !== undefined ? '您的評分：' + m.score + ' 分' : (m.quick === 'up' ? '您的評分：有幫助' : '您的評分：不太行'));
+    const lab = document.createElement('span');
+    lab.textContent = T(m.score !== null && m.score !== undefined ? '您的評分：' + m.score + ' 分' : (m.quick === 'up' ? '您的評分：有幫助' : '您的評分：不太行'));
+    head.appendChild(lab);
     const again = document.createElement('button'); again.className = 'btn btn-secondary btn-sm'; again.style.marginLeft = '8px';
     again.textContent = T('修改評分'); again.onclick = () => ask(v.mine);
     head.appendChild(again);
