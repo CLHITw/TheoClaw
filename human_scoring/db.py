@@ -301,7 +301,10 @@ class DB:
 
     def answers(self) -> list[dict]:
         with self.engine.connect() as c:
-            return [r.data for r in c.execute(select(answers.c.data).order_by(answers.c.asked_at, answers.c.task_id))]
+            # sorted here, not by the database: MySQL sorts whole rows (the JSON data too) in its sort
+            # buffer and fails with "Out of sort memory" once the answers outgrow it
+            rows = c.execute(select(answers.c.asked_at, answers.c.task_id, answers.c.data)).all()
+        return [r.data for r in sorted(rows, key=lambda r: (r.asked_at or "", r.task_id or ""))]
 
     # ---- ratings
     def add_rating(self, run_dir: str, rec: dict) -> None:
@@ -336,11 +339,12 @@ class DB:
             return r.data if r else None
 
     def projects(self, owner: str | None = None) -> list[dict]:
-        q = select(projects.c.data).order_by(projects.c.created.desc())
+        q = select(projects.c.created, projects.c.data)  # newest first, sorted here (see answers())
         if owner is not None:
             q = q.where(projects.c.owner == owner)
         with self.engine.connect() as c:
-            return [r.data for r in c.execute(q)]
+            rows = c.execute(q).all()
+        return [r.data for r in sorted(rows, key=lambda r: r.created or "", reverse=True)]
 
     def save_project(self, p: dict) -> None:
         row = {"owner": p["owner"], "passage": p.get("passage"), "theme": p.get("theme"),
