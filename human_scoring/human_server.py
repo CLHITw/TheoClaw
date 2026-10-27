@@ -1125,7 +1125,9 @@ class Store:
             with self.lock:
                 self.db.add_answer(rec)  # a failed one too, to see why; it is not shown, rated or counted
                 self.db.touch_user(self._user(name), denomination, stamp, rec.get("lang"))
-                if failed:
+                if failed and rec.get("outcome") != "api_error":  # the model answered, but with no text
+                    self.jobs[job].update(status="error", error="這一題沒能整理出回答，請換個說法或問得具體一些再試（這一題不計入今天的題數）")
+                elif failed:
                     self.jobs[job].update(status="error", error="模型服務暫時無法使用，請稍後再試（這一題不計入今天的題數）")
                 else:
                     it = Item(self.chat_dir, rec)

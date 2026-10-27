@@ -20,6 +20,8 @@ from .prompt import SYSTEM_PROMPT
 from .quotes import fill_placeholders, html_to_markdown, scrub_internal
 from .tools import TOOL_DEFS
 
+FINAL_STEP_NOTE = "（查詢的次數已經用完：不要再使用工具，現在就根據已經查到的資料，完整回答使用者的問題。）"
+
 
 def effective_effort(model: str, effort: str | None) -> str | None:
     """The effort to send: none for models marked `effort: false` in config/llm.yaml (they reject it)."""
@@ -146,6 +148,12 @@ def run_agent(
     try:
         for index in range(max_steps):
             t0 = time.perf_counter()
+            last = {}
+            if index == max_steps - 1 and messages[-1]["role"] == "user" and isinstance(messages[-1]["content"], list):
+                # the last step: no more lookups, answer from what was found (otherwise a long
+                # search ends with no answer at all)
+                messages[-1]["content"].append({"type": "text", "text": FINAL_STEP_NOTE})
+                last = {"tool_choice": {"type": "none"}}
             response = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
@@ -153,7 +161,7 @@ def run_agent(
                 tools=tools if tools is not None else TOOL_DEFS,
                 messages=messages,
                 cache_control={"type": "ephemeral"},  # system + tools are identical on every call
-                **extra,
+                **extra, **last,
             )
             step = Step(index=index, latency_s=time.perf_counter() - t0,
                         stop_reason=response.stop_reason, usage=anthropic_usage(response.usage),

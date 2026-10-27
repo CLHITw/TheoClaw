@@ -181,3 +181,14 @@ def test_simplified_question_gets_a_simplified_answer_with_converted_scripture(c
     assert zh.simplified_chars(run.final_text)  # really Simplified, not converted to 繁體
     grade = load_graders()["no_misquotes"](type("T", (), {"prompt": question})(), run.to_dict())
     assert grade.passed, grade.details  # quotations are compared with the 繁體 和合本 after conversion
+
+
+def test_last_step_answers_from_what_was_found(corpus):
+    lookups = [resp([tool_use(f"t{i}", "lookup_verse", reference="羅馬書 5:8", version="cuv")], "tool_use")
+               for i in range(2)]
+    client = Scripted(lookups + [resp([_Block("text", text="回答")], "end_turn")], [])
+    run = run_agent(client, "問題", model="m", handlers=make_handlers(corpus), max_steps=3)
+    assert run.outcome == "completed" and run.final_text == "回答"
+    last = client.requests[-1]
+    assert last["tool_choice"] == {"type": "none"} and "tool_choice" not in client.requests[0]
+    assert "不要再使用工具" in last["messages"][-1]["content"][-1]["text"]

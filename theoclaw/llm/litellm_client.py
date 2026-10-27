@@ -157,7 +157,7 @@ class LiteLLMClient:
         self.messages = self
 
     def create(self, *, model: str, max_tokens: int, messages: list[dict], system: str | None = None,
-               tools: list[dict] | None = None, **_ignored) -> Response:
+               tools: list[dict] | None = None, tool_choice: dict | None = None, **_ignored) -> Response:
         # Ignored: cache_control (DashScope and DeepSeek cache prompts on their own) and
         # output_config (thinking is set through the model's params in config/llm.yaml).
         completion = self._completion
@@ -171,6 +171,8 @@ class LiteLLMClient:
                         "max_tokens": max_tokens, "timeout": self.timeout, "max_retries": 0}
         if tools:
             kwargs["tools"] = to_openai_tools(tools)
+            if tool_choice and tool_choice.get("type") == "none":  # the last step: answer, no more tool calls
+                kwargs["tool_choice"] = "none"
         if self.api_key:
             kwargs["api_key"] = self.api_key
         if self.provider.endpoint:
