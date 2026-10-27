@@ -45,3 +45,9 @@ def test_share_words_in_every_language():
     assert out["de"][:4] == ["Teilen", "Geteilt", "Link kopieren", "Nicht mehr teilen"]
     for lang in ("en", "de"):
         assert not any(re.search(r"[一-鿿]", t) for t in out[lang]), out[lang]
+
+
+def test_share_rating_words():
+    out = translate(["共 3 人評分", "共 1 人評分", "平均 7.5 分", "您的評分：8 分", "修改評分"])
+    assert out["en"] == ["3 ratings", "1 rating", "average 7.5", "Your rating: 8", "Change my rating"]
+    assert out["de"] == ["3 Bewertungen", "1 Bewertung", "Durchschnitt 7.5", "Ihre Bewertung: 8", "Bewertung ändern"]

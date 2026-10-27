@@ -80,11 +80,15 @@ def load_items(run_dirs: list[str | Path]) -> list[Item]:
     return items
 
 
-def load_ratings(run_dir: Path) -> list[dict]:
-    """Latest rating per (rater, task, run index)."""
+def load_ratings(run_dir: Path, exclude_modes: tuple[str, ...] = ()) -> list[dict]:
+    """Latest rating per (rater, task, run index). Ratings from the online server carry a mode:
+    blind, own (the asker), group, or share (an anonymous visitor of a shared answer, rater
+    "share:<hash>"); exclude_modes=("share",) leaves the visitors out."""
     latest: dict[tuple, dict] = {}
     for path in sorted((Path(run_dir) / "human").glob("*.jsonl")):
         for r in _read_jsonl(path):
+            if r.get("mode") in exclude_modes:
+                continue
             latest[(r["rater"], r["task_id"], r["run_index"])] = r
     return list(latest.values())
 

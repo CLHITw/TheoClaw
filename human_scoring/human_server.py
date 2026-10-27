@@ -91,6 +91,8 @@ BIBLE_NAMES = {"web": "World English Bible", "bsb": "Berean Standard Bible", "kj
 BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses up with version \"{version}\".)",
               "de": "\n\n(Zitieren Sie die Bibel nach der {name} ({tag}): Verse mit version \"{version}\" nachschlagen.)"}
 SHARE_DAILY_LIMIT = 50     # links one person may make in a day (revoked ones count too)
+SHARE_RATE_LIMIT = 20      # ratings one address may give on shared answers in an hour (addresses kept in memory only)
+SHARE_RATER = "share:"     # rater name of a shared-answer visitor: share:<hash of the browser's key>, never a name
 RATINGS_PER_QUESTION = 2   # 每天每評分兩個回答，當天可多問一題（2026-10-26 新政策）
 PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
@@ -376,6 +378,7 @@ class Store:
         self.chat_dir = chat_dir
         self.jobs: dict[str, dict] = {}
         self._enter_fails: dict[str, list[float]] = {}  # address -> times of wrong fellowship codes (memory only)
+        self._share_hits: dict[str, list[float]] = {}   # address -> times of share-page ratings (memory only)
         self.owner: dict[str, str] = {}  # chat item id -> rater name
         self.google = google_config()
         self._secret: bytes | None = None
@@ -726,7 +729,8 @@ class Store:
         return {"id": conv, "turns": [{"id": i, "ask": self.items[i].trace.get("prompt", ""),
                                        "reply": self.items[i].trace.get("final_text") or "", "rated": i in done,
                                        "lang": self.items[i].trace.get("lang"),
-                                       "share": shared.get(self.items[i].trace["task_id"])}
+                                       "share": shared.get(self.items[i].trace["task_id"]),
+                                       "votes": self.votes(i) if self.items[i].trace["task_id"] in shared else None}
                                       for i in ids]}
 
     # ------------------------------------------------------------ sharing one answer
@@ -776,19 +780,102 @@ class Store:
                     self.db.revoke_share(s["token"])
         return {"ok": True}
 
-    def shared(self, token: str) -> dict | None:
-        """What a share link shows: the question and the answer, nothing else (no name, no other
-        turn, no score or model). None for a revoked or unknown token; each view is counted."""
+    def _share_item(self, token: str) -> str | None:
+        """The item id behind a working share link; None when revoked or unknown."""
         s = self.db.share(token) if token else None
         if s is None or s.get("revoked_at"):
             return None
         for i, n in self.owner.items():
-            t = self.items[i].trace
-            if t.get("task_id") == s["task_id"] and n == s["owner"]:
-                with self.lock:
-                    self.db.view_share(token)
-                return {"ask": t.get("prompt", ""), "reply": t.get("final_text") or "", "lang": t.get("lang") or "zh"}
+            if self.items[i].trace.get("task_id") == s["task_id"] and n == s["owner"]:
+                return i
         return None
+
+    def shared(self, token: str) -> dict | None:
+        """What a share link shows: the question and the answer, nothing else (no name, no other
+        turn, no score or model). None for a revoked or unknown token; each view is counted."""
+        i = self._share_item(token)
+        if i is None:
+            return None
+        t = self.items[i].trace
+        with self.lock:
+            self.db.view_share(token)
+        return {"ask": t.get("prompt", ""), "reply": t.get("final_text") or "", "lang": t.get("lang") or "zh"}
+
+    @staticmethod
+    def share_rater(key: str) -> str:
+        return SHARE_RATER + hashlib.sha256(("share|" + key).encode()).hexdigest()[:12]
+
+    def votes(self, item_id: str, rater: str | None = None) -> dict:
+        """How an answer was scored: everyone's latest rating (the asker's own and share visitors';
+        never blind scoring), as counts only, never who. ``mine``: this rater's own, if any."""
+        it = self.items[item_id]
+        hist, up, down, mine = [0] * 11, 0, 0, None
+        for r in self.db.ratings(run_dir=run_key(it.run_dir, self.chat_dir)):
+            if (r["task_id"], r["run_index"]) != it.key or r.get("mode") == "blind" or r.get("method") in ("skip", "note"):
+                continue
+            v = (r.get("scores") or {}).get("overall")
+            if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10:
+                hist[v] += 1
+            elif r.get("quick") == "up":
+                up += 1
+            elif r.get("quick") == "down":
+                down += 1
+            else:
+                continue
+            if rater and r["rater"] == rater:
+                mine = {"score": v if isinstance(v, int) else None, "quick": r.get("quick"), "comment": r.get("comment") or ""}
+        n = sum(hist)
+        return {"count": n + up + down, "scored": n, "mean": round(sum(k * c for k, c in enumerate(hist)) / n, 1) if n else None,
+                "hist": hist, "up": up, "down": down, "mine": mine}
+
+    def share_votes(self, token: str, key: str) -> dict | None:
+        """The distribution, only once this browser has rated (so it cannot sway the rating)."""
+        i = self._share_item(token)
+        if i is None:
+            return None
+        if not _KEY.match(key or ""):
+            return {"mine": None}
+        v = self.votes(i, self.share_rater(key))
+        return v if v["mine"] else {"mine": None}
+
+    def rate_shared(self, token: str, body: dict, client: str = "") -> dict:
+        """A visitor's rating of a shared answer: a thumb or 0-10, with an optional comment. One per
+        browser (its key): rating again replaces it. Returns the distribution, or {"error"}."""
+        i = self._share_item(token)
+        if i is None:
+            return {"error": "這個分享已取消，或者不存在。"}
+        key = str(body.get("key") or "")
+        if not _KEY.match(key):
+            return {"error": "評分失敗，請重新整理頁面再試"}
+        quick = body.get("quick") if body.get("quick") in ("up", "down", "score") else None
+        v = (body.get("scores") or {}).get("overall")
+        if quick is None or (quick == "score" and not (isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10)):
+            return {"error": "請選一個分數"}
+        now = time.time()
+        with self.lock:
+            hits = self._share_hits.setdefault(client, [])
+            hits[:] = [t for t in hits if now - t < 3600]
+            if len(hits) >= SHARE_RATE_LIMIT:
+                return {"error": "評分太頻繁，請稍後再試"}
+            hits.append(now)
+        try:
+            elapsed = min(max(float(body.get("elapsed")), 0.0), 86400.0) if body.get("elapsed") is not None else None
+        except (TypeError, ValueError):
+            elapsed = None
+        item = self.items[i]
+        scores = {"overall": v} if quick == "score" else {}
+        verdict = (v >= self.rubric["verdict"]["auto_min"]) if quick == "score" and self.rubric["verdict"].get("auto_min") is not None \
+            else (quick == "up" if quick in ("up", "down") else None)
+        extra = {"problems": [], "via": "human_server", "mode": "share", "method": "quick", "elapsed_s": elapsed,
+                 "share": token}
+        if quick in ("up", "down"):
+            extra["quick"] = quick
+        rater = self.share_rater(key)
+        rec = rating_record(item, rater, scores, verdict, str(body.get("comment") or "")[:2000], blind=False,
+                            rubric=self.rubric, extra=extra)
+        with self.lock:
+            self.db.add_rating(run_key(item.run_dir, self.chat_dir), rec)
+        return self.votes(i, rater)
 
     def ask(self, code: str, question: str, runner=None, nick: str | None = None,
             denomination: str | None = None, conv: str | None = None, lang: str | None = None,
@@ -1229,6 +1316,7 @@ def zh_map() -> bytes:
 
 
 SHARE_PATH = re.compile(r"^/s/([A-Za-z0-9_-]{1,64})$")
+SHARE_API = re.compile(r"^/s/([A-Za-z0-9_-]{1,64})/(votes|rate)$")
 
 
 def _plain(text: str, limit: int) -> str:
@@ -1385,6 +1473,10 @@ def make_handler(store: Store):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            m = SHARE_API.match(u.path)
+            if m and m.group(2) == "votes":  # this browser's rating and, once it has rated, everyone's
+                v = store.share_votes(m.group(1), (q.get("k") or [""])[0])
+                return self._json(v) if v is not None else self._json({"error": "這個分享已取消，或者不存在。"}, HTTPStatus.NOT_FOUND)
             m = SHARE_PATH.match(u.path)
             if m or u.path.startswith("/s/"):  # one shared answer: no link code, read-only
                 shared = store.shared(m.group(1)) if m else None
@@ -1497,6 +1589,18 @@ def make_handler(store: Store):
                     return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
                 client = self.headers.get("CF-Connecting-IP") or self.client_address[0]
                 out = store.enter(str(body.get("role") or ""), str(body.get("code") or ""), client)
+                return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            m = SHARE_API.match(u.path)
+            if m and m.group(2) == "rate":  # a visitor scores a shared answer: no link code, no name
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 8192:
+                    return self._json({"error": "資料過大"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except json.JSONDecodeError:
+                    return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+                client = self.headers.get("CF-Connecting-IP") or self.client_address[0]
+                out = store.rate_shared(m.group(1), body if isinstance(body, dict) else {}, client)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
             code = self._code(q)
             if code is None:

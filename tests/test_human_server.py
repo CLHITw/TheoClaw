@@ -967,3 +967,68 @@ def test_share_limits_and_sermon_answers(tmp_path, monkeypatch):
     sermon_fake = lambda p: {"kind": "sermon_turn", **fake(p)}
     j = _wait(store, code, store.ask(code, "講章的一步", runner=sermon_fake, nick=me)["job"], me)
     assert "error" in store.share(code, j["item"], me)  # only plain questions are shared for now
+
+
+def _get_json(url):
+    try:
+        return json.loads(urllib.request.urlopen(url).read())
+    except urllib.error.HTTPError as e:
+        return json.loads(e.read())
+
+
+def test_rating_a_shared_answer(tmp_path, monkeypatch):
+    monkeypatch.setattr(hs, "SHARE_RATE_LIMIT", 3)
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("祕密團契", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me = ("小明祕密暱稱", "k" * 20)
+    _consent(store, code, me)
+    fake = lambda p: {"model": "m", "prompt": p, "final_text": "答", "outcome": "completed", "steps": [],
+                      "usage_total": {}, "cost_usd": 0.0}
+    item = _wait(store, code, store.ask(code, "什麼是恩典？", runner=fake, nick=me)["job"], me)["item"]
+    assert store.rate(code, {"id": item, "quick": "score", "scores": {"overall": 9}}, me) is None  # the asker's own
+    token = store.share(code, item, me)["token"]
+    srv, base = _serve(store)
+    v1, v2 = "a" * 20, "b" * 20
+    try:
+        # nothing is shown before this browser has rated
+        assert _get_json(f"{base}/s/{token}/votes?k={v1}") == {"mine": None}
+        bad = _post(base, f"/s/{token}/rate", {"key": "short", "quick": "up"})
+        assert "error" in bad
+        assert "error" in _post(base, f"/s/{token}/rate", {"key": v1, "quick": "score", "scores": {"overall": 11}})
+        r = _post(base, f"/s/{token}/rate", {"key": v1, "quick": "score", "scores": {"overall": 4}, "comment": "可以"})
+        assert r["count"] == 2 and r["mean"] == 6.5 and r["hist"][4] == r["hist"][9] == 1 and r["mine"]["score"] == 4
+        r = _post(base, f"/s/{token}/rate", {"key": v1, "quick": "score", "scores": {"overall": 6}})  # replaces
+        assert r["count"] == 2 and r["hist"][4] == 0 and r["hist"][6] == 1
+        r = _post(base, f"/s/{token}/rate", {"key": v2, "quick": "up"})
+        assert r["count"] == 3 and r["up"] == 1 and r["scored"] == 2
+        assert _get_json(f"{base}/s/{token}/votes?k={v1}")["mine"]["score"] == 6
+        text = json.dumps(r, ensure_ascii=False)
+        assert "小明" not in text and "share:" not in text and code not in text  # never who
+        # the share's ratings are stored apart: mode share, an anonymous rater, the token kept
+        mine = [x for x in store.db.ratings() if x.get("mode") == "share"]
+        assert len(mine) == 2 and all(x["rater"].startswith("share:") and x["share"] == token for x in mine)
+        assert "error" in _post(base, f"/s/{token}/rate", {"key": "c" * 20, "quick": "down"})  # 3 an hour from one address
+        # the asker sees the distribution in the conversation
+        q = "?" + urlencode({"t": code, "u": me[0], "k": me[1]})
+        conv = json.loads(urllib.request.urlopen(base + "/api/conversation" + q + "&id=" + store.items[item].trace["conv"]).read())
+        assert conv["turns"][0]["votes"]["count"] == 3
+        store._share_hits.clear()
+        assert _post(base, "/api/share/revoke" + q, {"id": item}) == {"ok": True}
+        assert "error" in _post(base, f"/s/{token}/rate", {"key": v1, "quick": "up"})
+        assert "error" in _get_json(f"{base}/s/{token}/votes?k={v1}")
+    finally:
+        srv.shutdown()
+
+
+def test_load_ratings_can_leave_share_visitors_out(tmp_path):
+    from theoclaw.evals.human import load_ratings
+    (tmp_path / "human").mkdir()
+    (tmp_path / "human" / "a.jsonl").write_text(
+        json.dumps({"rater": "a", "task_id": "t", "run_index": 0, "mode": "own"}) + "\n", encoding="utf-8")
+    (tmp_path / "human" / "share_x.jsonl").write_text(
+        json.dumps({"rater": "share:x", "task_id": "t", "run_index": 0, "mode": "share"}) + "\n", encoding="utf-8")
+    assert len(load_ratings(tmp_path)) == 2
+    assert [r["rater"] for r in load_ratings(tmp_path, exclude_modes=("share",))] == ["a"]

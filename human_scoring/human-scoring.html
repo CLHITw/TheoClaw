@@ -419,6 +419,12 @@
   /* Hidden */
   .hidden { display: none !important; }
   /* a shared answer (/s/...): only the answer, the language and theme switches */
+  .votes { margin-top: 8px; }
+  .vote-bars { display: flex; gap: 4px; align-items: flex-end; margin-top: 8px; max-width: 420px; }
+  .vote-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.75rem; color: var(--text-light); }
+  .vote-bar { width: 100%; background: var(--border); border-radius: 3px 3px 0 0; }
+  .vote-col.mine .vote-bar { background: var(--accent); }
+  .vote-col.mine .vote-k { color: var(--accent); font-weight: 600; }
   .share-view #acctWrap, .share-view #sbBtn, .share-view #biblePick, .share-view #progressInfo { display: none !important; }
 
   /* Stats summary */
@@ -2275,6 +2281,13 @@ function shareBar(t) {
       return;
     }
     const on = document.createElement('span'); on.className = 'help'; on.textContent = T('已分享'); bar.appendChild(on);
+    if (t.votes && t.votes.count) {
+      const v = document.createElement('span'); v.className = 'help'; v.style.cursor = 'pointer';
+      v.textContent = T('共 ' + t.votes.count + ' 人評分') + (t.votes.mean !== null ? ' · ' + T('平均 ' + t.votes.mean + ' 分') : '') + ' ▾';
+      const dist = voteView(t.votes); dist.classList.add('hidden'); dist.style.flexBasis = '100%';
+      v.onclick = () => dist.classList.toggle('hidden');
+      bar.appendChild(v); bar.appendChild(dist);
+    }
     btn('複製連結', () => copyLink(t.share));
     btn('取消分享', () => {
       if (!confirm(T('取消分享？這個連結會立即失效。'))) return;
@@ -2296,6 +2309,75 @@ function shareData() {
   if (!el) return null;
   try { return JSON.parse(el.textContent); } catch (e) { return {gone: true}; }
 }
+// How an answer was scored: count, mean and a 0-10 histogram, plus the thumbs; never who.
+// mine: the viewer's own score, marked in the histogram.
+function voteView(v, mine) {
+  const box = document.createElement('div'); box.className = 'votes';
+  const head = document.createElement('div'); head.className = 'help';
+  head.textContent = T('共 ' + v.count + ' 人評分') + (v.mean !== null ? ' · ' + T('平均 ' + v.mean + ' 分') : '') +
+    (v.up || v.down ? ' · 👍 ' + v.up + ' · 👎 ' + v.down : '');
+  box.appendChild(head);
+  if (v.scored) {
+    const top = Math.max(...v.hist);
+    const bars = document.createElement('div'); bars.className = 'vote-bars';
+    v.hist.forEach((c, k) => {
+      const col = document.createElement('div'); col.className = 'vote-col' + (mine && mine.score === k ? ' mine' : '');
+      col.title = k + ': ' + c;
+      const n = document.createElement('span'); n.className = 'vote-n'; n.textContent = c || '';
+      const b = document.createElement('div'); b.className = 'vote-bar'; b.style.height = (c ? Math.max(6, Math.round(60 * c / top)) : 2) + 'px';
+      const l = document.createElement('span'); l.className = 'vote-k'; l.textContent = k;
+      col.appendChild(n); col.appendChild(b); col.appendChild(l); bars.appendChild(col);
+    });
+    box.appendChild(bars);
+  }
+  return box;
+}
+
+// The share page's rating: the same one-tap bar as in a conversation (a thumb or 0-10, a note
+// optional). Everyone's scores are shown only after this browser has rated, so they cannot sway it.
+function shareRate(token, box) {
+  const shownAt0 = Date.now();
+  let note = '';
+  const send = (body) => fetch('/s/' + encodeURIComponent(token) + '/rate', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({...body, key: deviceKey, comment: note, elapsed: Math.round((Date.now() - shownAt0) / 100) / 10})})
+    .then(r => r.json()).then(v => { if (v.error) { showToast(v.error); return; } showToast(T('謝謝您的評分')); done(v); })
+    .catch(() => showToast(T('送出失敗，請檢查網路')));
+  const ask = (mine) => {
+    box.innerHTML = '';
+    const bar = document.createElement('div'); bar.className = 'quick-rate';
+    const lab = document.createElement('span'); lab.className = 'q-label'; lab.textContent = T('這個回答有幫助嗎？'); bar.appendChild(lab);
+    const mk = (label, cls, body, active) => {
+      const b = document.createElement('button'); b.className = cls + (active ? ' active' : ''); b.textContent = label;
+      b.onclick = () => send(body); return b;
+    };
+    bar.appendChild(mk(T('👍 有幫助'), 'q-thumb', {quick: 'up'}, mine && mine.quick === 'up'));
+    bar.appendChild(mk(T('👎 不太行'), 'q-thumb', {quick: 'down'}, mine && mine.quick === 'down'));
+    const sc = document.createElement('span'); sc.className = 'q-score';
+    const sl = document.createElement('span'); sl.className = 'q-label'; sl.textContent = T('打分 0–10'); sc.appendChild(sl);
+    for (let k = 0; k <= 10; k++) sc.appendChild(mk(String(k), 'dim-btn', {quick: 'score', scores: {overall: k}}, mine && mine.score === k));
+    bar.appendChild(sc);
+    const ta = document.createElement('textarea'); ta.className = 'comment-input'; ta.style.marginTop = '8px';
+    ta.placeholder = T('意見（選填）：哪裡好、哪裡不對……'); ta.value = (mine && mine.comment) || '';
+    note = ta.value; ta.oninput = () => { note = ta.value.trim(); };
+    const hint = document.createElement('div'); hint.className = 'help'; hint.style.marginTop = '6px';
+    hint.textContent = T('評分不記名，只用於改進這個助手；評分後可以看到大家的評分。');
+    box.appendChild(bar); box.appendChild(ta); box.appendChild(hint);
+  };
+  const done = (v) => {
+    box.innerHTML = '';
+    const head = document.createElement('div'); head.className = 'help';
+    const m = v.mine || {};
+    head.textContent = T(m.score !== null && m.score !== undefined ? '您的評分：' + m.score + ' 分' : (m.quick === 'up' ? '您的評分：有幫助' : '您的評分：不太行'));
+    const again = document.createElement('button'); again.className = 'btn btn-secondary btn-sm'; again.style.marginLeft = '8px';
+    again.textContent = T('修改評分'); again.onclick = () => ask(v.mine);
+    head.appendChild(again);
+    box.appendChild(head); box.appendChild(voteView(v, v.mine));
+  };
+  fetch('/s/' + encodeURIComponent(token) + '/votes?k=' + encodeURIComponent(deviceKey))
+    .then(r => r.json()).then(v => { if (v.mine) done(v); else ask(null); }).catch(() => ask(null));
+}
+
 function shareView(s) {
   document.body.classList.add('share-view');
   const box = document.createElement('div'); box.className = 'card';
@@ -2311,7 +2393,10 @@ function shareView(s) {
     const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, s.reply, s.lang);
     const note = document.createElement('div'); note.className = 'help'; note.style.marginTop = '12px';
     note.textContent = T('由 TheoClaw 生成，僅供參考');
-    [qt, q, at, voiceButton(rep), rep, note].forEach(e => box.appendChild(e));
+    const rt = document.createElement('div'); rt.style.marginTop = '14px';
+    [qt, q, at, voiceButton(rep), rep, note, rt].forEach(e => box.appendChild(e));
+    const token = (location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/) || [])[1];
+    if (token) shareRate(token, rt);
   }
   const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
   act.appendChild(home); box.appendChild(act);
@@ -2739,9 +2824,16 @@ const EN = {
   '今天分享的次數已達上限，請明天再來': 'You have shared as many answers as allowed today; please come back tomorrow',
   '找不到這個回答': 'Answer not found',
   '問題': 'Question', '回答': 'Answer', '由 TheoClaw 生成，僅供參考': 'Generated by TheoClaw, for reference only',
+  '共 1 人評分': '1 rating', '謝謝您的評分': 'Thank you for your rating', '修改評分': 'Change my rating',
+  '意見（選填）：哪裡好、哪裡不對……': 'Comment (optional): what is good, what is wrong…',
+  '評分不記名，只用於改進這個助手；評分後可以看到大家的評分。': 'Ratings are anonymous and only used to improve this assistant; after rating you can see how others rated.',
+  '您的評分：有幫助': 'Your rating: helpful', '您的評分：不太行': 'Your rating: not good',
+  '評分太頻繁，請稍後再試': 'Too many ratings; please try again later', '評分失敗，請重新整理頁面再試': 'Rating failed; please reload the page and try again',
+
   '前往 TheoClaw 首頁': 'Go to TheoClaw', '這個分享已取消，或者不存在。': 'This shared answer has been withdrawn or does not exist.',
 };
 const EN_PATTERNS = [
+  [/^共 (\d+) 人評分$/, '$1 ratings'], [/^平均 ([\d.]+) 分$/, 'average $1'], [/^您的評分：(\d+) 分$/, 'Your rating: $1'],
   [/^今天還可以問 (\d+) 題。$/, (m, n) => 'You can ask ' + n + (n === '1' ? ' more question today.' : ' more questions today.')],
   [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (saved as “$1”; not you? change it here)'],
   [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' question' : ' questions') + (b ? ', ' + b + ' not scored' : '') + (c || '')],
@@ -2931,9 +3023,16 @@ const DE = {
   '今天分享的次數已達上限，請明天再來': 'Sie haben heute so viele Antworten geteilt wie möglich; bitte morgen wieder',
   '找不到這個回答': 'Antwort nicht gefunden',
   '問題': 'Frage', '回答': 'Antwort', '由 TheoClaw 生成，僅供參考': 'Von TheoClaw erstellt, nur zur Orientierung',
+  '共 1 人評分': '1 Bewertung', '謝謝您的評分': 'Danke für Ihre Bewertung', '修改評分': 'Bewertung ändern',
+  '意見（選填）：哪裡好、哪裡不對……': 'Kommentar (optional): was ist gut, was stimmt nicht…',
+  '評分不記名，只用於改進這個助手；評分後可以看到大家的評分。': 'Bewertungen sind anonym und dienen nur dazu, diesen Assistenten zu verbessern; nach Ihrer Bewertung sehen Sie, wie andere bewertet haben.',
+  '您的評分：有幫助': 'Ihre Bewertung: hilfreich', '您的評分：不太行': 'Ihre Bewertung: nicht gut',
+  '評分太頻繁，請稍後再試': 'Zu viele Bewertungen; bitte später erneut versuchen', '評分失敗，請重新整理頁面再試': 'Bewertung fehlgeschlagen; bitte die Seite neu laden und erneut versuchen',
+
   '前往 TheoClaw 首頁': 'Zu TheoClaw', '這個分享已取消，或者不存在。': 'Diese geteilte Antwort wurde zurückgezogen oder existiert nicht.',
 };
 const DE_PATTERNS = [
+  [/^共 (\d+) 人評分$/, '$1 Bewertungen'], [/^平均 ([\d.]+) 分$/, 'Durchschnitt $1'], [/^您的評分：(\d+) 分$/, 'Ihre Bewertung: $1'],
   [/^今天還可以問 (\d+) 題。$/, (m, n) => n === '1' ? 'Heute können Sie noch eine Frage stellen.' : 'Heute können Sie noch ' + n + ' Fragen stellen.'],
   [/^（以「(.+)」記錄；不是你？按這裡更換）$/, ' (als „$1“ gespeichert; nicht Sie? Hier klicken)'],
   [/^(\d+) 問(?:，(\d+) 個未評分)?( · .+)?$/, (m, a, b, c) => a + (a === '1' ? ' Frage' : ' Fragen') + (b ? ', ' + b + ' nicht bewertet' : '') + (c || '')],
