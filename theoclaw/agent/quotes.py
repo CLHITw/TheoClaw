@@ -38,6 +38,22 @@ def _verse_lines(output: str) -> list[str]:
 _OPEN_END = re.compile(r"[,;:，；：、]+$")
 
 
+def _balanced(text: str) -> str:
+    """The 和合本 opens or closes a speech in the verse where it starts or ends (John 3:16 opens
+    with 「 that a later verse closes); a mark left without its pair in the quoted verses comes off."""
+    open_at, drop = [], set()
+    for i, ch in enumerate(text):
+        if ch in "「『":
+            open_at.append(i)
+        elif ch in "」』":
+            if open_at:
+                open_at.pop()
+            else:
+                drop.add(i)
+    drop.update(open_at)
+    return "".join(ch for i, ch in enumerate(text) if i not in drop)
+
+
 def _render(output: str, version: str, label: str) -> str:
     verses = _verse_lines(output)
     if verses:
@@ -47,7 +63,7 @@ def _render(output: str, version: str, label: str) -> str:
         return f"„{' '.join(verses)}“ ({label}, {VERSIONS[version]})"  # German answers: „…“
     if lang == "en":
         return f"“{' '.join(verses)}” ({label}, {TAGS[version]})"  # English answers: ASCII brackets
-    text = "".join(verses).replace("「", "『").replace("」", "』")  # keep the outer 「」 unambiguous
+    text = _balanced("".join(verses)).replace("「", "『").replace("」", "』")  # keep the outer 「」 unambiguous
     return f"「{text}」（{label}，和合本）"
 
 

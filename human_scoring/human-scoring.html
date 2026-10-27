@@ -1420,9 +1420,11 @@ const BOOKS = [
     de: 'Eine klare Darstellung der christlichen Vollkommenheit'}],
   [/articles-of-religion/, {zh: '《循道衛理信條》', en: 'The Articles of Religion', de: 'Die Glaubensartikel der Methodistischen Kirche'}],
   [/general-rules-1743-en|總規-中文/, {zh: '《總規》', en: 'The General Rules', de: 'Die Allgemeinen Regeln'}],
-  // the fellowship's own course notes are in Chinese: an English or German answer names the lesson, not its Chinese title
-  [/課程0(\d)-[^\s*`.，。、；：）)]+/, {zh: n => '《信仰課程：' + n.replace(/^課程0\d-/, '') + '》',
-    en: (n, k) => 'Faith Course, Lesson ' + k, de: (n, k) => 'Glaubenskurs, Lektion ' + k}],
+  // the Methodist Church, Hong Kong's baptism and catechumen class materials are in Chinese: an English
+  // or German answer names the lesson, not its Chinese title
+  [/課程0(\d)-[^\s*`.，。、；：）)]+/, {zh: (n, k) => '《香港衛理公會洗禮和慕道班教材》第 ' + k + ' 課〈' + n.replace(/^課程0\d-/, '') + '〉',
+    en: (n, k) => 'Methodist Church, Hong Kong, Baptism and Catechumen Class Materials, Lesson ' + k,
+    de: (n, k) => 'Methodistische Kirche Hongkong, Unterlagen für den Tauf- und Katechumenenkurs, Lektion ' + k}],
   [/屬靈恩賜(?=\*|`)/, {zh: '《屬靈恩賜》', en: 'Spiritual Gifts', de: 'Geistliche Gaben'}],
   // the New Testament notes come from a tool, not a file: a German answer's short or English name gets the EmK title
   [/(?:John )?Wesleys Anmerkungen(?! zum Neuen Testament)|(?:(?:John )?Wesley['’]?s )?Explanatory Notes(?: upon the New Testament)?/,

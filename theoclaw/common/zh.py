@@ -120,7 +120,8 @@ def to_traditional(text: str) -> str:
     conv = _s2t()
     if conv is None:
         raise RuntimeError("pip install opencc-python-reimplemented (needed to convert to 繁體)")
-    return conv.convert(text)
+    # opencc reads 三天復活 typed in 簡體 as 天覆 (天翻地覆), giving 三天覆活
+    return conv.convert(text).replace("覆活", "復活")
 
 
 # opencc's s2t gives some variant forms; the 繁體 和合本 (data/cuv.json) writes these

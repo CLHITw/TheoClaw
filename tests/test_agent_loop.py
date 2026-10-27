@@ -118,7 +118,7 @@ def test_scripture_placeholders_are_filled_from_the_lookup_tool(corpus):
     lines = run.final_text.split("\n")
     assert lines[0] == "經文：「惟有基督在我們還作罪人的時候為我們死，神的愛就在此向我們顯明了。」（羅馬書 5:8，和合本）"
     assert lines[2].startswith("上下文：「惟有基督") and "顯明了。現在我們" in lines[2] and lines[2].endswith("（羅馬書 5:8-9，和合本）")
-    assert lines[3].startswith("「『神愛世人")  # the verse's own 「 becomes 『 inside the quotation
+    assert lines[3].startswith("「神愛世人")  # the verse's own 「, closed only in a later verse, comes off
     assert lines[4] == "“KJV John.3.16” (John 3:16, KJV)"
     assert lines[5] == "〔經文查詢失敗：創世記 9:99〕"
     fills = [c for c in run.tool_calls if c.name == "fill_quote"]

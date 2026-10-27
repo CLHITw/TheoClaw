@@ -40,7 +40,9 @@ def test_every_source_has_an_english_and_a_german_title():
         for out in cites([(t, lang) for t in texts]):
             assert not re.search(r"[㐀-鿿《》]", out), out
     assert cites([("(*課程03-成聖*)", "en"), ("(*課程03-成聖*)", "de"), ("（*課程03-成聖*）", "zh")]) == [
-        "(Faith Course, Lesson 3)", "(Glaubenskurs, Lektion 3)", "（《信仰課程：成聖》）"]
+        "(Methodist Church, Hong Kong, Baptism and Catechumen Class Materials, Lesson 3)",
+        "(Methodistische Kirche Hongkong, Unterlagen für den Tauf- und Katechumenenkurs, Lektion 3)",
+        "（《香港衛理公會洗禮和慕道班教材》第 3 課〈成聖〉）"]
 
 
 def test_hymn_numbers():

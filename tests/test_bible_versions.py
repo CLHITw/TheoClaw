@@ -117,3 +117,16 @@ def test_html_answers_become_markdown():
     text = "<p><strong>2. 懶惰的特徵</strong></p>\n<p>箴言說<em>再睡片時</em>。<br>下一行</p>\n<h3>三、順服</h3><ul><li>一</li><li>二</li></ul>"
     assert html_to_markdown(text) == "**2. 懶惰的特徵**\n\n箴言說*再睡片時*。\n下一行\n\n## 三、順服\n\n- 一\n- 二"
     assert html_to_markdown("a < b and **bold**") == "a < b and **bold**"  # no HTML: untouched
+
+
+def test_unpaired_cuv_quote_marks_come_off():
+    from theoclaw.agent.quotes import _render
+    assert _render("【和合本】約翰福音 3:16\n3:16 「神愛世人，反得永生。", "cuv", "約翰福音 3:16") == \
+        "「神愛世人，反得永生。」（約翰福音 3:16，和合本）"
+    assert _render("【和合本】x\n1:1 他說：「你們要去。」", "cuv", "x") == "「他說：『你們要去。』」（x，和合本）"
+
+
+def test_resurrection_is_not_turned_into_overturning():
+    from theoclaw.common import zh
+    if zh.available():
+        assert zh.to_traditional("第三天\u590d活了") == "第三天復活了"
