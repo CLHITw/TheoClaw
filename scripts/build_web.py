@@ -4,6 +4,7 @@
     python scripts/build_web.py --vpl <eng-web_vpl.txt> --psalms-usfm <20-PSAeng-web.usfm>
     (inside https://ebible.org/Scriptures/eng-web_vpl.zip and eng-web_usfm.zip)
     python scripts/build_web.py --version bsb --vpl <engbsb_vpl.txt> --psalms-usfm <20-PSAengbsb.usfm>
+    python scripts/build_web.py --version kjv --psalms-usfm <20-PSAeng-kjv.usfm>   (headings off data/kjv.json)
 
 The World English Bible is in the public domain ("World English Bible" is a trademark of
 eBible.org, so it is named as such). So are the others (see EBIBLE_IDS); eBible.org marks each
@@ -33,14 +34,15 @@ BOOKS = dict(zip(
     "2Cor Gal Eph Phil Col 1Thess 2Thess 1Tim 2Tim Titus Phlm Heb Jas 1Pet 2Pet 1John 2John 3John Jude Rev".split()))
 # --version -> eBible.org id: Berean Standard Bible (public domain since 2023), American
 # Standard Version 1901, the unrevised Elberfelder 1905 (German)
-EBIBLE_IDS = {"web": "eng-web", "bsb": "engbsb", "asv": "eng-asv", "elb": "deuelo"}
+EBIBLE_IDS = {"web": "eng-web", "bsb": "engbsb", "asv": "eng-asv", "elb": "deuelo",
+              "kjv": "eng-kjv"}  # kjv: data/kjv.json (scripts/build_data.py) is kept; only its psalm headings come off
 LINE = re.compile(r"^([1-4A-Z]{3}) (\d+):(\d+) (.*)$")
 
 
 def usfm_plain(text: str) -> str:
     """USFM inline markup off (word|strong="H1" -> word); footnotes dropped."""
     text = re.sub(r"\\f .*?\\f\*", "", text)
-    text = re.sub(r"\|[^\\]*?(?=\\w\*)", "", text)
+    text = re.sub(r"\|[^\\]*?(?=\\\+?w\*)", "", text)  # \w and the nested \+w (the KJV's \nd \+w LORD|...\+w*\nd*)
     text = re.sub(r"\\\+?[a-z]+\d?\*?", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
@@ -57,6 +59,26 @@ def psalm_titles(usfm: Path) -> dict[int, list[str]]:
     return out
 
 
+def _letters(text: str) -> str:
+    return re.sub(r"[^0-9a-z]", "", text.lower())
+
+
+def heading_end(text: str, heading: str) -> int:
+    """Where a heading at the start of verse 1 ends, comparing letters and digits only: the ASV
+    brackets supplied words ("[A Psalm] of David") and the KJV writes "Muth–labben" where the
+    USFM heading has "Muthlabben". 0 when the verse does not start with the heading."""
+    want, got = _letters(heading), ""
+    for i, ch in enumerate(text):
+        got += _letters(ch)
+        if got == want:
+            while i + 1 < len(text) and text[i + 1] in " .,;:!?]’”":  # not "[": Psalm 70 opens "[Make haste]"
+                i += 1  # the heading's closing punctuation and the space after it
+            return i + 1
+        if not want.startswith(got):
+            return 0
+    return 0
+
+
 def strip_titles(bible: dict[str, str], titles: dict[int, list[str]]) -> int:
     """A heading off the start of verse 1; Psalm 119's letter headings (ALEPH, BETH ...) off the
     start of verse 1 and the end of the verse before each section, where the text put them."""
@@ -64,19 +86,24 @@ def strip_titles(bible: dict[str, str], titles: dict[int, list[str]]) -> int:
     for chapter, heads in titles.items():
         if len(heads) == 1:
             key = f"Ps.{chapter}.1"
-            # the ASV brackets supplied words in the verse text ("[A Psalm] of David") but not
-            # in the USFM heading, so the brackets do not count when matching it
-            m = re.match(r"\[?" + r"\]?\[?".join(map(re.escape, heads[0])) + r"\]?", bible.get(key, ""))
-            if m:
-                bible[key] = bible[key][m.end():].strip()
+            end = heading_end(bible.get(key, ""), heads[0])
+            if end:
+                bible[key] = bible[key][end:].strip()
                 n += 1
             continue
-        letters = "|".join(re.escape(h) for h in heads)
+        # the KJV puts the Hebrew letter before the name: "א ALEPH. Blessed are the undefiled"
+        letters = r"(?:[א-ת]\s*)?(?:" + "|".join(re.escape(h) for h in heads) + r")\.?"
         for key in [k for k in bible if k.startswith(f"Ps.{chapter}.")]:
-            new = re.sub(rf"\s+(?:{letters})$", "", re.sub(rf"^(?:{letters})\s+", "", bible[key]))
+            new = re.sub(rf"\s+{letters}$", "", re.sub(rf"^{letters}\s+", "", bible[key]))
             if new != bible[key]:
                 bible[key] = new
                 n += 1
+    # the KJV's Psalm 119 letters are not marked as headings at all: "א ALEPH. Blessed are ..."
+    for key in [k for k in bible if k.startswith("Ps.119.")]:
+        new = re.sub(r"^[א-ת]\s*[A-Z]+\.\s+", "", bible[key])
+        if new != bible[key]:
+            bible[key] = new
+            n += 1
     return n
 
 
@@ -119,10 +146,15 @@ def build(vpl: Path) -> dict[str, str]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--version", choices=EBIBLE_IDS, default="web")
-    ap.add_argument("--vpl", required=True)
+    ap.add_argument("--vpl", help="<id>_vpl.txt (not for kjv)")
     ap.add_argument("--psalms-usfm", help="20-PSA<id>.usfm, to take the psalm headings off verse 1")
     a = ap.parse_args()
-    bible = build(Path(a.vpl))
+    if a.version == "kjv":
+        bible = json.loads((ROOT / "data" / "kjv.json").read_text(encoding="utf-8"))
+    elif a.vpl:
+        bible = build(Path(a.vpl))
+    else:
+        ap.error("--vpl is needed")
     if a.version == "elb":
         print(f"psalm headings taken out of the verse text: {strip_elb_titles(bible)}")
     elif a.psalms_usfm:

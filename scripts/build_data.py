@@ -62,7 +62,23 @@ def build_bible(path: Path, version: str) -> dict[str, str]:
                 else:
                     text = re.sub(r"\s+", " ", text).strip()
                 out[f"{osis}.{ch['chapter']}.{v['verse']}"] = text
+    if version == "cuv":
+        strip_psalm_titles(out)
     return out
+
+
+def strip_psalm_titles(bible: dict[str, str]) -> int:
+    """The 和合本 prints each psalm's heading in brackets at the start of verse 1
+    (「（大衛的詩，交與伶長。調用百合花。）神啊，求你救我！」); it comes off, as for the other
+    versions, so a quoted verse 1 starts with the psalm itself."""
+    n = 0
+    for chapter in range(1, 151):
+        key = f"Ps.{chapter}.1"
+        new = re.sub(r"^（(?:[^（）]|（[^（）]*）)*）", "", bible.get(key, ""))  # Psalm 120's has a note in brackets
+        if key in bible and new != bible[key]:
+            bible[key] = new
+            n += 1
+    return n
 
 
 # ---------------------------------------------------------------- cross references

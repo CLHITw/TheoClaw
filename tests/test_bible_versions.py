@@ -130,3 +130,20 @@ def test_resurrection_is_not_turned_into_overturning():
     from theoclaw.common import zh
     if zh.available():
         assert zh.to_traditional("第三天\u590d活了") == "第三天復活了"
+
+
+@pytest.mark.parametrize("version, ps69", [
+    ("cuv", "神啊，求你救我！因為眾水要淹沒我。"),
+    ("kjv", "Save me, O God; for the waters are come in unto my soul."),
+])
+def test_cuv_and_kjv_psalms_start_with_the_psalm(version, ps69):
+    b = default_corpus().bible(version)
+    assert b["Ps.69.1"] == ps69  # not 「（大衛的詩，交與伶長。調用百合花。）」 / "To the chief Musician upon Shoshannim"
+    assert not [c for c in range(1, 151) if b[f"Ps.{c}.1"].startswith(("（", "To the chief", "A Psalm", "A Song"))]
+    assert not [k for k, v in b.items() if k.startswith("Ps.119.") and "ALEPH" in v]
+
+
+def test_heading_end_ignores_brackets_and_dashes():
+    assert build_web.heading_end("To the chief Musician upon Muth–labben, A Psalm of David. I will praise",
+                                 "To the chief Musician upon Muthlabben, A Psalm of David.") == 58
+    assert build_web.heading_end("[Make haste], O God", "of David, to bring to remembrance.") == 0
