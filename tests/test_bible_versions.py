@@ -147,3 +147,17 @@ def test_heading_end_ignores_brackets_and_dashes():
     assert build_web.heading_end("To the chief Musician upon Muth–labben, A Psalm of David. I will praise",
                                  "To the chief Musician upon Muthlabben, A Psalm of David.") == 58
     assert build_web.heading_end("[Make haste], O God", "of David, to bring to remembrance.") == 0
+
+
+def test_unversioned_markers_follow_the_answer_language():
+    from theoclaw.agent.quotes import answer_language
+    de = "Die Taufe geschieht im Namen des Vaters und des Sohnes und des Geistes: 〔經文：Matthäus 28,19〕 Das ist nicht wenig."
+    en = "Moses pitched the tent outside the camp, and the people watched: 〔經文：Exodus 33:7〕 That is the point."
+    zh = "耶穌差遣門徒去使萬民作他的門徒，奉父、子、聖靈的名施洗，這是教會的使命：〔經文：馬太福音 28:19〕"
+    assert [answer_language(t) for t in (de, en, zh)] == ["de", "en", "zh"]
+    _, calls = fill_placeholders(de, _handlers())
+    assert calls[0].input["version"] == "lut"
+    _, calls = fill_placeholders(en, _handlers(), bible="bsb")
+    assert calls[0].input["version"] == "bsb"   # the reader's pick, not the 和合本
+    text, calls = fill_placeholders(zh, _handlers())
+    assert calls[0].input["version"] == "cuv" and "和合本" in text

@@ -113,19 +113,38 @@ def html_to_markdown(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+_CJK = re.compile(r"[㐀-鿿]")
+_GERMAN = re.compile(r"[äöüßÄÖÜ]|\b(?:und|der|die|das|nicht|ist|ich|Sie|Gott|auch)\b")
+
+
+def answer_language(text: str) -> str:
+    """zh, en or de: the language an answer is written in, from its own words (the markers and
+    their references left out). A marker without a version is filled in this language's Bible."""
+    words = PLACEHOLDER_RE.sub(" ", text)
+    cjk = len(_CJK.findall(words))
+    latin = len(re.findall(r"[A-Za-zäöüßÄÖÜ]", words))
+    if (cjk and cjk >= latin // 10) or latin < 20:  # too few words to tell: the 和合本, as before
+        return "zh"
+    return "de" if len(_GERMAN.findall(words)) >= 3 else "en"
+
+
 def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None = None) -> tuple[str, list[Any]]:
     """Replace every placeholder in ``text``; returns the new text and one ToolCall per
     placeholder (name fill_quote), so traces and graders see where the text came from.
     ``bible`` is the version the reader picked: a marker naming its language's default
-    version (WEB, LUT) is filled from it instead, so the whole answer quotes one version."""
+    version (WEB, LUT), or naming none in an answer in that language, is filled from it instead,
+    so the whole answer quotes one version."""
     from .loop import ToolCall  # loop imports this module
 
     calls: list[ToolCall] = []
+    # an English or German answer never quotes the 和合本: a marker without a version there
+    # (〔經文：Matthäus 28,19〕) takes that language's Bible, not the Chinese default
+    default = DEFAULT_VERSION[answer_language(text)]
 
     def replace(m: re.Match) -> str:
         body = m.group(1)
         v = _VERSION_RE.search(body)
-        version = _TAG_VERSION.get(v.group(1).lower(), "cuv") if v else "cuv"
+        version = _TAG_VERSION.get(v.group(1).lower(), default) if v else default
         if bible in VERSIONS and version == DEFAULT_VERSION.get(VERSION_LANG[bible]):
             version = bible
         reference = _VERSION_RE.sub("", body).strip()
