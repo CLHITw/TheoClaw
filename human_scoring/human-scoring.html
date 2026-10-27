@@ -110,6 +110,7 @@
     padding: 3px 10px;
     white-space: nowrap;
   }
+  .ask-quota { margin-top: 8px; color: var(--accent); font-weight: 600; }
   .lang-pick {
     display: inline-flex;
     align-items: center;
@@ -834,6 +835,7 @@ Ask in your own words, in English or Chinese: everyday struggles, questions abou
       <div class="card-title" id="convTitle">新對話 · New conversation</div>
       <div id="convTurns"></div>
       <textarea class="ask-input" id="askInput" placeholder="例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?"></textarea>
+      <div class="help ask-quota" id="askQuota"></div>
       <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出 · Send</button></div>
       <div class="help" id="waitText" style="margin-top:8px"></div>
     </div>
@@ -1333,13 +1335,15 @@ function refreshAsk() {
     // the count, so a rise means a score just earned one
     if (before !== null && c.remaining_today > before) showToast(T('謝謝您的評分！今天多了一次提問機會。'));
     const k = c.ratings_to_bonus;
-    // the day's last question used up: say so, how to earn another, and that tomorrow brings new ones
-    info.textContent = !c.open ? T('本次測試的提問額度已用完，謝謝您的參與。')
+    // the day's last question used up: say so, how to earn another, and that tomorrow brings new ones.
+    // Shown right above the send button, where people look when they ask (the name note stays above).
+    document.getElementById('askQuota').textContent = !c.open ? T('本次測試的提問額度已用完，謝謝您的參與。')
       : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。')
         + (c.bonus_left ? ' ' + T('其中 ' + c.bonus_left + ' 題是評分獲得的，不會每天清零。') : '')
         + (k ? ' ' + T('再評分 ' + k + ' 個回答，可以多問一題。') : '')
       : k ? T('今天的提問次數已經用完。') + ' ' + T('再評分 ' + k + ' 個回答，就可以多問一題；明天也會有新的提問次數。')
       : T('今天的提問次數已經用完，明天可以再問。');
+    info.textContent = '';
     if (nick && !accountNick) {
       const a = document.createElement('a');
       a.href = '#'; a.textContent = T('（以「' + nick + '」記錄；不是你？按這裡更換）');
