@@ -846,7 +846,7 @@ def test_no_api_key_is_reported_at_once(tmp_path):
     assert "金鑰" in store.job(code, job, me)["error"]
 
 
-def test_two_scores_earn_one_more_question(tmp_path, storage):
+def test_two_scores_earn_one_more_question_that_does_not_expire(tmp_path, storage, monkeypatch):
     path = tmp_path / "assignment.json"
     hs.prepare([], ["牧者1"], None, None, path)
     code = hs.add_group("查經班", path)
@@ -855,12 +855,16 @@ def test_two_scores_earn_one_more_question(tmp_path, storage):
                       "steps": [], "usage_total": {}, "cost_usd": 0.001}
     nick = ("Ruth", "r" * 20)
     _consent(store, code, nick)
-    for q in ("第一題", "第二題"):
-        assert "job" in store.ask(code, q, runner=fake, nick=nick)
+
+    def ask(q):
+        out = store.ask(code, q, runner=fake, nick=nick)
         time.sleep(0.3)
-    assert "每評分 2 個回答，可以多問一題" in store.ask(code, "第三題", runner=fake, nick=nick)["error"]
+        return out
+
+    assert "job" in ask("第一題") and "job" in ask("第二題")
+    assert "每評分 2 個回答，可以多問一題" in ask("第三題")["error"]
     chat = store.state(code, nick)["chat"]
-    assert chat["remaining_today"] == 0 and chat["ratings_to_bonus"] == 2
+    assert (chat["remaining_today"], chat["bonus_left"], chat["ratings_to_bonus"]) == (0, 0, 2)
     first, second = [q["id"] for q in chat["questions"]]
     assert store.rate(code, {"id": first, "quick": "up"}, nick) is None
     assert store.rate(code, {"id": first, "scores": {"overall": 8}}, nick) is None  # the same answer again: still one
@@ -868,9 +872,19 @@ def test_two_scores_earn_one_more_question(tmp_path, storage):
     assert store.state(code, nick)["chat"]["ratings_to_bonus"] == 1
     assert store.rate(code, {"id": second, "quick": "down"}, nick) is None
     chat = store.state(code, nick)["chat"]
-    assert chat["remaining_today"] == 1 and chat["ratings_to_bonus"] == 2
-    assert "job" in store.ask(code, "第三題", runner=fake, nick=nick)
+    assert (chat["remaining_today"], chat["daily_left"], chat["bonus_left"]) == (1, 0, 1)
 
+    # the next day: the daily questions are back, and the earned one is still there
+    real = time.strftime
+    monkeypatch.setattr(hs.time, "strftime", lambda fmt, t=None: real(fmt, time.localtime(time.time() + 86400)))
+    chat = store.state(code, nick)["chat"]
+    assert (chat["remaining_today"], chat["daily_left"], chat["bonus_left"]) == (3, 2, 1)
+    assert "job" in ask("第三題") and "job" in ask("第四題")   # the daily ones are used first
+    assert store.state(code, nick)["chat"]["bonus_left"] == 1
+    assert "job" in ask("第五題")                               # then the earned one
+    chat = store.state(code, nick)["chat"]
+    assert (chat["remaining_today"], chat["bonus_left"]) == (0, 0)
+    assert "error" in ask("第六題")
 
 def _post(base, path, body):
     req = urllib.request.Request(base + path, data=json.dumps(body).encode(), method="POST",

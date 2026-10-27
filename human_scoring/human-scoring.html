@@ -1335,7 +1335,9 @@ function refreshAsk() {
     const k = c.ratings_to_bonus;
     // the day's last question used up: say so, how to earn another, and that tomorrow brings new ones
     info.textContent = !c.open ? T('本次測試的提問額度已用完，謝謝您的參與。')
-      : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。') + (k ? ' ' + T('再評分 ' + k + ' 個回答，可以多問一題。') : '')
+      : c.remaining_today > 0 ? T('今天還可以問 ' + c.remaining_today + ' 題。')
+        + (c.bonus_left ? ' ' + T('其中 ' + c.bonus_left + ' 題是評分獲得的，不會每天清零。') : '')
+        + (k ? ' ' + T('再評分 ' + k + ' 個回答，可以多問一題。') : '')
       : k ? T('今天的提問次數已經用完。') + ' ' + T('再評分 ' + k + ' 個回答，就可以多問一題；明天也會有新的提問次數。')
       : T('今天的提問次數已經用完，明天可以再問。');
     if (nick && !accountNick) {
@@ -2865,6 +2867,7 @@ const EN_PATTERNS = [
   [/^還有「(.+)」沒有評分$/, (m, a) => toEn(a) + ' is not scored yet'],
   [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'You have asked $1 today; please come back tomorrow'],
   [/^今天已問了 (\d+) 題，請明天再來；每評分 (\d+) 個回答，可以多問一題$/, 'You have asked $1 today; please come back tomorrow. Every $2 answers you score earn one more question'],
+  [/^其中 (\d+) 題是評分獲得的，不會每天清零。$/, (m, n) => (n === '1' ? 'One of them was' : n + ' of them were') + ' earned by scoring and does not expire.'],
   [/^再評分 (\d+) 個回答，可以多問一題。$/, (m, n) => 'Score ' + n + (n === '1' ? ' more answer' : ' more answers') + ' to get one more question.'],
   [/^再評分 (\d+) 個回答，就可以多問一題；明天也會有新的提問次數。$/, (m, n) => 'Score ' + n + (n === '1' ? ' more answer' : ' more answers') + ' to get one more question; tomorrow brings new questions too.'],
   [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'You have started $1 sermons today; please come back tomorrow'],
@@ -3064,6 +3067,7 @@ const DE_PATTERNS = [
   [/^還有「(.+)」沒有評分$/, (m, a) => toDe(a) + ' ist noch nicht bewertet'],
   [/^今天已問了 (\d+) (?:題|次)，請明天再來$/, 'Sie haben heute $1 Fragen gestellt; bitte morgen wiederkommen'],
   [/^今天已問了 (\d+) 題，請明天再來；每評分 (\d+) 個回答，可以多問一題$/, 'Sie haben heute $1 Fragen gestellt; bitte morgen wiederkommen. Für je $2 bewertete Antworten können Sie eine Frage mehr stellen'],
+  [/^其中 (\d+) 題是評分獲得的，不會每天清零。$/, (m, n) => (n === '1' ? 'Eine davon haben Sie' : n + ' davon haben Sie') + ' durch Bewerten erhalten; sie verfallen nicht.'],
   [/^再評分 (\d+) 個回答，可以多問一題。$/, (m, n) => (n === '1' ? 'Bewerten Sie noch eine Antwort' : 'Bewerten Sie noch ' + n + ' Antworten') + ', dann können Sie eine Frage mehr stellen.'],
   [/^再評分 (\d+) 個回答，就可以多問一題；明天也會有新的提問次數。$/, (m, n) => (n === '1' ? 'Bewerten Sie noch eine Antwort' : 'Bewerten Sie noch ' + n + ' Antworten') + ', dann können Sie eine Frage mehr stellen; morgen gibt es auch wieder neue Fragen.'],
   [/^今天已開了 (\d+) 篇講章，請明天再來$/, 'Sie haben heute $1 Predigten begonnen; bitte morgen wiederkommen'],

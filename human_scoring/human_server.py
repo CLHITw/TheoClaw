@@ -93,7 +93,8 @@ BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses u
 SHARE_DAILY_LIMIT = 50     # links one person may make in a day (revoked ones count too)
 SHARE_RATE_LIMIT = 20      # ratings one address may give on shared answers in an hour (addresses kept in memory only)
 SHARE_RATER = "share:"     # rater name of a shared-answer visitor: share:<hash of the browser's key>, never a name
-RATINGS_PER_QUESTION = 2   # 每天每評分兩個回答，當天可多問一題（2026-10-26 新政策）
+RATINGS_PER_QUESTION = 2   # 每評分兩個回答，多一次提問機會（2026-10-26 新政策）；這些次數另外累積，不隨每天重置
+RATING_BONUS_SINCE = "2026-10-27"  # 從這天起的評分才累積次數（之前的評分不追溯）
 PASTOR_CODE = "1893"       # 團契碼（預設值；.env 的 THEOCLAW_PASTOR_CODE 可覆寫）：資料庫 fellowships 表建第一筆時用
 GROUP_SEP = "·"            # rater name of a group member: 查經班·小明
 _NICK = re.compile(r"^[^\x00-\x1f<>&\"'/\\·#]{1,20}$")
@@ -559,10 +560,10 @@ class Store:
         if self.chat:
             mine = sorted((i for i, n in self.owner.items() if n == r["name"]),
                           key=lambda i: self.items[i].trace.get("asked_at", ""))
-            rated = self._rated_today(r["name"])
-            chat = {"remaining_today": max(0, self._daily_limit(r["name"]) - self._today(r["name"])),
-                    # scores still needed today for the next extra question
-                    "ratings_to_bonus": RATINGS_PER_QUESTION - rated % RATINGS_PER_QUESTION,
+            quota = self._quota(r["name"])
+            chat = {"remaining_today": quota["daily_left"] + quota["bonus_left"],
+                    "daily_left": quota["daily_left"], "bonus_left": quota["bonus_left"],
+                    "ratings_to_bonus": quota["ratings_to_bonus"],  # scores still needed for the next earned question
                     "open": self._spent() < self.chat["budget_usd"],
                     "questions": [{"id": i, "prompt": self.items[i].trace["prompt"][:80], "rated": i in done,
                                    "kind": self.items[i].trace.get("kind", "question")} for i in mine]}
@@ -693,16 +694,39 @@ class Store:
                       if j["name"] == name and j["status"] == "running" and j.get("kind", "question") == kind)
         return asked + running
 
-    def _rated_today(self, name: str) -> int:
-        """Answers this person scored today (a thumb, a tap or a full rating; not a skip or a note
-        alone); each answer counts once, however often it was re-scored."""
-        today = time.strftime("%Y-%m-%d")
+    def _scored(self, name: str) -> int:
+        """Answers this person has scored since RATING_BONUS_SINCE (a thumb, a tap or a full rating;
+        not a skip or a note alone); each answer counts once, however often it was re-scored."""
         return sum(1 for r in self.db.ratings(rater=name)
-                   if str(r.get("rated_at", "")).startswith(today) and r.get("method") not in ("skip", "note"))
+                   if str(r.get("rated_at", "")) >= RATING_BONUS_SINCE and r.get("method") not in ("skip", "note"))
 
-    def _daily_limit(self, name: str) -> int:
-        """The day's questions: the daily limit, plus one for every RATINGS_PER_QUESTION answers scored today."""
-        return self.chat["daily_limit"] + self._rated_today(name) // RATINGS_PER_QUESTION
+    def _asked_by_day(self, name: str) -> dict[str, int]:
+        """Questions asked per day (YYYYMMDD), counted as _today counts them; running ones are today's."""
+        days: dict[str, int] = {}
+        for t in self._chat_traces():
+            if t.get("asked_by") == name and t.get("kind", "question") == "question":
+                d = str(t.get("asked_at", ""))[:8]
+                days[d] = days.get(d, 0) + 1
+        for c in self._costs():
+            if c["by"] == name and c["kind"] == "question":
+                days[c["at"][:8]] = days.get(c["at"][:8], 0) + 1
+        today = time.strftime("%Y%m%d")
+        days[today] = days.get(today, 0) + sum(1 for j in self.jobs.values() if j["name"] == name
+                                               and j["status"] == "running" and j.get("kind", "question") == "question")
+        return days
+
+    def _quota(self, name: str) -> dict:
+        """The day's fixed questions and the earned ones, kept apart: each day's questions use the
+        daily limit first, and only those beyond it use earned questions. Earned questions (one per
+        RATINGS_PER_QUESTION answers scored) do not expire, so scoring right away loses nothing."""
+        daily = self.chat["daily_limit"]
+        days = self._asked_by_day(name)
+        since = RATING_BONUS_SINCE.replace("-", "")
+        used = sum(max(0, n - daily) for d, n in days.items() if d >= since)
+        scored = self._scored(name)
+        return {"daily_left": max(0, daily - days.get(time.strftime("%Y%m%d"), 0)),
+                "bonus_left": max(0, scored // RATINGS_PER_QUESTION - used),
+                "ratings_to_bonus": RATINGS_PER_QUESTION - scored % RATINGS_PER_QUESTION}
 
     def _today_group(self, group: str) -> int:
         today = time.strftime("%Y%m%d")
@@ -897,9 +921,9 @@ class Store:
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的提問額度已用完，謝謝您的參與"}
-            limit = self._daily_limit(r["name"])
-            if self._today(r["name"]) >= limit:
-                return {"error": f"今天已問了 {limit} 題，請明天再來；每評分 {RATINGS_PER_QUESTION} 個回答，可以多問一題"}
+            quota = self._quota(r["name"])
+            if quota["daily_left"] + quota["bonus_left"] <= 0:
+                return {"error": f"今天已問了 {self._today(r['name'])} 題，請明天再來；每評分 {RATINGS_PER_QUESTION} 個回答，可以多問一題"}
             group_limit = self.chat.get("group_daily_limit")
             if r.get("group") and group_limit and self._today_group(r["group"]) >= group_limit:
                 return {"error": "今天團契的提問額度已用完，請明天再來"}
