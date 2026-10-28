@@ -1070,7 +1070,8 @@ class Store:
             return {"error": "請填寫經文（例如：路加福音 15:11-32）"}
         if any(len(v) > 300 for v in f.values()):
             return {"error": "每一欄請在 300 字以內"}
-        f["lang"] = body.get("lang") if body.get("lang") in ("en", "de") else "zh"
+        from theoclaw.agent.quotes import input_language  # the language the pastor wrote in, not the page's
+        f["lang"] = input_language(" ".join(f[k] for k in ("passage", "theme", "audience", "length", "notes")))
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的額度已用完，謝謝您的參與"}
@@ -1133,7 +1134,10 @@ class Store:
             else:
                 rec = (runner or workspace.assemble)(project, model=self.chat["model"])
                 rec["ask"] = "組成完整講稿"
-            rec["lang"] = project.get("lang") or "zh"
+            # the language the reply was given in (it follows the pastor's request, not the page)
+            from theoclaw.agent.quotes import answer_language
+            rec["lang"] = (answer_language(rec["final_text"]) if kind == "sermon_turn" and rec.get("final_text")
+                           else project.get("lang") or "zh")
             with self.lock:
                 self._save_project(project)
             return rec

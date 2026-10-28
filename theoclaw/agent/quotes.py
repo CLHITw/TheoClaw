@@ -143,6 +143,21 @@ def answer_language(text: str) -> str:
     return "de" if len(_GERMAN.findall(words)) >= 3 else "en"
 
 
+_GERMAN_BOOKS = re.compile(r"\b(?:Mose|Josua|Richter|Könige|Chronik|Sprüche|Prediger|Hohelied|Jesaja|Hesekiel|Matthäus|"
+                           r"Markus|Lukas|Johannes|Römer|Korinther|Galater|Epheser|Philipper|Kolosser|"
+                           r"Thessalonicher|Timotheus|Hebräer|Jakobus|Petrus|Judas|Offenbarung)\b")
+
+
+def input_language(text: str) -> str:
+    """zh, en or de: the language a short request is written in (a sermon form: 路加福音 15:11-32,
+    Luke 15:11-32, Lukas 15,11-32), so the work on it is done in that language."""
+    if _CJK.search(text):
+        return "zh"
+    if _GERMAN.search(text) or _GERMAN_BOOKS.search(text) or re.search(r"\d+,\d+", text):
+        return "de"
+    return "en"
+
+
 def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | dict | None = None) -> tuple[str, list[Any]]:
     """Replace every placeholder in ``text``; returns the new text and one ToolCall per
     placeholder (name fill_quote), so traces and graders see where the text came from.

@@ -173,3 +173,9 @@ def test_no_chinese_in_english_or_german_answers():
     de = "Ich habe das mit lookup_verse und wesley_note nachgeschlagen, und das ist nicht schwer."
     assert scrub_internal(de, "de")[0] == "Ich habe das mit die Bibelsuche und Wesleys Anmerkungen nachgeschlagen, und das ist nicht schwer."
     assert not re.search(r"[㐀-鿿]", text + scrub_internal("I used lookup_verse here.", "en")[0])
+
+
+def test_sermon_forms_are_worked_on_in_the_language_they_are_written_in():
+    from theoclaw.agent.quotes import input_language
+    assert [input_language(t) for t in ("路加福音 15:11-32", "Luke 15:11-32 the father's love",
+                                        "Lukas 15,11-32", "Römer 8 Hoffnung", "Psalm 23")] == ["zh", "en", "de", "de", "en"]
