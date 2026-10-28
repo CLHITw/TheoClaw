@@ -135,7 +135,7 @@ def run_agent(
     fix_simplified: bool = True,
     fill_quotes: bool = True,
     script: str | None = None,  # "hant" (繁體) or "hans" (簡體); None: follow the question
-    bible: str | None = None,  # the Bible version the reader picked (corpus.VERSIONS); None: the defaults
+    bible: str | dict | None = None,  # the reader's Bible version, or versions by answer language; None: the defaults
 ) -> AgentRun:
     run = AgentRun(model=model, prompt=prompt)
     run.script = script or (zh.script_of(prompt) if zh.available() else "hant")

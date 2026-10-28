@@ -98,20 +98,20 @@ def test_page_bible_reaches_the_agent(tmp_path, monkeypatch):
     code = hs.add_group("International", path)
     store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
     seen = []
-    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
-                                        "steps": [], "usage_total": {}, "cost_usd": 0.001}
+    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "Grace is the free favour of God, given to us in Christ before we ever deserve it.",
+                                        "outcome": "completed", "steps": [], "usage_total": {}, "cost_usd": 0.001}
     nick = ("Eden", "e" * 20)
     store.db.record_consent(store.who(code, nick))
-    for lang, bible in [("en", "bsb"), ("en", "web"), ("zh", "bsb"), ("de", "elb"), ("en", "niv")]:
+    for lang, bible in [("en", {"en": "bsb", "de": "lut"}), ("zh", {"en": "web", "de": "lut"}),
+                        ("zh", {"en": "asv", "de": "elb"}), ("en", {"en": "niv"}), ("en", "bsb")]:
         store.ask(code, "What is grace?", runner=fake, nick=nick, lang=lang, bible=bible)
         time.sleep(0.3)
-    assert 'Berean Standard Bible (BSB): look verses up with version "bsb"' in seen[0]
-    assert seen[1].endswith("(Please answer in English.)")  # the default needs no note
-    assert "version" not in seen[2]  # Chinese answers always quote the 和合本
-    assert 'Elberfelder 1905 (ELB): Verse mit version "elb"' in seen[3]
-    assert seen[4].endswith("(Please answer in English.)")  # not a version on offer
-    assert [r.get("bible") for r in store.db.answers()] == ["bsb", None, None, "elb", None]
-
+    assert "英文回答用 Berean Standard Bible，查經時 version 設為 bsb" in seen[0] and "德文" not in seen[0]
+    assert seen[1] == "What is grace?"  # the defaults need no note
+    assert "American Standard Version" in seen[2] and "Elberfelder 1905" in seen[2]  # the picks hold on a Chinese page too
+    assert seen[3] == "What is grace?"  # not a version on offer
+    assert "bsb" in seen[4]  # an older page sends one version
+    assert [r.get("bible") for r in store.db.answers()] == ["bsb", None, "asv", None, "bsb"]  # the English answers' picks
 
 def test_html_answers_become_markdown():
     from theoclaw.agent.quotes import html_to_markdown

@@ -88,8 +88,17 @@ DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Bapt
 PAGE_BIBLES = {"zh": ("cuv",), "en": ("web", "bsb", "kjv", "asv"), "de": ("lut", "elb")}
 BIBLE_NAMES = {"web": "World English Bible", "bsb": "Berean Standard Bible", "kjv": "King James Version",
                "asv": "American Standard Version", "lut": "Luther 1912", "elb": "Elberfelder 1905"}
-BIBLE_NOTE = {"en": "\n\n(Quote the Bible from the {name} ({tag}): look verses up with version \"{version}\".)",
-              "de": "\n\n(Zitieren Sie die Bibel nach der {name} ({tag}): Verse mit version \"{version}\" nachschlagen.)"}
+# 回答一律用提問的語言；讀者在英文、德文頁面選的版本，用於該語言的回答（中文回答一律和合本）
+BIBLE_NOTE = "\n\n（經文版本：{notes}。）"
+BIBLE_NOTE_ONE = {"en": "英文回答用 {name}，查經時 version 設為 {version}，標記寫 {tag}",
+                  "de": "德文回答用 {name}，查經時 version 設為 {version}，標記寫 {tag}"}
+
+
+def bible_prefs(bible) -> dict[str, str]:
+    """The reader's Bible versions by answer language, defaults left out: {"en": "bsb"}. Takes the
+    page's {"en": ..., "de": ...} or, from an older page, one version."""
+    picks = bible.values() if isinstance(bible, dict) else [bible]
+    return {lang: v for lang, versions in PAGE_BIBLES.items() for v in picks if v in versions[1:]}
 SHARE_DAILY_LIMIT = 50     # links one person may make in a day (revoked ones count too)
 SHARE_RATE_LIMIT = 20      # ratings one address may give on shared answers in an hour (addresses kept in memory only)
 SHARE_RATER = "share:"     # rater name of a shared-answer visitor: share:<hash of the browser's key>, never a name
@@ -941,20 +950,21 @@ class Store:
         denom = denomination if denomination in DENOMINATIONS else None
         from theoclaw.agent.conversation import follow_up_prompt
         prompt = follow_up_prompt(history, question)
-        if lang == "de":  # the page's own language: answer in it, whatever language the question is in
-            prompt += "\n\n(Bitte antworten Sie auf Deutsch.)"
-        elif lang == "en":
-            prompt += "\n\n(Please answer in English.)"
-        bible = bible if bible in PAGE_BIBLES.get(lang or "zh", ())[1:] else None  # the page default needs no note
-        if bible:
-            prompt += BIBLE_NOTE[lang].format(name=BIBLE_NAMES[bible], version=bible, tag=TAGS[bible])
+        # the answer is in the question's language, whatever the page's; the page's Bible picks
+        # apply to answers in their language
+        prefs = bible_prefs(bible)
+        if prefs:
+            prompt += BIBLE_NOTE.format(notes="；".join(
+                BIBLE_NOTE_ONE[l].format(name=BIBLE_NAMES[v], version=v, tag=TAGS[v]) for l, v in prefs.items()))
 
         def run(_q):
-            rec = (runner or (lambda p: self._run_agent(p, bible)))(prompt)
+            from theoclaw.agent.quotes import answer_language
+            rec = (runner or (lambda p: self._run_agent(p, prefs or None)))(prompt)
+            text = rec.get("final_text") or ""
             rec.update(prompt=question, conv=conv, turn=len(history) + 1,  # shown and graded as the person asked it
-                       lang=lang if lang in ("en", "de") else "zh")
-            if bible:
-                rec["bible"] = bible
+                       lang=answer_language(text) if text else (lang if lang in ("en", "de") else "zh"))
+            if prefs.get(rec["lang"]):
+                rec["bible"] = prefs[rec["lang"]]
             return rec
 
         threading.Thread(target=self._answer, args=(job, r["name"], question, run, denom), daemon=True).start()
@@ -1273,7 +1283,7 @@ class Store:
                     self._lay_ts = build_tool_set("scripture,wesley")
             return self._lay_ts
 
-    def _run_agent(self, question: str, bible: str | None = None) -> dict:
+    def _run_agent(self, question: str, bible: dict | None = None) -> dict:
         from theoclaw.agent.loop import run_agent
         from theoclaw.agent.tools import build_tool_set
         from theoclaw.common.pricing import cost

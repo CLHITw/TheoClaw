@@ -1401,7 +1401,7 @@ function ask() {
   const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
   api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({question: q, denomination: denom, conv: convId, lang: answerLang(), bible: bibleOf(answerLang())})})
+    body: JSON.stringify({question: q, denomination: denom, conv: convId, lang: answerLang(), bible: {en: bibleOf('en'), de: bibleOf('de')}})})
     .then(r => {
       if (r.error) { showToast(r.error); btn.disabled = false; return; }
       pollJob(r.job,

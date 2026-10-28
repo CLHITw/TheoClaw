@@ -143,7 +143,7 @@ def answer_language(text: str) -> str:
     return "de" if len(_GERMAN.findall(words)) >= 3 else "en"
 
 
-def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None = None) -> tuple[str, list[Any]]:
+def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | dict | None = None) -> tuple[str, list[Any]]:
     """Replace every placeholder in ``text``; returns the new text and one ToolCall per
     placeholder (name fill_quote), so traces and graders see where the text came from.
     ``bible`` is the version the reader picked: a marker naming its language's default
@@ -156,6 +156,8 @@ def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | None
     # (〔經文：Matthäus 28,19〕) takes that language's Bible, not the Chinese default
     lang = answer_language(text)
     default = DEFAULT_VERSION[lang]
+    if isinstance(bible, dict):  # the reader's picks by answer language: {"en": "bsb", "de": "elb"}
+        bible = bible.get(lang)
 
     def replace(m: re.Match) -> str:
         body = m.group(1)

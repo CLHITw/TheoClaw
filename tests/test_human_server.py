@@ -378,15 +378,15 @@ def test_language_recorded_and_old_databases_get_the_column(tmp_path, storage):
     code = hs.add_group("International", path)
     store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0}, chat_dir=tmp_path / "pastor-chat")
     seen = []
-    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "answer", "outcome": "completed",
+    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "Grace is the free favour of God, given to us in Christ before we ever deserve it.", "outcome": "completed",
                                         "steps": [], "usage_total": {}, "cost_usd": 0.001}
     nick = ("Eden", "e" * 20)
     _consent(store, code, nick)
-    store.ask(code, "什麼是恩典？", runner=fake, nick=nick, lang="en")
+    store.ask(code, "What is grace?", runner=fake, nick=nick, lang="zh")
     time.sleep(0.3)
-    assert seen[0].endswith("(Please answer in English.)")
+    assert seen[0] == "What is grace?"  # no note from the page: the answer follows the question
     [rec] = store.db.answers()
-    assert rec["lang"] == "en" and rec["prompt"] == "什麼是恩典？"  # recorded as asked
+    assert rec["lang"] == "en" and rec["prompt"] == "What is grace?"  # the language the answer was given in
     item = store.state(code, nick)["chat"]["questions"][0]["id"]
     assert store.rate(code, {"id": item, "scores": {"overall": 8}}, nick) is None
     assert store.db.ratings()[0]["lang"] == "en"  # the rating knows the answer was English
@@ -465,11 +465,11 @@ def test_german_questions_are_answered_in_german(tmp_path):
     me = ("Eden", "e" * 20)
     _consent(store, code, me)
     seen = []
-    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "Antwort", "outcome": "completed",
+    fake = lambda q: seen.append(q) or {"model": "m", "prompt": q, "final_text": "Gnade ist die unverdiente Liebe Gottes, die uns in Christus geschenkt ist und die wir nicht verdienen.", "outcome": "completed",
                                         "steps": [], "usage_total": {}, "cost_usd": 0.001}
-    store.ask(code, "Was ist Gnade?", runner=fake, nick=me, lang="de")
+    store.ask(code, "Was ist Gnade?", runner=fake, nick=me, lang="en")
     time.sleep(0.3)
-    assert seen[0].endswith("(Bitte antworten Sie auf Deutsch.)")
+    assert seen[0] == "Was ist Gnade?"  # an English page, a German question: answered in German
     [rec] = store.db.answers()
     assert rec["lang"] == "de" and rec["prompt"] == "Was ist Gnade?"  # recorded as asked
 
