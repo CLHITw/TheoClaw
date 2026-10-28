@@ -178,8 +178,11 @@ def fill_placeholders(text: str, handlers: dict[str, Handler], bible: str | dict
         body = m.group(1)
         v = _VERSION_RE.search(body)
         version = _TAG_VERSION.get(v.group(1).lower(), default) if v else default
-        if lang != "zh" and VERSION_LANG[version] == "zh":
-            version = default  # 〔經文：John 3:16，和合本〕 in an English answer: no Chinese there either
+        if lang != "zh" and VERSION_LANG[version] != lang:
+            # an English or German answer quotes only its own language's Bibles (〔經文：John 3:16，和合本〕
+            # or a Luther marker in an English answer takes that language's Bible); a Chinese answer may
+            # set other languages' versions beside the 和合本
+            version = default
         if bible in VERSIONS and version == DEFAULT_VERSION.get(VERSION_LANG[bible]):
             version = bible
         reference = _VERSION_RE.sub("", body).strip()

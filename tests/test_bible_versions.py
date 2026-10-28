@@ -179,3 +179,12 @@ def test_sermon_forms_are_worked_on_in_the_language_they_are_written_in():
     from theoclaw.agent.quotes import input_language
     assert [input_language(t) for t in ("路加福音 15:11-32", "Luke 15:11-32 the father's love",
                                         "Lukas 15,11-32", "Römer 8 Hoffnung", "Psalm 23")] == ["zh", "en", "de", "de", "en"]
+
+
+def test_version_comparisons_stay_within_the_rules():
+    zh = "保羅說神的愛在基督為罪人死的事上顯明出來，下面是和合本和兩個譯本的對照：〔經文：羅馬書 5:8〕〔經文：Romans 5:8，KJV〕〔經文：Römer 5:8，LUT〕"
+    _, calls = fill_placeholders(zh, _handlers())
+    assert [c.input["version"] for c in calls] == ["cuv", "kjv", "lut"]  # a Chinese answer may compare languages
+    en = "Here are two English versions side by side, and the German one: 〔經文：Romans 5:8，BSB〕〔經文：Romans 5:8，KJV〕〔經文：Römer 5:8，LUT〕"
+    _, calls = fill_placeholders(en, _handlers())
+    assert [c.input["version"] for c in calls] == ["bsb", "kjv", "web"]  # an English answer: English versions only
