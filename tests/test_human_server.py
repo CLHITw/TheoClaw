@@ -1046,3 +1046,55 @@ def test_load_ratings_can_leave_share_visitors_out(tmp_path):
         json.dumps({"rater": "share:x", "task_id": "t", "run_index": 0, "mode": "share"}) + "\n", encoding="utf-8")
     assert len(load_ratings(tmp_path)) == 2
     assert [r["rater"] for r in load_ratings(tmp_path, exclude_modes=("share",))] == ["a"]
+
+
+def test_admin_review_page_lists_low_scores_and_comments(tmp_path, monkeypatch):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("祕密團契", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 9, "budget_usd": 1.0}, chat_dir=tmp_path / "chat")
+    me, you = ("小明", "k" * 20), ("小華", "h" * 20)
+    _consent(store, code, me)
+    _consent(store, code, you)
+    fake = lambda p: {"model": "m", "prompt": p, "final_text": "答" + p, "outcome": "completed", "steps": [],
+                      "usage_total": {}, "cost_usd": 0.0}
+    items = [_wait(store, code, store.ask(code, q, runner=fake, nick=me)["job"], me)["item"]
+             for q in ("低分題", "高分題", "評語題", "踩題")]
+    store.rate(code, {"id": items[0], "quick": "score", "scores": {"overall": 3}}, me)
+    store.rate(code, {"id": items[0], "quick": "score", "scores": {"overall": 9}}, you)
+    store.rate(code, {"id": items[1], "quick": "score", "scores": {"overall": 8}}, me)
+    store.rate(code, {"id": items[2], "quick": "score", "scores": {"overall": 9}, "comment": "經文出處要補"}, me)
+    store.rate(code, {"id": items[3], "quick": "down"}, me)
+    got = {(x["question"], x["rater"].split("#")[0]) for x in store.review()}
+    assert got == {("低分題", "祕密團契·小明"), ("評語題", "祕密團契·小明"), ("踩題", "祕密團契·小明")}
+    assert {x["question"] for x in store.review(10)} >= {"低分題", "高分題"}
+
+    def get(url, token=None):
+        req = urllib.request.Request(url, headers={"X-Admin-Token": token} if token else {})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
+
+    monkeypatch.delenv("THEOCLAW_ADMIN_TOKEN", raising=False)
+    srv, base = _serve(store)
+    try:
+        assert get(base + "/admin")[0] == 404  # off unless .env sets a token
+        assert get(base + "/api/admin/review", "x")[0] == 404
+        monkeypatch.setenv("THEOCLAW_ADMIN_TOKEN", "short")
+        assert get(base + "/admin")[0] == 404  # a short token does not turn it on
+        tok = "t" * 32
+        monkeypatch.setenv("THEOCLAW_ADMIN_TOKEN", tok)
+        status, body = get(base + "/admin")
+        assert status == 200 and "低分題" not in body.decode()  # the page holds no data
+        assert get(base + "/api/admin/review")[0] == 403
+        assert get(base + "/api/admin/review", "t" * 31 + "u")[0] == 403
+        assert get(base + "/api/admin/review?t=" + code)[0] == 403  # a user's link code is not enough
+        status, body = get(base + "/api/admin/review", tok)
+        data = json.loads(body)
+        assert status == 200 and data["below"] == 7 and len(data["items"]) == 3
+        assert any(x["comment"] == "經文出處要補" and x["answer"] == "答評語題" for x in data["items"])
+    finally:
+        srv.shutdown()

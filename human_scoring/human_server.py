@@ -101,6 +101,9 @@ def bible_prefs(bible) -> dict[str, str]:
     return {lang: v for lang, versions in PAGE_BIBLES.items() for v in picks if v in versions[1:]}
 SHARE_DAILY_LIMIT = 50     # links one person may make in a day (revoked ones count too)
 SHARE_RATE_LIMIT = 20      # ratings one address may give on shared answers in an hour (addresses kept in memory only)
+REVIEW_BELOW = 7           # 管理頁：低於此分（可用線）列出；有評語、或按「不好」的也列出
+ADMIN_PAGE = HERE / "admin.html"
+ADMIN_TOKEN_MIN = 24       # .env 的 THEOCLAW_ADMIN_TOKEN 至少這麼長才開啟管理頁；沒設就整個關閉（404）
 SHARE_RATER = "share:"     # rater name of a shared-answer visitor: share:<hash of the browser's key>, never a name
 RATINGS_PER_QUESTION = 2   # 每評分兩個回答，多一次提問機會（2026-10-26 新政策）；這些次數另外累積，不隨每天重置
 RATING_BONUS_SINCE = "2026-10-27"  # 從這天起的評分才累積次數（之前的評分不追溯）
@@ -142,6 +145,18 @@ PROBLEMS = [
 
 def _env_clean(name: str) -> str:
     return _INVISIBLE.sub("", os.environ.get(name, ""))
+
+
+def admin_token() -> str:
+    """The operator's token from .env (THEOCLAW_ADMIN_TOKEN); empty, so the admin page is off, when
+    it is missing or too short to be safe."""
+    t = _env_clean("THEOCLAW_ADMIN_TOKEN")
+    return t if len(t) >= ADMIN_TOKEN_MIN else ""
+
+
+def admin_ok(given: str | None) -> bool:
+    t = admin_token()
+    return bool(t) and hmac.compare_digest((given or "").strip().encode(), t.encode())
 
 
 def google_config() -> dict | None:
@@ -860,6 +875,31 @@ class Store:
         n = sum(hist)
         return {"count": n + up + down, "scored": n, "mean": round(sum(k * c for k, c in enumerate(hist)) / n, 1) if n else None,
                 "hist": hist, "up": up, "down": down, "mine": mine}
+
+    def review(self, below: int = REVIEW_BELOW) -> list[dict]:
+        """For the operator page only: every latest rating that scored an answer under ``below``,
+        gave a thumb down or wrote a comment, with the question and the answer; newest first."""
+        labels = {p["key"]: p["label"] for p in PROBLEMS}
+        out = []
+        for r in self.db.ratings():
+            v = (r.get("scores") or {}).get("overall")
+            score = v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+            comment = (r.get("comment") or "").strip()
+            low = score is not None and score < below
+            if not (low or r.get("quick") == "down" or comment):
+                continue
+            it = self.items.get(self._by_key.get((r["_run_dir"], r["task_id"], r["run_index"])) or "")
+            t = it.trace if it else {}
+            rater = r.get("rater") or ""
+            out.append({"rated_at": r.get("rated_at") or "", "rater": "分享訪客" if rater.startswith(SHARE_RATER) else rater,
+                        "mode": r.get("mode") or ("blind" if r.get("blind") else ""), "score": score,
+                        "quick": r.get("quick"), "low": low or r.get("quick") == "down", "comment": comment,
+                        "problems": [labels.get(p, p) for p in r.get("problems") or [] if isinstance(p, str)], "run": r["_run_dir"], "task_id": r["task_id"],
+                        "asked_by": t.get("asked_by") or "", "asked_at": t.get("asked_at") or "",
+                        "kind": t.get("kind") or "", "lang": t.get("lang") or r.get("lang") or "",
+                        "model": t.get("model") or "", "question": t.get("prompt") or "",
+                        "answer": t.get("final_text") or ""})
+        return sorted(out, key=lambda x: x["rated_at"], reverse=True)
 
     def share_votes(self, token: str, key: str) -> dict | None:
         """The distribution, only once this browser has rated (so it cannot sway the rating)."""
@@ -1589,6 +1629,28 @@ def make_handler(store: Store):
                 back = "/?" + urlencode({"t": pending["code"]}) if pending.get("code") else "/"
                 return self._redirect(back, self._session_cookie(store.issue_session(sub_hash)),
                                       self._login_cookie(None), self._pending_cookie(None))
+            if u.path in ("/admin", "/api/admin/review"):  # the operator's page: off (404) unless .env sets a token
+                if not admin_token():
+                    return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+                if u.path == "/admin":  # the page itself holds no data; it asks for the token
+                    body = ADMIN_PAGE.read_bytes()
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("X-Robots-Tag", "noindex, nofollow")
+                    self.send_header("Referrer-Policy", "no-referrer")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if not admin_ok(self.headers.get("X-Admin-Token")):
+                    time.sleep(1)  # a wrong token waits, so guessing is slow
+                    return self._json({"error": "管理密碼不對"}, HTTPStatus.FORBIDDEN)
+                try:
+                    below = int((q.get("below") or [str(REVIEW_BELOW)])[0])
+                except ValueError:
+                    below = REVIEW_BELOW
+                return self._json({"below": below, "items": store.review(below)})
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效，請向負責人索取您的專屬連結"}, HTTPStatus.FORBIDDEN)

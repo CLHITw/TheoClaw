@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>TheoClaw 管理</title>
+<style>
+  :root { --bg:#fafaf7; --fg:#222; --muted:#666; --card:#fff; --line:#ddd; --low:#b3261e; --note:#1f5fa8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161616; --fg:#e8e8e8; --muted:#9a9a9a; --card:#202020; --line:#333; --low:#ff8a80; --note:#8ab4f8; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 system-ui, "Noto Sans TC", sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:8px 0 16px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; margin-bottom:12px; }
+  input[type=password], input[type=search], input[type=number] { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); }
+  button { padding:6px 14px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:10px 0; }
+  .meta { color:var(--muted); font-size:13px; }
+  .score { font-weight:600; }
+  .score.low { color:var(--low); }
+  .comment { border-left:3px solid var(--note); padding:4px 10px; margin:8px 0; white-space:pre-wrap; }
+  .q { font-weight:600; margin:6px 0; white-space:pre-wrap; }
+  details pre { white-space:pre-wrap; word-break:break-word; font:inherit; margin:6px 0 0; }
+  .err { color:var(--low); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>低分與評語（只限管理者）</h1>
+  <form id="login" class="bar">
+    <input id="token" type="password" placeholder="管理密碼" autocomplete="current-password" size="40">
+    <button type="submit">進入</button>
+    <span id="loginErr" class="err"></span>
+  </form>
+  <section id="view" class="hidden">
+    <div class="bar">
+      <label>低於 <input id="below" type="number" min="1" max="11" value="7" style="width:4em"> 分</label>
+      <label><input id="fLow" type="checkbox" checked> 低分／不好</label>
+      <label><input id="fNote" type="checkbox" checked> 有評語</label>
+      <label><input id="fShare" type="checkbox" checked> 含分享訪客</label>
+      <input id="search" type="search" placeholder="搜尋問題、回答、評語、評分人">
+      <button id="reload" type="button">重新載入</button>
+      <button id="logout" type="button">登出</button>
+    </div>
+    <div id="count" class="meta"></div>
+    <div id="list"></div>
+  </section>
+</main>
+<script>
+(function () {
+  var KEY = "theoclaw_admin";
+  var items = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function token() { try { return sessionStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function setToken(t) { try { t ? sessionStorage.setItem(KEY, t) : sessionStorage.removeItem(KEY); } catch (e) {} }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+
+  function load() {
+    var t = token();
+    if (!t) return;
+    fetch("/api/admin/review?below=" + encodeURIComponent($("below").value || "7"), { headers: { "X-Admin-Token": t }, cache: "no-store" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        if (!x.ok) { setToken(""); $("view").classList.add("hidden"); $("login").classList.remove("hidden"); $("loginErr").textContent = x.d.error || "無法載入"; return; }
+        items = x.d.items || [];
+        $("login").classList.add("hidden"); $("view").classList.remove("hidden"); $("loginErr").textContent = "";
+        render();
+      })
+      .catch(function () { $("loginErr").textContent = "連線失敗"; });
+  }
+
+  function render() {
+    var wantLow = $("fLow").checked, wantNote = $("fNote").checked, share = $("fShare").checked;
+    var s = $("search").value.trim().toLowerCase();
+    var list = $("list"); list.textContent = "";
+    var shown = 0;
+    items.forEach(function (it) {
+      if (!((wantLow && it.low) || (wantNote && it.comment))) return;
+      if (!share && it.rater === "分享訪客") return;
+      if (s && [it.question, it.answer, it.comment, it.rater, it.asked_by].join("\n").toLowerCase().indexOf(s) < 0) return;
+      shown++;
+      var c = el("div", "card");
+      var head = el("div", "meta");
+      var sc = el("span", "score" + (it.low ? " low" : ""),
+        it.score != null ? it.score + " 分" : it.quick === "down" ? "不好" : it.quick === "up" ? "好" : "（只有評語）");
+      head.appendChild(sc);
+      head.appendChild(document.createTextNode("　" + it.rated_at + "　評分人：" + it.rater + (it.mode ? "（" + it.mode + "）" : "")));
+      c.appendChild(head);
+      if (it.comment) c.appendChild(el("div", "comment", it.comment));
+      if (it.problems && it.problems.length) c.appendChild(el("div", "meta", "問題標記：" + it.problems.join("、")));
+      c.appendChild(el("div", "q", it.question || "（找不到這題的內容：" + it.run + " / " + it.task_id + "）"));
+      c.appendChild(el("div", "meta", [it.asked_by && "提問：" + it.asked_by, it.asked_at, it.kind, it.lang, it.model].filter(Boolean).join("　")));
+      if (it.answer) {
+        var d = el("details"); d.appendChild(el("summary", null, "回答（" + it.answer.length + " 字）"));
+        d.appendChild(el("pre", null, it.answer)); c.appendChild(d);
+      }
+      list.appendChild(c);
+    });
+    $("count").textContent = "顯示 " + shown + " ／ 共 " + items.length + " 筆";
+  }
+
+  $("login").addEventListener("submit", function (e) { e.preventDefault(); setToken($("token").value.trim()); $("token").value = ""; load(); });
+  $("reload").addEventListener("click", load);
+  $("below").addEventListener("change", load);
+  $("logout").addEventListener("click", function () { setToken(""); items = []; $("list").textContent = ""; $("view").classList.add("hidden"); $("login").classList.remove("hidden"); });
+  ["fLow", "fNote", "fShare"].forEach(function (id) { $(id).addEventListener("change", render); });
+  $("search").addEventListener("input", render);
+  load();
+})();
+</script>
+</body>
+</html>
