@@ -50,7 +50,7 @@
 <script>
 (function () {
   var KEY = "theoclaw_admin";
-  var items = [];
+  var items = [], source = "";
   var $ = function (id) { return document.getElementById(id); };
   function token() { try { return sessionStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function setToken(t) { try { t ? sessionStorage.setItem(KEY, t) : sessionStorage.removeItem(KEY); } catch (e) {} }
@@ -62,8 +62,9 @@
     fetch("/api/admin/review?below=" + encodeURIComponent($("below").value || "7"), { headers: { "X-Admin-Token": t }, cache: "no-store" })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (x) {
+        if (!x.ok && x.d.error && x.d.error.indexOf("資料庫") >= 0) { $("count").textContent = x.d.error; return; }
         if (!x.ok) { setToken(""); $("view").classList.add("hidden"); $("login").classList.remove("hidden"); $("loginErr").textContent = x.d.error || "無法載入"; return; }
-        items = x.d.items || [];
+        items = x.d.items || []; source = x.d.source || "";
         $("login").classList.add("hidden"); $("view").classList.remove("hidden"); $("loginErr").textContent = "";
         render();
       })
@@ -97,7 +98,7 @@
       }
       list.appendChild(c);
     });
-    $("count").textContent = "顯示 " + shown + " ／ 共 " + items.length + " 筆";
+    $("count").textContent = "資料來源：" + source + "　顯示 " + shown + " ／ 共 " + items.length + " 筆";
   }
 
   $("login").addEventListener("submit", function (e) { e.preventDefault(); setToken($("token").value.trim()); $("token").value = ""; load(); });

@@ -202,6 +202,17 @@ class DB:
         self._add_new_columns()
         self.url = self.engine.url.render_as_string(hide_password=True)
 
+    @classmethod
+    def read_only(cls, url: str) -> "DB":
+        """Another server's database, for reading only (answers() and ratings()): no tables made or
+        columns added, so a MySQL account with SELECT on answers and ratings is all it needs."""
+        self = cls.__new__(cls)
+        kw = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else \
+            {"pool_pre_ping": True, "pool_recycle": 3600}
+        self.engine = create_engine(url, **kw)
+        self.url = self.engine.url.render_as_string(hide_password=True)
+        return self
+
     def _add_new_columns(self) -> None:
         """Columns added after a table was first made (create_all leaves existing tables alone)."""
         insp = inspect(self.engine)

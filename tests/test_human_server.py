@@ -1098,3 +1098,22 @@ def test_admin_review_page_lists_low_scores_and_comments(tmp_path, monkeypatch):
         assert any(x["comment"] == "經文出處要補" and x["answer"] == "答評語題" for x in data["items"])
     finally:
         srv.shutdown()
+
+
+def test_admin_review_reads_another_database_read_only(tmp_path, monkeypatch):
+    from human_scoring.db import DB, CHAT_RUN
+    prod_url = f"sqlite:///{(tmp_path / 'prod.db').as_posix()}"
+    prod = DB(prod_url)
+    prod.add_answer({"task_id": "chat-1", "run_index": 0, "prompt": "正式服的問題", "final_text": "正式服的回答",
+                     "asked_by": "團契·甲", "asked_at": "20261028-100000"})
+    prod.add_rating(CHAT_RUN, {"task_id": "chat-1", "run_index": 0, "rater": "團契·甲", "scores": {"overall": 5},
+                               "comment": "", "rated_at": "2026-10-28 10:01:00", "mode": "own"})
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    store.rate(next(iter(store.raters)), {"id": next(iter(store.items)), "scores": {"overall": 1}}, None)
+    monkeypatch.setenv("THEOCLAW_REVIEW_DB", prod_url)
+    got = store.review()
+    assert [(x["question"], x["answer"], x["score"]) for x in got] == [("正式服的問題", "正式服的回答", 5)]
+    assert len(prod.ratings()) == 1 and len(prod.answers()) == 1  # nothing written there

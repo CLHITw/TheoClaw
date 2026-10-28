@@ -878,18 +878,31 @@ class Store:
 
     def review(self, below: int = REVIEW_BELOW) -> list[dict]:
         """For the operator page only: every latest rating that scored an answer under ``below``,
-        gave a thumb down or wrote a comment, with the question and the answer; newest first."""
+        gave a thumb down or wrote a comment, with the question and the answer; newest first.
+        With THEOCLAW_REVIEW_DB in .env (a read-only account on the production database, so the test
+        server can show the real feedback) both are read from there, never written."""
         labels = {p["key"]: p["label"] for p in PROBLEMS}
+        url = os.environ.get("THEOCLAW_REVIEW_DB", "").strip()
+        if url:
+            if getattr(self, "_review_db", None) is None or self._review_db[0] != url:
+                self._review_db = (url, DB.read_only(url))
+            src = self._review_db[1]
+            traces = {(a.get("task_id"), a.get("run_index", 0)): a for a in src.answers()}
+            trace = lambda r: traces.get((r["task_id"], r["run_index"])) if r["_run_dir"] == db_mod.CHAT_RUN else None
+        else:
+            src = self.db
+            def trace(r):
+                it = self.items.get(self._by_key.get((r["_run_dir"], r["task_id"], r["run_index"])) or "")
+                return it.trace if it else None
         out = []
-        for r in self.db.ratings():
+        for r in src.ratings():
             v = (r.get("scores") or {}).get("overall")
             score = v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
             comment = (r.get("comment") or "").strip()
             low = score is not None and score < below
             if not (low or r.get("quick") == "down" or comment):
                 continue
-            it = self.items.get(self._by_key.get((r["_run_dir"], r["task_id"], r["run_index"])) or "")
-            t = it.trace if it else {}
+            t = trace(r) or {}
             rater = r.get("rater") or ""
             out.append({"rated_at": r.get("rated_at") or "", "rater": "分享訪客" if rater.startswith(SHARE_RATER) else rater,
                         "mode": r.get("mode") or ("blind" if r.get("blind") else ""), "score": score,
@@ -1650,7 +1663,13 @@ def make_handler(store: Store):
                     below = int((q.get("below") or [str(REVIEW_BELOW)])[0])
                 except ValueError:
                     below = REVIEW_BELOW
-                return self._json({"below": below, "items": store.review(below)})
+                try:
+                    items = store.review(below)
+                except Exception as e:  # e.g. the read-only database cannot be reached
+                    sys.stderr.write(f"admin review failed: {type(e).__name__}\n")
+                    return self._json({"error": f"讀取資料庫失敗（{type(e).__name__}）"}, HTTPStatus.BAD_GATEWAY)
+                return self._json({"below": below, "items": items,
+                                   "source": "正式服資料庫（唯讀）" if os.environ.get("THEOCLAW_REVIEW_DB", "").strip() else "本伺服器資料庫"})
             code = self._code(q)
             if code is None:
                 return self._json({"error": "連結無效，請向負責人索取您的專屬連結"}, HTTPStatus.FORBIDDEN)
