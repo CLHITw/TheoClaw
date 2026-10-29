@@ -123,7 +123,9 @@ def test_chat_mode_limits_and_saving(tmp_path):
     fake = lambda q: {"model": "deepseek-flash", "prompt": q, "final_text": "答案", "outcome": "completed",
                       "steps": [], "usage_total": {}, "cost_usd": 0.01}
     assert "error" in store.ask(codes[0], "x")  # too short
-    job = store.ask(codes[0], "請解釋約翰福音 3:16", runner=fake)["job"]
+    long_q = "請解釋約翰福音 3:16" + "。" * (3000 - len("請解釋約翰福音 3:16"))
+    assert "3000" in store.ask(codes[0], long_q + "。", runner=fake)["error"]  # too long
+    job = store.ask(codes[0], long_q, runner=fake)["job"]  # 3000 is still fine
     for _ in range(50):
         if store.job(codes[0], job)["status"] != "running":
             break
@@ -283,10 +285,12 @@ def test_sermon_workspace_start_turns_board_and_assemble(tmp_path):
     assert store.ws_get(pastors, pid, "李牧師") is None  # another pastor cannot open it
     turn = lambda p, m, model: {"kind": "sermon_turn", "project": p["id"], "model": "m", "prompt": m, "final_text": "引言草稿",
                                 "outcome": "completed", "steps": [], "usage_total": {}, "cost_usd": 0.01, "check_summary": {}}
-    j = _wait(store, pastors, store.ws_turn(pastors, {"project": pid, "message": "寫引言"}, "王牧師", turn)["job"], "王牧師")
+    ask = "寫引言" + "。" * 3997
+    assert "4000" in store.ws_turn(pastors, {"project": pid, "message": ask + "。"}, "王牧師", turn)["error"]
+    j = _wait(store, pastors, store.ws_turn(pastors, {"project": pid, "message": ask}, "王牧師", turn)["job"], "王牧師")
     item = j["item"]
     got = store.ws_get(pastors, pid, "王牧師")
-    assert [t["ask"] for t in got["turns"]] == ["寫引言"] and got["turns"][0]["reply"] == "引言草稿"
+    assert [t["ask"] for t in got["turns"]] == [ask] and got["turns"][0]["reply"] == "引言草稿"
     assert "還沒有段落" in store.ws_assemble(pastors, {"project": pid}, "王牧師")["error"]
     assert store.ws_board(pastors, {"project": pid, "action": "add", "item": item, "label": "引言"}, "王牧師")["ok"]
     assert store.ws_board(pastors, {"project": pid, "action": "text", "index": 0, "text": "改過的引言"}, "王牧師")["board"][0]["text"] == "改過的引言"

@@ -978,8 +978,8 @@ class Store:
         if err:
             return {"error": err}
         question = (question or "").strip()
-        if not 2 <= len(question) <= 1000:
-            return {"error": "問題請在 2 到 1000 字之間"}
+        if not 2 <= len(question) <= 3000:
+            return {"error": "問題請在 2 到 3000 字之間"}
         with self.lock:
             if self._spent() >= self.chat["budget_usd"]:
                 return {"error": "本次測試的提問額度已用完，謝謝您的參與"}
@@ -1164,8 +1164,8 @@ class Store:
         if p is None:
             return {"error": "找不到這篇講章"}
         message = str(body.get("message") or "").strip()
-        if kind == "sermon_turn" and not 1 <= len(message) <= 1500:
-            return {"error": "請輸入要求（1500 字以內）"}
+        if kind == "sermon_turn" and not 1 <= len(message) <= 4000:
+            return {"error": "請輸入要求（4000 字以內）"}
         if kind == "sermon_draft" and not p.get("board"):
             return {"error": "講稿板上還沒有段落，請先把滿意的回答加入講稿"}
         with self.lock:
