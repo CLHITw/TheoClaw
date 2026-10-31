@@ -1614,7 +1614,8 @@ def make_handler(store: Store):
                 if acct:
                     nick = store._user(acct["name"])["nick"] if GROUP_SEP in acct["name"] else acct["name"]
                 return self._json({"google": store.google is not None,
-                                   "account": acct["name"] if acct else None, "nick": nick})
+                                   "account": acct["name"] if acct else None, "nick": nick,
+                                   "traditions": store.traditions()})  # for the front page's choice
             if u.path == "/auth/logout":  # end this browser's Google session; the local identity is untouched
                 code = (q.get("t") or [""])[0]
                 back = "/?" + urlencode({"t": code}) if store.rater(code) else "/"
