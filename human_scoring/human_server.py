@@ -59,6 +59,7 @@ sys.path.insert(0, str(ROOT))
 from theoclaw.evals.human import (Item, calibration_sample, load_items,  # noqa: E402
                                   load_rubric, rating_record)
 from human_scoring import db as db_mod  # noqa: E402
+from theoclaw.common import denominations as denoms  # noqa: E402
 from theoclaw.common.corpus import TAGS  # noqa: E402
 from human_scoring.db import DB, import_files, run_key  # noqa: E402
 from human_scoring.files_store import FileStore  # noqa: E402
@@ -78,8 +79,8 @@ CALL_TIMEOUT = 90                        # 秒；每一次呼叫模型的等候�
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
-# 宗派：在輸入稱呼時選一次，記在提問與評分裡。現在只作記錄，回答仍以循道衛理立場為主；
-# 之後可按宗派選用對應的 wiki，「無宗派」則用所有承認三位一體信仰的傳統。
+# 宗派：記在提問與評分裡。頁面上可選有知識庫的傳統（theoclaw.common.denominations：循道衛理、信義會、
+# 浸信會、聖公會），回答就用該傳統的知識庫和立場；其他選項只作記錄，回答以循道衛理立場為主。
 DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
@@ -578,6 +579,7 @@ class Store:
         r = self.who(code, nick)
         if r is None:
             return {"need_name": True, "group": self.raters[code]["name"], "denominations": DENOMINATIONS,
+                    "traditions": self.traditions(),
                     "pastor": self.is_pastor(self.raters[code]), "google": self.google is not None}
         done = self.done(r["name"])
         chat = None
@@ -605,7 +607,7 @@ class Store:
             if self.is_pastor(r) and self.chat.get("sermon_daily_limit"):
                 chat["sermon"] = {"remaining_today": max(0, self.chat["sermon_daily_limit"] - self._today(r["name"], "sermon_start"))}
         return {"rater": r.get("nick", r["name"]), "order": r["order"], "done": sorted(i for i in done if i in r["order"]),
-                "problems": PROBLEMS, "chat": chat, "denominations": DENOMINATIONS,
+                "problems": PROBLEMS, "chat": chat, "denominations": DENOMINATIONS, "traditions": self.traditions(),
                 "consented": self.db.consented(r["name"]),
                 "google": self.google is not None, "account": bool(r.get("account")), "pastor": self.is_pastor(r),
                 "rubric": {"scale": self.rubric["scale"], "verdict": self.rubric["verdict"],
@@ -1012,7 +1014,7 @@ class Store:
 
         def run(_q):
             from theoclaw.agent.quotes import answer_language
-            rec = (runner or (lambda p: self._run_agent(p, prefs or None)))(prompt)
+            rec = (runner or (lambda p: self._run_agent(p, prefs or None, denom)))(prompt)
             text = rec.get("final_text") or ""
             rec.update(prompt=question, conv=conv, turn=len(history) + 1,  # shown and graded as the person asked it
                        lang=answer_language(text) if text else (lang if lang in ("en", "de") else "zh"))
@@ -1043,20 +1045,19 @@ class Store:
             job = secrets.token_hex(6)
             self.jobs[job] = {"name": r["name"], "status": "running", "item": None, "error": None,
                               "started": time.time(), "kind": "sermon", "timeout": SERMON_TIMEOUT}
-        run = runner or (lambda _q: self._run_sermon(f))
+        tradition = body.get("denomination") if body.get("denomination") in DENOMINATIONS else None
+        run = runner or (lambda _q: self._run_sermon(f, tradition))
         from theoclaw.agent.sermon import request_text
         question = request_text(f["passage"], f["theme"], f["audience"], f["length"], f["notes"])
         threading.Thread(target=self._answer, args=(job, r["name"], question, run, body.get("denomination") if body.get("denomination") in DENOMINATIONS else None),
                          daemon=True).start()
         return {"job": job}
 
-    def _run_sermon(self, f: dict) -> dict:
+    def _run_sermon(self, f: dict, denomination: str | None = None) -> dict:
         from theoclaw.agent.sermon import prepare
-        kb = self.chat.get("kb")
-        if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
-            kb = None  # the knowledge base was not deployed: Wesley's notes only
+        d = denoms.get(denomination)
         return prepare(f["passage"], theme=f["theme"], audience=f["audience"], length=f["length"], notes=f["notes"],
-                       model=self.chat["model"], kb=kb)
+                       model=self.chat["model"], kb=self.kb_for(d), denomination=d.key)
 
     # ------------------------------------------------------------ sermon workspace (pastors)
 
@@ -1135,10 +1136,9 @@ class Store:
         def work():
             try:
                 from theoclaw.agent import workspace
-                kb = self.chat.get("kb")
-                if kb and not (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file():
-                    kb = None
-                p = (runner or workspace.start)(f, owner=r["name"], model=self.chat["model"], kb=kb)
+                d = denoms.get(body.get("denomination"))
+                p = (runner or workspace.start)(f, owner=r["name"], model=self.chat["model"], kb=self.kb_for(d),
+                                                denomination=d.key)
                 with self.lock:
                     self._save_project(p)
                     self._log_cost(r["name"], "sermon_start", p.get("research_cost_usd") or 0.0, p["id"])
@@ -1326,27 +1326,54 @@ class Store:
         or to rate chat answers; blind scoring of packaged answers is not gated)."""
         return None if self.db.consented(r["name"]) else "請先同意使用對話作改進（在頁面上勾選「同意」後繼續）"
 
-    def _lay_tools(self):
-        """Lay members' tools: scripture and Wesley's notes, plus the Methodist knowledge base when it
-        is on this server. Built once (the search index takes a moment) and shared by all questions."""
-        from theoclaw.agent.tools import build_tool_set
-        with self.lock:
-            if getattr(self, "_lay_ts", None) is None:
-                kb = self.chat.get("kb")
-                if kb and (ROOT / "knowledge" / kb).is_dir():
-                    self._lay_ts = build_tool_set("scripture,wesley,kb,rag", kb=ROOT / "knowledge" / kb)
-                else:
-                    sys.stderr.write(f"knowledge base {kb!r} not found; lay questions use scripture,wesley only\n")
-                    self._lay_ts = build_tool_set("scripture,wesley")
-            return self._lay_ts
+    def kb_for(self, denomination=None) -> str | None:
+        """The tradition's compiled knowledge base when it is on this server, else None. Methodist's is
+        --kb; the others are named in the chat settings' "kbs" or by theoclaw.common.denominations."""
+        d = denoms.get(denomination)
+        kb = self.chat.get("kb") if d.wesley else (self.chat.get("kbs") or {}).get(d.key, d.kb)
+        return kb if kb and (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file() else None
 
-    def _run_agent(self, question: str, bible: dict | None = None) -> dict:
+    def traditions(self) -> list[str]:
+        """The traditions a reader can pick on the page: Methodist, and every other one whose
+        knowledge base is on this server."""
+        if not self.chat:
+            return [denoms.METHODIST.label]
+        return [d.label for d in denoms.DENOMS.values() if d.wesley or self.kb_for(d)]
+
+    def _lay_tools(self, denomination: str | None = None):
+        """Lay members' tools for a tradition: scripture (Methodist also Wesley's notes), plus the
+        tradition's knowledge base when it is on this server. Built once per tradition, when first
+        asked (the search index takes a moment), and shared by all questions."""
+        from theoclaw.agent.tools import build_tool_set
+        d = denoms.get(denomination)
+        with self.lock:
+            if not hasattr(self, "_lay_ts"):
+                self._lay_ts = {}
+            if d.key not in self._lay_ts:
+                if d.wesley:
+                    kb = self.chat.get("kb")
+                    if kb and (ROOT / "knowledge" / kb).is_dir():
+                        ts = build_tool_set("scripture,wesley,kb,rag", kb=ROOT / "knowledge" / kb)
+                    else:
+                        sys.stderr.write(f"knowledge base {kb!r} not found; lay questions use scripture,wesley only\n")
+                        ts = build_tool_set("scripture,wesley")
+                else:
+                    kb = self.kb_for(d)
+                    if kb:
+                        ts = build_tool_set("scripture,kb,rag", kb=ROOT / "knowledge" / kb, denomination=d.key)
+                    else:
+                        sys.stderr.write(f"no knowledge base for {d.key}; its lay questions use scripture only\n")
+                        ts = build_tool_set("scripture", denomination=d.key)
+                self._lay_ts[d.key] = ts
+            return self._lay_ts[d.key]
+
+    def _run_agent(self, question: str, bible: dict | None = None, denomination: str | None = None) -> dict:
         from theoclaw.agent.loop import run_agent
         from theoclaw.agent.tools import build_tool_set
         from theoclaw.common.pricing import cost
         from theoclaw.llm import make_client, role
         rl = role("agent", model=self.chat["model"])
-        ts = self._lay_tools()
+        ts = self._lay_tools(denomination)
         run = run_agent(make_client(provider=rl.provider, params=rl.params, timeout=CALL_TIMEOUT), question, model=rl.model,
                         handlers=ts.handlers, tools=ts.defs, system=ts.system, effort=rl.effort,
                         max_tokens=rl.max_tokens, bible=bible)
@@ -1819,6 +1846,9 @@ def main(argv=None):
     p.add_argument("--sermon-daily-limit", type=int, default=15, help="每位牧者每天最多預備幾篇講章（0 = 關閉）")
     p.add_argument("--kb", "--sermon-kb", dest="kb", default=METHODIST_KB,
                    help="循道衛理知識庫（平信徒提問與講道預備共用）")
+    p.add_argument("--tradition-kb", action="append", default=[], metavar="KEY=NAME",
+                   help="其他傳統的知識庫（預設 lutheran.en.deepseek-flash 等，見 theoclaw/common/denominations.py），"
+                        "例如 --tradition-kb lutheran=lutheran.en.qwen3.8-max；沒有編譯好的傳統不會出現在頁面上")
     p.add_argument("--rubric", default=str(RUBRIC_10),
                    help="評分標準（預設一個 0–10 分；五項評分用 config/human_rubric.yaml）")
     p.add_argument("--storage", choices=("files", "db"), default=STORAGE,
@@ -1883,7 +1913,7 @@ def main(argv=None):
     else:
         chat = ({"model": a.chat_model, "daily_limit": a.daily_limit, "budget_usd": a.budget,
                  "group_daily_limit": a.group_daily_limit, "sermon_daily_limit": a.sermon_daily_limit,
-                 "kb": a.kb} if a.chat else None)
+                 "kb": a.kb, "kbs": dict(x.split("=", 1) for x in a.tradition_kb)} if a.chat else None)
         try:
             store = Store(chat=chat, rubric=Path(a.rubric), storage=a.storage)
         except Exception as e:  # the database is the usual cause: say so in one line, not a traceback

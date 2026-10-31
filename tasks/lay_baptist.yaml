@@ -1,0 +1,84 @@
+# 浸信會平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「浸信會知識庫與立場」。
+#   之前：python -m theoclaw.evals run --tasks tasks/lay_baptist.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1 --label baptist-before
+#   之後：python -m theoclaw.evals run --tasks tasks/lay_baptist.yaml --tools scripture,kb,rag --kb baptist.en.deepseek-flash --denomination baptist --n 1 --label baptist-after
+#   評分：python -m theoclaw.evals ground score <兩個 run> --model deepseek-flash
+# expect.facts 是浸信會的立場（1689 年倫敦浸信會信條、新罕布什爾信條等）；ground 的 fact recall 就是「忠於宗派」的分數。
+
+- id: ba-believers-baptism
+  category: ordinances
+  prompt: 浸信會為甚麼不給嬰孩施洗？一定要全身浸入水中嗎？
+  expect:
+    facts:
+      - 只有親自承認悔改、相信、順服主耶穌的人，才是洗禮的合宜對象（1689 年倫敦浸信會信條第 29 章）。
+      - 浸入水中（immersion）是正確施行洗禮的必要方式。
+  graders: []
+
+- id: ba-lords-supper
+  category: ordinances
+  prompt: 浸信會怎樣看聖餐（主餐）？基督的身體真的在餅裡面嗎？
+  expect:
+    facts:
+      - 主餐是記念基督的死，信徒在其中屬靈地（藉著信心）領受基督，不是肉身地臨在於餅和酒中（1689 年信條第 30 章）。
+      - 浸信會拒絕變質說，也不接受基督身體在餅酒之中或之下的說法。
+      - 浸信會多稱洗禮和主餐為「禮儀」（ordinances），是基督設立的。
+  graders: []
+
+- id: ba-congregational
+  category: polity
+  prompt: 浸信會的教會由誰管理？有沒有主教或總會管轄各堂？
+  expect:
+    facts:
+      - 每個地方教會由信徒組成，有權自己選立長老（牧師）和執事，處理自己的事務（1689 年信條第 26 章）。
+      - 地方教會之間可以彼此聯繫、諮詢，但沒有管轄其他教會的權柄。
+  graders: []
+
+- id: ba-soul-liberty
+  category: liberty
+  prompt: What do Baptists mean by liberty of conscience? Should the government decide what church people belong to?
+  expect:
+    facts:
+      - God alone is Lord of the conscience (Second London Confession, chapter 21).
+      - Civil government should not bind the conscience in matters of faith and worship.
+  graders: []
+
+- id: ba-regenerate-membership
+  category: polity
+  prompt: 在浸信會，誰可以成為教會的會友？
+  expect:
+    facts:
+      - 會友應該是已經重生、公開承認信仰並受了浸的信徒（新罕布什爾信條：教會是受了浸的信徒的群體）。
+  graders: []
+
+- id: ba-perseverance
+  category: doctrine
+  prompt: 得救的人會不會失去救恩？浸信會和衛理宗看法一樣嗎？
+  expect:
+    facts:
+      - 上帝在愛子裡接納、有效呼召並使之成聖的人，必不會完全或最終從恩典中墮落，必堅忍到底而得救（1689 年信條第 17 章）。
+      - 這和衛斯理（認為信徒可能失去救恩）不同，答案應指出兩者的分別。
+  graders: []
+
+- id: ba-scripture
+  category: doctrine
+  prompt: Why do Baptists say Scripture alone is the rule of faith? What about church traditions?
+  expect:
+    facts:
+      - The Holy Scripture is the only sufficient, certain and infallible rule of all saving knowledge, faith and obedience (Second London Confession, chapter 1).
+  graders: []
+
+- id: ba-gospel-offer
+  category: doctrine
+  prompt: 既然相信上帝揀選，浸信會還要向所有人傳福音嗎？富勒怎樣說？
+  expect:
+    facts:
+      - 安德烈·富勒在《福音值得全然接受》中主張，所有聽見福音的人都有責任相信基督，所以應當向所有人傳福音、勸人信主。
+  graders: []
+
+- id: ba-spurgeon-grace
+  category: writers
+  prompt: 司布真在《全是恩典》（All of Grace）中怎樣解釋人因信得救？
+  expect:
+    facts:
+      - 司布真強調得救全是出於上帝的恩典，藉著信心領受，不是靠人的行為。
+      - 信心是接受、倚靠基督，不是功勞。
+  graders: []

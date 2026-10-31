@@ -7,7 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from .build import LANGUAGES, PROFILES_FILE, compile_kb, describe_inputs, load_profiles, make_plan, prepare_inputs
+from .build import (COMPILE_USD_PER_100K, LANGUAGES, PROFILES_FILE, compile_kb, describe_inputs, estimate_cost,
+                    load_profiles, make_plan, model_slug, prepare_inputs)
 from ...common.zh import pad
 from .sources import find_source, pdf_outline
 
@@ -71,6 +72,12 @@ def cmd_build(args) -> None:
     if counter:
         print(f"(tokens counted with {args.count_tokens}'s tokenizer; OpenKB reads each input several times "
               f"while compiling, so the compile itself uses a multiple of this)")
+    est = estimate_cost(rows, plan.model)
+    searched = sum(r["chars"] for r in rows if r["kind"] == "search")
+    if est is not None:
+        r = COMPILE_USD_PER_100K[model_slug(plan.model)]
+        print(f"estimated compile cost ≈ ${est:.2f} (rough: per 100k characters about ${r['pageindex']} for long PDFs "
+              f"page by page, ${r['short']} for text and short PDFs; {searched:,} search-only characters cost nothing)")
     (plan.root / "inputs.json").write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.dry_run:
         print("\ndry run: inputs prepared, nothing compiled")

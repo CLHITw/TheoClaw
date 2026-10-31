@@ -24,7 +24,7 @@ import secrets
 import time
 
 from .loop import run_agent
-from .sermon import WRITER, _usage_cost, deterministic_checks, model_check
+from .sermon import _usage_cost, deterministic_checks, model_check, texts
 from .tools import build_tool_set
 
 BOARD_CHARS = 6000       # the board as shown to the assistant (the assembler sees all of it)
@@ -52,26 +52,43 @@ ASSISTANT = """你是牧者的講章助手，和牧者一步一步預備一篇�
 ASSEMBLE = """以下是牧者已經選定、按順序排好的講稿段落。請把它們整合成一篇完整的講章：
 盡量保留牧者選定段落的原文與要點標註 [A2]、[B1]，只補上必要的講題、銜接句和結語；不要加入摘要以外的新事實。"""
 
+
+
+def assistant_text(denomination=None) -> str:
+    """ASSISTANT for a tradition (theoclaw.common.denominations); Methodist gets it unchanged."""
+    from ..common.denominations import get
+    d = get(denomination)
+    if d.wesley:
+        return ASSISTANT
+    return (ASSISTANT.replace("衛斯理或歷史背景", f"{d.name}傳統或歷史背景")
+            .replace("衛斯理註釋、文獻", f"{d.name}的信條與著作")
+            .replace("（衛斯理註釋 路加福音 15:16）", f"（{d.cite_example}）")
+            .replace("（衛斯理、辭典）", "（信條、著作、辭典）"))
+
+
 _WRITING_HINT = re.compile(r"寫|改|擴充|縮短|段落|引言|結語|例證|例子|大綱|講稿|draft|write|rewrite|paragraph|introduction", re.I)
 
 
-def _tool_groups(kb: str | None) -> str:
+def _tool_groups(kb: str | None, denomination: str | None = None) -> str:
+    from ..common.denominations import get
     from . import reference
-    groups = "scripture,wesley" + (",reference" if reference.available() else "")
+    groups = ("scripture,wesley" if get(denomination).wesley else "scripture") + (",reference" if reference.available() else "")
     return groups + (",kb,rag" if kb else "")
 
 
-def start(fields: dict, *, owner: str, model: str = "deepseek-flash", kb: str | None = None, client=None) -> dict:
+def start(fields: dict, *, owner: str, model: str = "deepseek-flash", kb: str | None = None, client=None,
+          denomination: str | None = None) -> dict:
     from .sermon import research
     r = research(fields["passage"], theme=fields.get("theme", ""), audience=fields.get("audience", ""),
                  length=fields.get("length", ""), notes=fields.get("notes", ""), model=model, kb=kb, client=client,
-                 lang=fields.get("lang") or "zh")
+                 lang=fields.get("lang") or "zh", denomination=denomination)
     costs = sum((r[k].get("cost_usd") or 0.0) for k in ("research_scripture", "research_tradition"))
     research_steps = [s for k in ("research_scripture", "research_tradition") for s in r[k].get("steps", [])]
     return {"id": secrets.token_hex(6), "owner": owner, "created": time.strftime("%Y%m%d-%H%M%S"),
             **{k: fields.get(k, "") for k in ("passage", "theme", "audience", "length", "notes")},
             "request": r["request"], "briefs": r["briefs"], "word_study": r["word_study"],
             "research_steps": research_steps, "research_cost_usd": costs, "kb": kb, "lang": fields.get("lang") or "zh",
+            "denomination": denomination,
             "board": [], "turns": []}
 
 
@@ -109,7 +126,8 @@ def _check(project: dict, run: dict, rl, client, force_model: bool) -> dict:
     text = run.get("final_text") or ""
     out = {"deterministic": det, "model": None, "cost_usd": 0.0}
     if force_model or len(text) >= CHECK_MIN_CHARS:
-        chk, usd = model_check(client, rl.model, evidence, text, rl.max_tokens)
+        chk, usd = model_check(client, rl.model, evidence, text, rl.max_tokens,
+                               texts(project.get("denomination"))["check"])
         out.update(model=chk, cost_usd=usd)
     return out
 
@@ -133,12 +151,13 @@ def turn(project: dict, message: str, *, model: str = "deepseek-flash", client=N
     """One request in the workspace; returns a trace-shaped record and adds the turn to the project."""
     rl, client = _client(model, client)
     from .prompt import system_prompt
-    ts = build_tool_set(_tool_groups(project.get("kb")), kb=project.get("kb"))
-    tool_notes = ts.system[len(system_prompt(ts.groups)):]
+    denom = project.get("denomination")
+    ts = build_tool_set(_tool_groups(project.get("kb"), denom), kb=project.get("kb"), denomination=denom)
+    tool_notes = ts.system[len(system_prompt(ts.groups, denom)):]
     prompt = state_text(project) + "\n\n【牧者這一次的要求】\n" + message
     t0 = time.perf_counter()
     run = run_agent(client, prompt, model=rl.model, handlers=ts.handlers, tools=ts.defs,
-                    system=ASSISTANT + tool_notes, effort=rl.effort, max_tokens=rl.max_tokens).to_dict()
+                    system=assistant_text(denom) + tool_notes, effort=rl.effort, max_tokens=rl.max_tokens).to_dict()
     run["cost_usd"] = _usage_cost(run, rl.model)
     writing = bool(_WRITING_HINT.search(message))
     check = _check(project, run, rl, client, force_model=writing and len(run.get("final_text") or "") >= 150)
@@ -162,7 +181,7 @@ def assemble(project: dict, *, model: str = "deepseek-flash", client=None) -> di
               f"【牧者選定的段落】\n{pieces}\n\n{ASSEMBLE}")
     handlers = build_tool_set("scripture").handlers
     t0 = time.perf_counter()
-    run = run_agent(client, prompt, model=rl.model, handlers=handlers, tools=[], system=WRITER,
+    run = run_agent(client, prompt, model=rl.model, handlers=handlers, tools=[], system=texts(project.get("denomination"))["writer"],
                     effort=rl.effort, max_tokens=rl.max_tokens).to_dict()
     run["cost_usd"] = _usage_cost(run, rl.model)
     check = _check({**project, "briefs": project["briefs"] + "\n\n【牧者選定的段落】\n" + pieces}, run, rl, client, True)

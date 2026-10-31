@@ -275,7 +275,7 @@ def test_sermon_workspace_start_turns_board_and_assemble(tmp_path):
                      chat_dir=tmp_path / "chat")
     _consent(store, pastors, "王牧師")
     assert "牧者" in store.ws_start(lay, {"passage": "路加福音 15"}, "小明")["error"]
-    start = lambda f, owner, model, kb: {"id": "a1b2c3d4e5f6", "owner": owner, "created": "20261017-100000",
+    start = lambda f, owner, model, kb, denomination=None: {"id": "a1b2c3d4e5f6", "owner": owner, "created": "20261017-100000",
                                           "passage": f["passage"], "theme": f["theme"], "request": "經文：" + f["passage"],
                                           "briefs": "[A1] 要點", "word_study": "| 表 |", "board": [], "turns": [],
                                           "research_cost_usd": 0.02}
@@ -490,7 +490,7 @@ def test_consent_gate_blocks_chat_writes_until_given(tmp_path, monkeypatch):
     fake = lambda q: {"model": "m", "prompt": q, "final_text": "答", "outcome": "completed",
                       "steps": [], "usage_total": {}, "cost_usd": 0.001}
     assert "同意" in store.ask(lay, "我還沒有同意", runner=fake, nick=me)["error"]
-    start = lambda f, owner, model, kb: {"id": "abc123def456", "owner": owner, "created": "20261018-100000",
+    start = lambda f, owner, model, kb, denomination=None: {"id": "abc123def456", "owner": owner, "created": "20261018-100000",
                                           "passage": f["passage"], "theme": f.get("theme"), "request": f["passage"],
                                           "briefs": "", "word_study": "", "board": [], "turns": [],
                                           "research_cost_usd": 0.01}
@@ -1121,3 +1121,30 @@ def test_admin_review_reads_another_database_read_only(tmp_path, monkeypatch):
     got = store.review()
     assert [(x["question"], x["answer"], x["score"]) for x in got] == [("正式服的問題", "正式服的回答", 5)]
     assert len(prod.ratings()) == 1 and len(prod.answers()) == 1  # nothing written there
+
+
+def test_tradition_picks_the_knowledge_base_and_stance(tmp_path, monkeypatch):
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "kb": "no-such-kb",
+                                 "kbs": {"lutheran": "no-such-lutheran-kb", "baptist": "no-such-baptist-kb",
+                                         "anglican": "no-such-anglican-kb"}},
+                     chat_dir=tmp_path / "chat")
+    # only traditions with a knowledge base on the server are offered; Methodist always
+    assert store.state(code)["traditions"] == ["循道衛理 Methodist"]
+    assert store.kb_for("lutheran") is None
+    ts = store._lay_tools("信義會 Lutheran")  # no KB: scripture only, Lutheran stance, no Wesley
+    assert ts.meta["tools"] == ["scripture"] and ts.meta["denomination"] == "lutheran" and "信義宗" in ts.system
+    assert store._lay_tools("信義會 Lutheran") is ts  # built once
+    assert store._lay_tools(None).meta["tools"] == ["scripture", "wesley"]
+    seen = []
+    monkeypatch.setattr(store, "_run_agent", lambda q, bible=None, denomination=None: seen.append(denomination) or {
+        "model": "m", "prompt": q, "final_text": "answer", "outcome": "completed", "steps": [], "usage_total": {},
+        "cost_usd": 0.001})
+    _consent(store, code, "Tom")
+    store.ask(code, "What is the Lord's Supper?", nick="Tom", denomination="浸信會 Baptist")
+    store.ask(code, "Another?", nick="Tom", denomination="made up")
+    time.sleep(0.3)
+    assert seen == ["浸信會 Baptist", None]

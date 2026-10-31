@@ -89,6 +89,34 @@ English key phrase in quotation marks with the source.
 Keep the [A1] / [B1] numbering. Original-language words: the Greek or Hebrew word, transliteration and meaning in German.
 Where the instructions say 查不到, write "nicht gefunden"."""
 
+RESEARCH_TRADITION_OTHER = """你是講道預備的神學研究助理，從{name}傳統為牧者整理一份研究摘要，不寫講章。
+用工具查{sources}中與指定經文和主題相關的內容；只用查到的原文。
+輸出格式（只輸出這些）：
+## {brief}
+[B1] 一個要點（一兩句，可附原文的關鍵英文短句）。出處：文獻名稱與條目或頁碼
+[B2] ……
+最多 8 點。每點都要有出處；查不到就寫「查不到」，不要憑記憶補，也不要把一般神學常識或其他宗派的看法說成{name}的立場。"""
+
+
+def texts(denomination=None) -> dict:
+    """The pipeline's instructions for a tradition (theoclaw.common.denominations); Methodist
+    gets the texts above unchanged."""
+    from ..common.denominations import get
+    d = get(denomination)
+    if d.wesley:
+        return {"research": RESEARCH_TRADITION, "writer": WRITER, "check": CHECK, "en": ENGLISH_BRIEF, "de": GERMAN_BRIEF}
+    return {
+        "research": RESEARCH_TRADITION_OTHER.format(name=d.name, sources=d.sources, brief=d.brief_zh),
+        "writer": WRITER.replace("替循道衛理的牧者", f"替{d.name}的牧者").replace("衛斯理或歷史", f"{d.name}傳統或歷史"),
+        "check": CHECK.replace("衛斯理、教會歷史", f"{d.name}傳統、教會歷史"),
+        "en": ENGLISH_BRIEF.replace("Wesley and Methodist tradition brief", d.brief_en)
+                           .replace("\"Wesley's Notes, Romans 5:8\", ", ""),
+        "de": GERMAN_BRIEF.replace("Wesley und die methodistische Tradition", d.brief_de)
+                          .replace('"John Wesleys Anmerkungen zum Neuen Testament, Römer 5,8", ', "")
+                          .replace("Wesley's words:", "Words of the confessions and writers:"),
+    }
+
+
 _POINT = re.compile(r"\[([AB]\d{1,2})\]")
 
 
@@ -96,11 +124,11 @@ def _usage_cost(run_dict: dict, model: str) -> float:
     return cost(run_dict.get("usage_total") or {}, model) or 0.0
 
 
-def _agent(client, model, system, prompt, groups, kb, max_tokens, effort) -> dict:
+def _agent(client, model, system, prompt, groups, kb, max_tokens, effort, denomination=None) -> dict:
     """A research agent: its own instructions plus the usage notes of its tools (wiki, search)."""
     from .prompt import system_prompt
-    ts = build_tool_set(groups, kb=kb)
-    tool_notes = ts.system[len(system_prompt(ts.groups)):]
+    ts = build_tool_set(groups, kb=kb, denomination=denomination)
+    tool_notes = ts.system[len(system_prompt(ts.groups, denomination)):]
     run = run_agent(client, prompt, model=model, handlers=ts.handlers, tools=ts.defs, system=system + tool_notes,
                     effort=effort, max_tokens=max_tokens, fill_quotes=False)
     d = run.to_dict()
@@ -137,10 +165,10 @@ def deterministic_checks(draft_run: dict, briefs: str) -> dict:
             "internal_words": None if internal.passed else internal.details}
 
 
-def model_check(client, model, briefs: str, draft: str, max_tokens: int) -> tuple[dict, float]:
+def model_check(client, model, briefs: str, draft: str, max_tokens: int, check: str = CHECK) -> tuple[dict, float]:
     from ..evals.judge import parse_json
     from ..llm.usage import anthropic_usage
-    resp = client.messages.create(model=model, max_tokens=max_tokens, system=CHECK,
+    resp = client.messages.create(model=model, max_tokens=max_tokens, system=check,
                                   messages=[{"role": "user", "content": f"【研究摘要】\n{briefs}\n\n【講章草稿】\n{draft}"}])
     text = "".join(b.text for b in resp.content if b.type == "text")
     usd = cost(anthropic_usage(resp.usage), model) or 0.0
@@ -167,7 +195,8 @@ def problems_of(det: dict, chk: dict) -> list[str]:
 
 
 def research(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
-             model: str = "deepseek-flash", kb: str | None = None, client=None, lang: str = "zh") -> dict:
+             model: str = "deepseek-flash", kb: str | None = None, client=None, lang: str = "zh",
+             denomination: str | None = None) -> dict:
     """The research stage alone: the program-built word study, then the two research agents in
     parallel. Used by prepare() and, once per sermon, by the pastor's workspace."""
     from ..llm import make_client, role
@@ -182,7 +211,8 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
     else:
         word_table = original.render(original.word_study(passage) + original.theme_words(theme), lang=lang)
 
-    extra = ENGLISH_BRIEF if lang == "en" else (GERMAN_BRIEF if lang == "de" else "")
+    tx = texts(denomination)
+    extra = tx["en"] if lang == "en" else (tx["de"] if lang == "de" else "")
 
     def one(kind):
         if kind == "A":
@@ -191,8 +221,9 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
             from . import reference
             groups = "scripture,reference" if reference.available() else "scripture"
             return _agent(client, rl.model, RESEARCH_SCRIPTURE + extra, prompt, groups, None, rl.max_tokens, rl.effort)
-        groups = "scripture,wesley" + (",kb,rag" if kb else "")
-        return _agent(client, rl.model, RESEARCH_TRADITION + extra, req, groups, kb, rl.max_tokens, rl.effort)
+        from ..common.denominations import get
+        groups = ("scripture,wesley" if get(denomination).wesley else "scripture") + (",kb,rag" if kb else "")
+        return _agent(client, rl.model, tx["research"] + extra, req, groups, kb, rl.max_tokens, rl.effort, denomination)
 
     with ThreadPoolExecutor(max_workers=2) as ex:
         ra, rb = ex.map(one, ["A", "B"])
@@ -202,10 +233,13 @@ def research(passage: str, *, theme: str = "", audience: str = "", length: str =
 
 
 def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = "", notes: str = "",
-            model: str = "deepseek-flash", kb: str | None = None, client=None, revise: bool = True) -> dict:
+            model: str = "deepseek-flash", kb: str | None = None, client=None, revise: bool = True,
+            denomination: str | None = None) -> dict:
     """Run the whole pipeline; returns a trace-shaped record."""
     t0 = time.perf_counter()
-    r = research(passage, theme=theme, audience=audience, length=length, notes=notes, model=model, kb=kb, client=client)
+    r = research(passage, theme=theme, audience=audience, length=length, notes=notes, model=model, kb=kb, client=client,
+                 denomination=denomination)
+    tx = texts(denomination)
     rl, client, req, word_table, briefs = r["rl"], r["client"], r["request"], r["word_study"], r["briefs"]
     stages: dict = {"research_scripture": r["research_scripture"], "research_tradition": r["research_tradition"]}
 
@@ -215,24 +249,24 @@ def prepare(passage: str, *, theme: str = "", audience: str = "", length: str = 
     if zh.available():
         script = zh.script_of(req)
     writer_prompt = f"【牧者的要求】\n{req}\n\n【研究摘要】\n{briefs}"
-    draft = run_agent(client, writer_prompt, model=rl.model, handlers=handlers, tools=[], system=WRITER,
+    draft = run_agent(client, writer_prompt, model=rl.model, handlers=handlers, tools=[], system=tx["writer"],
                       effort=rl.effort, max_tokens=rl.max_tokens, script=script).to_dict()
     draft["cost_usd"] = _usage_cost(draft, rl.model)
     stages["write"] = draft
     det = deterministic_checks(draft, briefs)
-    chk, chk_usd = model_check(client, rl.model, briefs, draft.get("final_text") or "", rl.max_tokens)
+    chk, chk_usd = model_check(client, rl.model, briefs, draft.get("final_text") or "", rl.max_tokens, tx["check"])
     stages["check"] = {"deterministic": det, "model": chk, "cost_usd": chk_usd}
     final = draft
     issues = problems_of(det, chk)
     if issues and revise:
         rev_prompt = (f"{writer_prompt}\n\n【你上一版的草稿】\n{draft.get('model_text') or draft.get('final_text')}\n\n"
                       "【查核發現的問題，請逐一修正後重寫全文】\n" + "\n".join(f"- {i}" for i in issues))
-        final = run_agent(client, rev_prompt, model=rl.model, handlers=handlers, tools=[], system=WRITER,
+        final = run_agent(client, rev_prompt, model=rl.model, handlers=handlers, tools=[], system=tx["writer"],
                           effort=rl.effort, max_tokens=rl.max_tokens, script=script).to_dict()
         final["cost_usd"] = _usage_cost(final, rl.model)
         stages["revise"] = final
         det2 = deterministic_checks(final, briefs)
-        chk2, usd2 = model_check(client, rl.model, briefs, final.get("final_text") or "", rl.max_tokens)
+        chk2, usd2 = model_check(client, rl.model, briefs, final.get("final_text") or "", rl.max_tokens, tx["check"])
         stages["recheck"] = {"deterministic": det2, "model": chk2, "cost_usd": usd2}
     total = sum((stages[k].get("cost_usd") or 0.0) for k in stages)
     # One trace for the scoring server: every lookup the researchers made is visible to raters.
@@ -266,9 +300,11 @@ def main(argv=None):
     ap.add_argument("--notes", default="")
     ap.add_argument("--model", default="deepseek-flash")
     ap.add_argument("--kb", help="compiled knowledge base for the tradition researcher")
+    ap.add_argument("--denomination", default=None, help="methodist（預設）、lutheran、baptist 或 anglican")
     ap.add_argument("--out", help="also save the whole record as JSON")
     a = ap.parse_args(argv)
-    rec = prepare(a.passage, theme=a.theme, audience=a.audience, length=a.length, notes=a.notes, model=a.model, kb=a.kb)
+    rec = prepare(a.passage, theme=a.theme, audience=a.audience, length=a.length, notes=a.notes, model=a.model, kb=a.kb,
+                  denomination=a.denomination)
     if a.out:
         with open(a.out, "w", encoding="utf-8") as f:
             json.dump(rec, f, ensure_ascii=False, indent=1)

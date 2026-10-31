@@ -705,6 +705,16 @@
         </svg>
         <select id="bibleSel" class="notr" onchange="setBible(this.value)" aria-label="Bible version"></select>
       </label>
+      <label id="denomPick" class="lang-pick hidden" title="宗派傳統 · Church tradition">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2v5M9.5 4.5h5"/>
+          <path d="M5 21V12l7-5 7 5v9"/>
+          <path d="M10 21v-4a2 2 0 0 1 4 0v4"/>
+          <path d="M3 21h18"/>
+        </svg>
+        <select id="denomSel" class="notr" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
+      </label>
       <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()" aria-pressed="false" title="語音朗讀">
         <span id="voiceIcon" aria-hidden="true">🔇</span><span>語音</span>
       </button>
@@ -791,7 +801,7 @@
       <input class="ask-input" id="nameInput" maxlength="20" autocomplete="off"
              style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom" oninput="updateJoin()">
     </div>
-    <!-- 宗派選擇暫時不顯示：目前只有循道衛理的資料，預設循道衛理；補上其他宗派的內容後再打開 -->
+    <!-- 宗派改在頁首選（denomPick，只列伺服器有資料的傳統）；這裡只在第一次進入時記下預設的循道衛理 -->
     <div class="hidden"><select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select></div>
     <div id="joinFixedName" class="help hidden" style="margin-top:10px">
       <span>目前使用的稱呼：</span><strong id="joinFixedWho" class="notr"></strong>
@@ -1206,6 +1216,8 @@ function start() {
   api('/api/state').then(s => {
     if (s.error) { fail(s.error); return; }
     googleOn = !!s.google;
+    traditions = s.traditions || [];
+    paintDenom();
     if (s.need_name) {
       setHeader(s.group, s.pastor);
       const sel = document.getElementById('denomSelect');
@@ -3022,7 +3034,7 @@ const DE = {
   '段落': 'Absatz', '新標題': 'Neuer Titel', '修改這一段（可直接改寫）': 'Absatz bearbeiten (direkt umschreiben)', '刪除這一段？': 'Diesen Absatz löschen?',
   '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Absätze vom Entwurfsbrett zu einer Gesamtpredigt zusammenfügen? (etwa 1 bis 2 Minuten)',
   // 語音朗讀
-  '語音': 'Sprache', '🔊 朗讀': '🔊 Vorlesen', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Weiter', '⏹ 停止': '⏹ Stopp',
+  '宗派傳統 · Church tradition': 'Konfession', '語音': 'Sprache', '🔊 朗讀': '🔊 Vorlesen', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Weiter', '⏹ 停止': '⏹ Stopp',
   '語音朗讀': 'Sprache: Antworten werden vorgelesen',
   '朗讀的聲音': 'Sprechstimme', '自動（預設）': 'Automatisch (beste Stimme)',
   '朗讀控制': 'Vorlesesteuerung', '停止朗讀': 'Vorlesen beenden',
@@ -3161,6 +3173,7 @@ function applyScript() {
   document.title = zhMode === 'de' ? 'TheoClaw – KI-Assistent für das Glaubensleben' : 'TheoClaw';
   renderAccount();
   paintBible();
+  paintDenom();
   convertNode(document.body);
   voiceRefresh();
   voicePaintToggle();
@@ -3204,6 +3217,33 @@ function paintBible() {
   sel.innerHTML = list.map(b => '<option value="' + b[0] + '" title="' + b[2] + '">' + b[1] + '</option>').join('');
   sel.value = bibleOf(lang);
   sel.title = list.find(b => b[0] === sel.value)[2];
+}
+
+// Church tradition the answers draw on: the server lists the ones it has sources for (Methodist
+// first, the default); the choice is kept with the nickname and sent with every question.
+const DENOM_NAMES = {'循道衛理 Methodist': ['循道衛理', 'Methodist', 'Methodistisch'],
+                     '信義會 Lutheran': ['信義會（路德宗）', 'Lutheran', 'Lutherisch'],
+                     '浸信會 Baptist': ['浸信會', 'Baptist', 'Baptistisch'],
+                     '聖公會 Anglican': ['聖公會', 'Anglican', 'Anglikanisch']};
+let traditions = [];
+function denomName(v) {
+  const n = DENOM_NAMES[v];
+  if (!n) return v;
+  return zhMode === 'en' ? n[1] : (zhMode === 'de' ? n[2] : (zhMode === 'hans' && zhMap ? toHans(n[0]) : n[0]));
+}
+function setDenom(v) {
+  denom = v;
+  try { localStorage.setItem(NICK_KEY + '_denom', v); } catch (e) {}
+  paintDenom();
+}
+function paintDenom() {
+  const box = document.getElementById('denomPick'), sel = document.getElementById('denomSel');
+  if (!box) return;
+  box.classList.toggle('hidden', traditions.length < 2);
+  if (traditions.length < 2) return;
+  sel.innerHTML = traditions.map(d => '<option value="' + d + '">' + denomName(d) + '</option>').join('');
+  sel.value = traditions.includes(denom) ? denom : traditions[0];  // an older choice (無宗派…) shows as the default
+  sel.setAttribute('aria-label', zhMode === 'en' ? 'Church tradition' : (zhMode === 'de' ? 'Konfession' : denomName(sel.value)));
 }
 
 // Theme: an explicit choice of 跟隨系統 / 白天 / 黑夜, kept in localStorage.

@@ -100,3 +100,49 @@ profiles:
     sources:
       - {file: 04_John_Wesley_The_Journal_of_John_Wesley.pdf, name: wesley-journal.pdf}
       - {file: 07_Free_Methodist_Church_Book_of_Discipline_2019.pdf, name: free-methodist-discipline-2019.pdf}
+
+  # ── 其他宗派（來源在 E:/DESK/theoclaw/Denominations/<宗派>，都是公有領域；清單與授權見各資料夾的 SOURCES.md）
+  # 一律用文字版 PDF、按頁編譯（20 頁以上走 PageIndex，和標準講道集一樣），不把整份純文字當一份文件編。
+  # pdf/ 裡 CCEL 的 PDF 是原有的文字版（有目錄）；其他是用 scripts/md_to_pdf.py 從公有領域純文字排成的
+  # 文字版 PDF（第一頁印目錄、每頁印頁碼、附書籤），不是掃描圖片。
+  # 篇幅大、或只有文字辨識稿而沒有像樣目錄的著作 search_only：不編譯，放進 wiki/library/ 只供 rag_search 檢索，不花錢。
+  lutheran:
+    description: 信義宗（路德宗）知識庫：協同書（Triglot Concordia 1921 英譯）與路德《宗教改革的首要原則》（1883 英譯）
+    model: deepseek-flash
+    source_dir: E:/DESK/theoclaw/Denominations/Lutheran
+    sources:
+      - {file: pdf/01_augsburg_confession.pdf, name: augsburg-confession.pdf}
+      - {file: pdf/02_apology_of_the_augsburg_confession.pdf, name: apology-of-the-augsburg-confession.pdf}
+      - {file: pdf/03_smalcald_articles.pdf, name: smalcald-articles.pdf}
+      - {file: pdf/04_treatise_on_the_power_and_primacy_of_the_pope.pdf, name: treatise-on-the-power-and-primacy-of-the-pope.pdf}
+      - {file: pdf/05_small_catechism.pdf, name: small-catechism.pdf}
+      - {file: pdf/largecatechism.pdf, name: large-catechism.pdf}
+      - {file: pdf/07_formula_of_concord_epitome.pdf, name: formula-of-concord-epitome.pdf}
+      - {file: pdf/first_prin.pdf, name: luther-first-principles-95-theses-christian-liberty.pdf}
+      - {file: 08_formula_of_concord_solid_declaration.md, search_only: true, name: formula-of-concord-solid-declaration.md}
+      - {file: 12_luther_bondage_of_the_will.md, search_only: true, name: luther-bondage-of-the-will.md}
+      # 加拉太書註釋（Gutenberg #1549、CCEL）都是 Graebner 1939 年的節譯本，不確定是公有領域，不用；
+      # CCEL 的小要理問答是 2002 年的新譯本，不用（改用 Triglot 1921 譯本）
+
+  baptist:
+    description: 浸信會知識庫：1689 年倫敦浸信會信條、基奇要理問答、新罕布什爾信條、司布真《全是恩典》；司布真講道集與富勒只供檢索
+    model: deepseek-flash
+    source_dir: E:/DESK/theoclaw/Denominations/Baptist
+    sources:
+      - {file: pdf/01_second_london_baptist_confession_1689.pdf, name: second-london-baptist-confession-1689.pdf}
+      - {file: pdf/02_keach_baptist_catechism.pdf, name: keach-baptist-catechism.pdf}
+      - {file: pdf/03_new_hampshire_confession_1833.pdf, name: new-hampshire-confession-1833.pdf}
+      - {file: pdf/grace.pdf, name: spurgeon-all-of-grace.pdf}
+      - {file: 05_spurgeon_sermons_vol01_1855.md, search_only: true, name: spurgeon-sermons-1855.md}
+      - {file: 06_fuller_gospel_worthy_of_all_acceptation.md, search_only: true, name: fuller-gospel-worthy-of-all-acceptation.md}
+
+  anglican:
+    description: 聖公會知識庫：三十九條、1928 年美國公禱書（主要禮文）、朱厄爾《英格蘭教會辯護》；講道集與胡克只供檢索
+    model: deepseek-flash
+    source_dir: E:/DESK/theoclaw/Denominations/Anglican
+    sources:
+      - {file: pdf/01_thirty_nine_articles_1571.pdf, name: thirty-nine-articles.pdf}
+      - {file: pdf/03_book_of_common_prayer_1928_us_core.pdf, name: book-of-common-prayer-1928.pdf}
+      - {file: pdf/05_jewel_apology_of_the_church_of_england.pdf, name: jewel-apology-of-the-church-of-england.pdf}
+      - {file: 02_books_of_homilies.md, search_only: true, name: books-of-homilies.md}
+      - {file: 04_hooker_laws_of_ecclesiastical_polity_selection.md, search_only: true, name: hooker-laws-of-ecclesiastical-polity.md}

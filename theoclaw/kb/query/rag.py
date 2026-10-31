@@ -9,12 +9,14 @@ text measures what the compile adds.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from ...common.denominations import Denomination, get
 from ...common.tooling import Handler, ToolError
 
 CHUNK_CHARS = 1200
@@ -133,6 +135,9 @@ def index_wiki_sources(wiki_dir: Path | str) -> BM25:
             head = f"HYMN {e['number']}" + (f" ({e['section']})" if e.get("section") else "")
             for c in chunk(p.stem, head + "\n" + e.get("text", ""), size=CHUNK_CHARS * 3):
                 chunks.append(Chunk(f"{p.stem} 第 {e['number']} 首", len(chunks) + 1, c.text))
+    for p in sorted((wiki / "library").glob("*.md")):  # long works kept for search only (search_only in a profile)
+        for c in chunk(p.stem, p.read_text(encoding="utf-8")):
+            chunks.append(Chunk(c.doc, len(chunks) + 1, c.text))
     if not chunks:
         raise FileNotFoundError(f"no source text in {root}")
     return BM25(chunks)
@@ -151,8 +156,22 @@ def search(inp: dict, index: BM25) -> str:
     return "\n\n".join(f"[{c.doc} · 段落 {c.index}]\n{c.text}" for _, c in hits)
 
 
-def system_addendum(wiki_dir: Path | str) -> str:
+def tool_defs(denomination: str | Denomination | None = None) -> list[dict]:
+    """TOOL_DEFS with the tradition's source texts named in the description."""
+    d = get(denomination)
+    if d.wesley:
+        return TOOL_DEFS
+    defs = json.loads(json.dumps(TOOL_DEFS, ensure_ascii=False))
+    defs[0]["description"] = (f"在{d.corpus}的原文中做關鍵詞檢索（BM25），回傳最相關的幾個段落。原文是英文，"
+                              f"請用英文關鍵詞查詢，例如 \"{d.query_example}\"。可以多次查詢。")
+    return defs
+
+
+def system_addendum(wiki_dir: Path | str, denomination: str | Denomination | None = None) -> str:
     import json
+    d = get(denomination)
+    if not d.wesley:
+        return SYSTEM_ADDENDUM.replace("引用衛斯理的原話時", "引用信條或作者的原話時")
     files = sorted((Path(wiki_dir) / "hymns").glob("*.json"))
     if not files:
         return SYSTEM_ADDENDUM

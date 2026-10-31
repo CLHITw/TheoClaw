@@ -54,7 +54,7 @@ def plan_text(exp: dict) -> str:
     lines = [f"experiment {exp['name']}: {n_tasks} tasks × n={n} × {len(exp['arms'])} arms "
              f"= {n_tasks * n * len(exp['arms'])} agent runs"]
     for arm in exp["arms"]:
-        ts = build_tool_set(arm.get("tools"), arm.get("kb"))  # fails early if a knowledge base is missing
+        ts = build_tool_set(arm.get("tools"), arm.get("kb"), denomination=arm.get("denomination"))  # fails early if a knowledge base is missing
         comp = ts.meta.get("compile") or {}
         r = agent_role(arm.get("model", exp.get("model")), arm.get("effort", exp.get("effort")))
         lines.append(f"  {arm['label']}: model {r.model} ({r.provider.name}, effort {r.effort or '–'}) · tools "
@@ -76,6 +76,7 @@ def run_experiment(path: str | Path, *, workers: int = 4, only: list[str] | None
         d = run_tasks(exp["tasks"], model=arm.get("model", exp.get("model")), n=exp.get("n", 3),
                       effort=arm.get("effort", exp.get("effort")), workers=workers,
                       label=arm["label"], tools=arm.get("tools"), kb=arm.get("kb"), run_dir=out / arm["label"],
+                      denomination=arm.get("denomination"),
                       max_steps=exp.get("max_steps", 12), only=exp.get("only"))
         grade_run(d)
         write_report(d)

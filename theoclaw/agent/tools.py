@@ -192,9 +192,12 @@ class ToolSet:
     meta: dict = field(default_factory=dict)
 
 
-def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | None = None) -> ToolSet:
+def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | None = None,
+                   denomination: str | None = None) -> ToolSet:
     """Scripture lookup and cross references stay the same whatever else is switched
-    on, so comparing two tool sets changes only how Methodist sources are retrieved."""
+    on, so comparing two tool sets changes only how Methodist sources are retrieved.
+    denomination (theoclaw.common.denominations; default Methodist) sets the prompt's stance
+    and how the kb and rag tools name their sources."""
     from .prompt import system_prompt
 
     groups = parse_tools(tools)
@@ -203,6 +206,8 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
     names = [n for g in groups if g not in ("kb", "rag", "reference") for n in GROUPS[g]]
     defs, handlers = [by_name[n] for n in names], {n: base[n] for n in names}
     meta: dict = {"tools": groups}
+    if denomination:
+        meta["denomination"] = denomination
     addendum = ""
     if "kb" in groups or "rag" in groups:
         if not kb:
@@ -210,13 +215,13 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
         from ..kb.query import KnowledgeBase, rag, tools as kb_tools
         base_kb = KnowledgeBase.open(kb)
         if "kb" in groups:
-            defs += kb_tools.TOOL_DEFS
+            defs += kb_tools.tool_defs(denomination)
             handlers.update(kb_tools.make_handlers(base_kb.wiki))
-            addendum = kb_tools.system_addendum(base_kb.wiki)
+            addendum = kb_tools.system_addendum(base_kb.wiki, denomination)
         if "rag" in groups:  # the wiki's source text, chunked and searched; with kb too, a hybrid
-            defs += rag.TOOL_DEFS
+            defs += rag.tool_defs(denomination)
             handlers.update(rag.make_handlers(base_kb.wiki))
-            addendum += rag.system_addendum(base_kb.wiki)
+            addendum += rag.system_addendum(base_kb.wiki, denomination)
         meta.update(base_kb.meta())
     elif kb:
         raise ValueError("--kb given but neither the kb nor the rag tool group is switched on")
@@ -225,4 +230,4 @@ def build_tool_set(tools=None, kb: str | Path | None = None, corpus: Corpus | No
         defs += reference.TOOL_DEFS
         handlers.update(reference.make_handlers())
         addendum += reference.SYSTEM_ADDENDUM
-    return ToolSet(groups, defs, handlers, system_prompt(groups) + addendum, meta)
+    return ToolSet(groups, defs, handlers, system_prompt(groups, denomination) + addendum, meta)

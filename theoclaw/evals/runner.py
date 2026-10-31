@@ -55,10 +55,11 @@ def _read_jsonl(path: Path) -> list[dict]:
 def run_tasks(tasks_path: str | Path, *, model: str | None = None, n: int, effort: str | None = None, workers: int = 4,
               out_root: str | Path = RUNS_DIR, label: str = "", only: list[str] | None = None,
               max_steps: int = 12, resume: str | Path | None = None,
-              tools: str | list[str] | None = None, kb: str | None = None, run_dir: str | Path | None = None) -> Path:
+              tools: str | list[str] | None = None, kb: str | None = None, run_dir: str | Path | None = None,
+              denomination: str | None = None) -> Path:
     """model and effort default to the agent role in config/llm.yaml; effort "none" omits it."""
     tasks = load_tasks(tasks_path)
-    tool_set = build_tool_set(tools, kb)
+    tool_set = build_tool_set(tools, kb, denomination=denomination)
     system = tool_set.system
     r = agent_role(model, effort)
     model = r.model

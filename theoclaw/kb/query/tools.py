@@ -17,6 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from ...common.denominations import Denomination, get
 from ...common.tooling import Handler, ToolError
 
 MAX_CHARS = 100_000  # a whole long source file would flood the context window
@@ -69,6 +70,30 @@ SYSTEM_ADDENDUM = """
    （例如 Methodist Church, Hong Kong, Baptism and Catechumen Class Materials, Lesson 1）。來源不要寫在段落開頭；
    小標題要清楚說出該段講甚麼，不要用沒頭沒尾、讀者看不懂的半句話。
 """
+
+
+# The other traditions: rules 1-4 as above, 5 and 6 in their words, no rule 7 (the Hong Kong course).
+SYSTEM_ADDENDUM_OTHER = SYSTEM_ADDENDUM[:SYSTEM_ADDENDUM.index("5. ")] + """5. 摘要頁、概念頁和人物頁是模型整理出來的，不是{figure}的原話。引用信條或作者的原話時，必須出自 sources/ 底下的原文，並註明文件名稱與條目或頁碼。
+6. 對使用者不要說「知識庫」「wiki」「檢索」「摘要頁」這類工具用語；說「{name}的信條和著作」「手邊的資料」即可。查不到時就說手邊的資料沒有談到。
+"""
+
+
+# Long works kept for search only (search_only in a profile): not in index.md, found with rag_search.
+LIBRARY_NOTE = """另外，library/ 底下是較長著作（講道集、註釋等）的原文全文，沒有摘要頁，index.md 也沒有列出；
+用 rag_search 以英文關鍵詞查，需要上下文時用 kb_read_file 讀 library/<文件名稱>.md。引用時註明著作名稱。
+"""
+
+
+def tool_defs(denomination: str | Denomination | None = None) -> list[dict]:
+    """TOOL_DEFS with the tradition's source texts named in the description."""
+    d = get(denomination)
+    if d.wesley:
+        return TOOL_DEFS
+    defs = json.loads(json.dumps(TOOL_DEFS, ensure_ascii=False))
+    defs[0]["description"] = (f"讀取{d.corpus}知識庫（OpenKB wiki）中的一個檔案。路徑相對於 wiki 根目錄，"
+                              "例如 index.md、summaries/<文件名稱>.md、concepts/<概念>.md、sources/<文件名稱>.md。")
+    defs[1]["input_schema"]["properties"]["doc_name"]["description"] = "文件名稱，不含副檔名（見 index.md）。"
+    return defs
 
 
 def _resolve(root: Path, rel: str) -> Path:
@@ -132,10 +157,13 @@ def make_handlers(wiki_dir: Path | str) -> dict[str, Handler]:
     }
 
 
-def system_addendum(wiki_dir: Path | str) -> str:
+def system_addendum(wiki_dir: Path | str, denomination: str | Denomination | None = None) -> str:
     """Our usage rules plus the wiki's own AGENTS.md, as OpenKB's query agent does."""
+    d = get(denomination)
     schema = Path(wiki_dir) / "AGENTS.md"
-    text = SYSTEM_ADDENDUM
+    text = SYSTEM_ADDENDUM if d.wesley else SYSTEM_ADDENDUM_OTHER.format(figure=d.figure, name=d.name)
+    if (Path(wiki_dir) / "library").is_dir():
+        text += LIBRARY_NOTE
     if schema.is_file():
         text += "\n知識庫的結構說明（wiki/AGENTS.md）：\n" + schema.read_text(encoding="utf-8")
     return text
