@@ -71,7 +71,7 @@ def test_long_texts_split_and_search_only(tmp_path):
     assert searched.kind == "search" and "search" in searched.path and searched.path.endswith(".md")
     rows = [{"kind": "md", "chars": 200_000}, {"kind": "search", "chars": 5_000_000},
             {"kind": "pdf", "pages": 100, "chars": 1_000_000}, {"kind": "pdf", "pages": 10, "chars": 100_000}]
-    assert estimate_cost(rows, "deepseek/deepseek-flash") == 0.51 and estimate_cost(rows, "x/unknown") is None
+    assert estimate_cost(rows, "deepseek/deepseek-flash") == 1.24 and estimate_cost(rows, "x/unknown") is None
     wiki = tmp_path / "wiki"
     (wiki / "sources").mkdir(parents=True)
     (wiki / "sources" / "a.md").write_text("grace through faith", encoding="utf-8")

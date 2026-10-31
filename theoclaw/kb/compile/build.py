@@ -85,8 +85,9 @@ def prepare_inputs(plan: BuildPlan) -> list[PreparedInput]:
 
 # Measured with deepseek-flash, USD per 100k characters: Markdown and short PDFs (compiled whole)
 # about 0.06-0.08 (plain-account $0.110 for 190k; 2026-10-31 split confessions about 0.08);
-# long PDFs page by page through PageIndex about 0.027 (methodist: 4.82M characters, $1.28).
-COMPILE_USD_PER_100K = {"deepseek-flash": {"short": 0.08, "pageindex": 0.027}}
+# long PDFs page by page through PageIndex about 0.10 (2026-10-31: lutheran, baptist, anglican $2.87 for
+# 2.9M characters; the methodist build's $1.28 for 4.82M was lower because its sermons index cheaply).
+COMPILE_USD_PER_100K = {"deepseek-flash": {"short": 0.08, "pageindex": 0.10}}
 PAGEINDEX_PAGES = 20  # OpenKB's pageindex_threshold: PDFs this long are compiled page by page
 
 
