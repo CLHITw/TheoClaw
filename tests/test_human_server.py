@@ -1136,7 +1136,7 @@ def test_tradition_picks_the_knowledge_base_and_stance(tmp_path, monkeypatch):
     assert store.state(code)["traditions"] == ["循道衛理 Methodist"]
     assert store.kb_for("lutheran") is None
     ts = store._lay_tools("信義會 Lutheran")  # no KB: scripture only, Lutheran stance, no Wesley
-    assert ts.meta["tools"] == ["scripture"] and ts.meta["denomination"] == "lutheran" and "信義宗" in ts.system
+    assert ts.meta["tools"] == ["scripture"] and ts.meta["denomination"] == "lutheran" and "路德宗" in ts.system
     assert store._lay_tools("信義會 Lutheran") is ts  # built once
     assert store._lay_tools(None).meta["tools"] == ["scripture", "wesley"]
     seen = []

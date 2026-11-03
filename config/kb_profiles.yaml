@@ -107,7 +107,7 @@ profiles:
   # 文字版 PDF（第一頁印目錄、每頁印頁碼、附書籤），不是掃描圖片。
   # 篇幅大、或只有文字辨識稿而沒有像樣目錄的著作 search_only：不編譯，放進 wiki/library/ 只供 rag_search 檢索，不花錢。
   lutheran:
-    description: 信義宗（路德宗）知識庫：協同書（Triglot Concordia 1921 英譯）與路德《宗教改革的首要原則》（1883 英譯）
+    description: 路德宗知識庫：協同書（Triglot Concordia 1921 英譯）與路德《宗教改革的首要原則》（1883 英譯）
     model: deepseek-flash
     source_dir: E:/DESK/theoclaw/Denominations/Lutheran
     sources:
@@ -146,3 +146,17 @@ profiles:
       - {file: pdf/05_jewel_apology_of_the_church_of_england.pdf, name: jewel-apology-of-the-church-of-england.pdf}
       - {file: 02_books_of_homilies.md, search_only: true, name: books-of-homilies.md}
       - {file: 04_hooker_laws_of_ecclesiastical_polity_selection.md, search_only: true, name: hooker-laws-of-ecclesiastical-polity.md}
+
+  reformed:
+    description: 加爾文宗（改革宗、長老會）知識庫：西敏信條與大小要理問答、海德堡要理問答、比利時信條、多特信經；加爾文《基督教要義》與羅馬書註釋只供檢索
+    model: deepseek-flash
+    source_dir: E:/DESK/theoclaw/Denominations/Reformed
+    sources:
+      - {file: pdf/01_westminster_confession.pdf, name: westminster-confession.pdf}
+      - {file: pdf/westminster2.pdf, name: westminster-larger-catechism.pdf}
+      - {file: pdf/westminster1.pdf, name: westminster-shorter-catechism.pdf}
+      - {file: pdf/heidelberg.pdf, name: heidelberg-catechism.pdf}
+      - {file: pdf/03_belgic_confession.pdf, name: belgic-confession.pdf}
+      - {file: pdf/04_canons_of_dort.pdf, name: canons-of-dort.pdf}
+      - {file: 05_calvin_institutes_beveridge.md, search_only: true, name: calvin-institutes.md}
+      - {file: 06_calvin_commentary_romans.md, search_only: true, name: calvin-commentary-romans.md}

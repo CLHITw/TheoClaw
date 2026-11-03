@@ -79,8 +79,8 @@ CALL_TIMEOUT = 90                        # 秒；每一次呼叫模型的等候�
 CHAT_MODEL = "deepseek-flash"            # 提問模式預設模型；不跟 config/llm.yaml 走，換模型要明確指定
 PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
-# 宗派：記在提問與評分裡。頁面上可選有知識庫的傳統（theoclaw.common.denominations：循道衛理、信義會、
-# 浸信會、聖公會），回答就用該傳統的知識庫和立場；其他選項只作記錄，回答以循道衛理立場為主。
+# 宗派：記在提問與評分裡。頁面上可選有知識庫的傳統（theoclaw.common.denominations：循道衛理、路德宗、
+# 浸信會、聖公會、加爾文宗），回答就用該傳統的知識庫和立場；其他選項只作記錄，回答以循道衛理立場為主。
 DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]

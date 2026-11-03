@@ -3235,9 +3235,10 @@ function paintBible() {
 // Church tradition the answers draw on: the server lists the ones it has sources for (Methodist
 // first, the default); the choice is kept with the nickname and sent with every question.
 const DENOM_NAMES = {'循道衛理 Methodist': ['循道衛理', 'Methodist', 'Methodistisch'],
-                     '信義會 Lutheran': ['信義會（路德宗）', 'Lutheran', 'Lutherisch'],
+                     '信義會 Lutheran': ['路德宗', 'Lutheran', 'Lutherisch'],
                      '浸信會 Baptist': ['浸信會', 'Baptist', 'Baptistisch'],
-                     '聖公會 Anglican': ['聖公會', 'Anglican', 'Anglikanisch']};
+                     '聖公會 Anglican': ['聖公會', 'Anglican', 'Anglikanisch'],
+                     '長老會／改革宗 Presbyterian / Reformed': ['加爾文宗', 'Calvinist (Reformed)', 'Calvinistisch (Reformiert)']};
 let traditions = [];
 function denomName(v) {
   const n = DENOM_NAMES[v];

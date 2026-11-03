@@ -1,9 +1,9 @@
-# 信義宗（路德宗）平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「信義宗知識庫與立場」。
+# 路德宗平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「路德宗知識庫與立場」。
 #   之前：python -m theoclaw.evals run --tasks tasks/lay_lutheran.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1 --label lutheran-before
 #   之後：python -m theoclaw.evals run --tasks tasks/lay_lutheran.yaml --tools scripture,kb,rag --kb lutheran.en.deepseek-flash --denomination lutheran --n 1 --label lutheran-after
 #   評分：python -m theoclaw.evals ground score <兩個 run> --model deepseek-flash
-# expect.facts 是信義宗的立場（出自《協同書》），ground 的 fact recall 就是「忠於宗派」的分數；
-# faithfulness（有沒有依據查到的原文）是另一個分數。題目刻意碰信義宗和循道衛理不同的地方。
+# expect.facts 是路德宗的立場（出自《協同書》），ground 的 fact recall 就是「忠於宗派」的分數；
+# faithfulness（有沒有依據查到的原文）是另一個分數。題目刻意碰路德宗和循道衛理不同的地方。
 
 - id: lu-real-presence
   category: sacraments
@@ -11,8 +11,8 @@
   expect:
     facts:
       - 基督的身體和血真實地臨在於聖餐中，與餅和酒同在，分給領受的人（奧斯堡信條第十條）。
-      - 信義宗拒絕把聖餐只看為象徵或紀念的說法。
-      - 信義宗也不接受天主教的變質說（餅酒的本質沒有變成別的東西）。
+      - 路德宗拒絕把聖餐只看為象徵或紀念的說法。
+      - 路德宗也不接受天主教的變質說（餅酒的本質沒有變成別的東西）。
   graders: []
 
 - id: lu-law-gospel
@@ -64,11 +64,11 @@
 
 - id: lu-perfection
   category: contrast
-  prompt: 基督徒今生可以達到完全、不再犯罪嗎？信義宗和衛斯理的看法一樣嗎？
+  prompt: 基督徒今生可以達到完全、不再犯罪嗎？路德宗和衛斯理的看法一樣嗎？
   expect:
     facts:
-      - 信義宗認為信徒今生同時是義人又是罪人，原罪的私慾在受洗後仍然存在，直到死時。
-      - 信義宗不同於衛斯理的「基督徒完全」教導，答案應指出兩者的分別。
+      - 路德宗認為信徒今生同時是義人又是罪人，原罪的私慾在受洗後仍然存在，直到死時。
+      - 路德宗不同於衛斯理的「基督徒完全」教導，答案應指出兩者的分別。
   graders: []
 
 - id: lu-small-catechism

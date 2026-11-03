@@ -15,10 +15,10 @@ from dataclasses import dataclass
 class Denomination:
     key: str            # methodist, lutheran, ...
     label: str          # the value the page sends and the server records (human_server.DENOMINATIONS)
-    name: str           # 循道衛理, 信義宗（路德宗）, ...
+    name: str           # 循道衛理, 路德宗, ...
     kb: str             # the compiled knowledge base, a folder in knowledge/
     corpus: str         # how the tool descriptions name the source texts
-    figure: str         # whose words are quoted: 衛斯理, 路德與信義宗信條, ...
+    figure: str         # whose words are quoted: 衛斯理, 路德與路德宗信條, ...
     sources: str        # the main texts, for the quoting rule
     query_example: str  # an English search for the rag tool description
     cite_example: str   # a source as a sermon reply writes it
@@ -36,11 +36,11 @@ METHODIST = Denomination(
     brief_de="Wesley und die methodistische Tradition", wesley=True)
 
 LUTHERAN = Denomination(
-    key="lutheran", label="信義會 Lutheran", name="信義宗（路德宗）", kb="lutheran.en.deepseek-flash",
-    corpus="信義宗（路德宗）文獻", figure="路德與信義宗信條",
+    key="lutheran", label="信義會 Lutheran", name="路德宗", kb="lutheran.en.deepseek-flash",
+    corpus="路德宗文獻", figure="路德與路德宗信條",
     sources="《協同書》的信條（奧斯堡信條、辯護書、施馬加登信條、大小要理問答、協同信條）和路德的著作",
     query_example="real presence body blood sacrament", cite_example="奧斯堡信條 第四條",
-    brief_zh="路德與信義宗傳統研究摘要", brief_en="Luther and Lutheran tradition brief",
+    brief_zh="路德與路德宗傳統研究摘要", brief_en="Luther and Lutheran tradition brief",
     brief_de="Luther und die lutherische Tradition")
 
 BAPTIST = Denomination(
@@ -57,7 +57,15 @@ ANGLICAN = Denomination(
     query_example="sacraments ordained of Christ two", cite_example="《三十九條》第 25 條",
     brief_zh="聖公會傳統研究摘要", brief_en="Anglican tradition brief", brief_de="Die anglikanische Tradition")
 
-DENOMS: dict[str, Denomination] = {d.key: d for d in (METHODIST, LUTHERAN, BAPTIST, ANGLICAN)}
+REFORMED = Denomination(
+    key="reformed", label="長老會／改革宗 Presbyterian / Reformed", name="加爾文宗（改革宗）", kb="reformed.en.deepseek-flash",
+    corpus="加爾文宗（改革宗）文獻", figure="改革宗信條與加爾文",
+    sources="西敏信條與大小要理問答、海德堡要理問答、比利時信條、多特信經和加爾文的《基督教要義》",
+    query_example="predestination election eternal decree", cite_example="西敏信條 第三章",
+    brief_zh="加爾文宗傳統研究摘要", brief_en="Calvin and Reformed tradition brief",
+    brief_de="Calvin und die reformierte Tradition")
+
+DENOMS: dict[str, Denomination] = {d.key: d for d in (METHODIST, LUTHERAN, BAPTIST, ANGLICAN, REFORMED)}
 DEFAULT = METHODIST
 
 

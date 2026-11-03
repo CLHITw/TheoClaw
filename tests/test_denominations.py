@@ -11,7 +11,8 @@ def test_lookup_falls_back_to_methodist():
     assert denoms.get("浸信會 Baptist").key == "baptist"
     for other in (None, "", "無宗派 Non-denominational", "made up"):
         assert denoms.get(other) is denoms.METHODIST
-    assert len({d.kb for d in denoms.DENOMS.values()}) == 4
+    assert len({d.kb for d in denoms.DENOMS.values()}) == 5
+    assert denoms.get("長老會／改革宗 Presbyterian / Reformed").key == "reformed"
 
 
 def test_methodist_texts_unchanged():
@@ -25,7 +26,7 @@ def test_methodist_texts_unchanged():
 
 
 def test_other_traditions_have_their_own_stance():
-    for key in ("lutheran", "baptist", "anglican"):
+    for key in ("lutheran", "baptist", "anglican", "reformed"):
         d = denoms.DENOMS[key]
         text = prompt.system_prompt(["scripture", "kb", "rag"], key)
         assert f"依據聖經和{d.name}傳統" in text and f"以{d.name}傳統為主" in text
