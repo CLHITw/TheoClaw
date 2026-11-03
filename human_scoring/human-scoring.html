@@ -1524,7 +1524,10 @@ function setRich(el, text, lang) { el.classList.add('rich'); el.innerHTML = rich
 // 用瀏覽器自己的語音把回答讀出來：文字不經伺服器、不出這部裝置，也沒有額外的費用。
 // 朗讀稿取自畫面上已經顯示的字，所以聽到的和看到的完全一樣（書名已經換成書名，繁簡跟頁面一致）。
 const Voice = {on: false, voices: [], utter: null, btn: null, keep: null, name: '',
-  segs: [], idx: -1, paused: false, gen: 0, seeking: false};
+  segs: [], idx: -1, ci: 0, paused: false, gen: 0, seeking: false, started: 0, expect: 0};
+// 手機（Android、iPhone、iPad）的語音引擎：暫停再繼續會讓它停住，長句也容易半途斷掉。
+const VOICE_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const VOICE_KEY = 'theoclaw_voice';
 const VOICE_NAME_KEY = 'theoclaw_voice_name';
 try {
@@ -1657,6 +1660,36 @@ function voiceRefresh() {
   voicePaintPicker();
   voicePaintFloat();   // 「第 __ / 段」的標籤也要跟著換語言
 }
+// 一段再切成短句交給引擎：手機上一次給太長的文字，常常唸幾句就斷掉。
+// 先在句號、問號、分號處切；還太長就在逗號處切；最後才硬切。
+const VOICE_CHUNK = 120;
+function voiceChunks(text) {
+  const out = [];
+  const push = t => { t = t.trim(); if (t) out.push(t); };
+  // 句末：中文標點，或後面接空白的英文句號；引號、括號跟著前一句。
+  const pieces = text.replace(/([。！？；!?;]+[」』”’）)"']*|\.[”’)"']*(?=\s))/g, '$1\u0001').split('\u0001');
+  const sentences = [];
+  for (const piece of pieces) {
+    if (piece.length <= VOICE_CHUNK) { sentences.push(piece); continue; }
+    const parts = piece.match(/[^，、,：:]+[，、,：:]*|[，、,：:]+/g) || [piece];
+    let cur = '';
+    for (const part of parts) {
+      if (cur && (cur + part).length > VOICE_CHUNK) { sentences.push(cur); cur = ''; }
+      if (part.length > VOICE_CHUNK) {
+        for (let i = 0; i < part.length; i += VOICE_CHUNK) sentences.push(part.slice(i, i + VOICE_CHUNK));
+      } else cur += part;
+    }
+    if (cur) sentences.push(cur);
+  }
+  // 太短的句子併進前一句，不要一兩個字就停頓一下。
+  let cur = '';
+  for (const t of sentences) {
+    if (cur && (cur + t).length > VOICE_CHUNK) { push(cur); cur = ''; }
+    cur += t;
+  }
+  push(cur);
+  return out.length ? out : [text];
+}
 // 回答依畫面行分成一段一段唸：讀到哪裡就標到哪裡，暫停時也看得到停在哪一段。
 function voiceSegments(el) {
   if (!el) return [];
@@ -1665,7 +1698,7 @@ function voiceSegments(el) {
   const out = [];
   for (const part of parts) {
     const text = voiceText(part);
-    if (text) out.push({el: part, text: text});
+    if (text) out.push({el: part, text: text, chunks: voiceChunks(text)});
   }
   return out;
 }
@@ -1698,6 +1731,7 @@ function voicePaint(btn) {
     }
   }
   voicePaintFloat();
+  voicePaintToggle();
 }
 // 頁面上方正中間的浮動控制：手機上隨時暫停、拖進度或直接輸入段號。
 function voicePaintFloat() {
@@ -1762,7 +1796,7 @@ function voiceSeek(i) {
   try { window.speechSynthesis.cancel(); } catch (e) {}
   Voice.utter = null;
   Voice.paused = false;
-  voicePlay(i);
+  voicePlay(i, 0);
 }
 let voiceSeekLock = false;
 // 輸入框：按 Enter 或離開欄位時跳到該段；空白或亂填就還原成目前段號。
@@ -1835,36 +1869,48 @@ function voiceReveal(seg) {
     if (r.top < 88 || r.bottom > vh - 16) seg.el.scrollIntoView({behavior: 'smooth', block: 'center'});
   });
 }
-function voicePlay(i) {
+// 唸第 i 段的第 ci 句；段落標示和進度只在換段時更新。
+function voicePlay(i, ci) {
+  ci = ci || 0;
   const seg = Voice.segs[i];
   if (!seg) { voiceFinish(); return; }
+  const chunks = seg.chunks && seg.chunks.length ? seg.chunks : [seg.text];
+  if (ci >= chunks.length) { voicePlay(i + 1, 0); return; }
   Voice.idx = i;
+  Voice.ci = ci;
   Voice.paused = false;
   const gen = ++Voice.gen;
   const synth = window.speechSynthesis;
-  const u = new SpeechSynthesisUtterance(seg.text);
+  const text = chunks[ci];
+  const u = new SpeechSynthesisUtterance(text);
   u.lang = voiceLangOf(seg.text);
   const v = voicePick(u.lang);
   if (v) u.voice = v;
   u.rate = 0.95; u.pitch = 1; u.volume = 1;
-  u.onend = () => {
-    if (gen !== Voice.gen) return;
-    Voice.utter = null;
-    if (Voice.paused) return;
-    if (Voice.idx + 1 < Voice.segs.length) voicePlay(Voice.idx + 1);
-    else voiceFinish();
-  };
+  u.onend = () => voiceNext(gen);
   u.onerror = (e) => {
     if (gen !== Voice.gen) return;
     if (e.error === 'interrupted' || e.error === 'canceled') return;
     voiceStop();
   };
   Voice.utter = u;
+  Voice.started = Date.now();
+  Voice.expect = Math.max(2000, voiceSeconds(text) * 800);   // 估計唸完要多久的八成，看門狗至少等這麼久
   try { synth.speak(u); } catch (e) { voiceStop(); return; }
-  voiceMark(seg);
-  voiceReveal(seg);
+  if (ci === 0) {
+    voiceMark(seg);
+    voiceReveal(seg);
+    voicePaint(Voice.btn);
+  }
   voiceKeepAlive();
-  voicePaint(Voice.btn);
+}
+// 一句唸完：接下一句或下一段。onend 和看門狗都可能呼叫，同一句只算一次。
+function voiceNext(gen) {
+  if (gen !== Voice.gen) return;
+  Voice.gen++;
+  Voice.utter = null;
+  if (Voice.paused || !Voice.segs.length) return;
+  voicePlay(Voice.idx, Voice.ci + 1);
 }
 // el 是畫面上的回答；從第一段開始讀，並把控制列綁到它的朗讀鈕。
 function voiceSpeak(el, btn) {
@@ -1874,7 +1920,7 @@ function voiceSpeak(el, btn) {
   voiceStop();
   Voice.segs = segs;
   Voice.btn = btn || null;
-  voicePlay(0);
+  voicePlay(0, 0);
   return true;
 }
 // 短句（例如「語音已開啟」）：不標段落，也不顯示朗讀控制。
@@ -1899,6 +1945,15 @@ function voicePause() {
   Voice.paused = true;
   clearInterval(Voice.keep); Voice.keep = null;
   const synth = window.speechSynthesis;
+  // 手機的暫停靠不住（有的停不下來，有的停了就再也接不上）：直接停掉這一句，
+  // 按「繼續」時從這一句開頭重讀；句子都很短，重讀不會差多少。
+  if (VOICE_MOBILE) {
+    Voice.gen++;
+    Voice.utter = null;
+    voiceCancel();
+    voicePaint(Voice.btn);
+    return;
+  }
   try { synth.pause(); } catch (e) {}
   voicePaint(Voice.btn);
   // 少數舊版 Android Chrome 不真的停下來：半秒後若還在唸，就取消這一段，
@@ -1917,34 +1972,61 @@ function voicePause() {
 function voiceResume() {
   if (!Voice.segs.length || !Voice.paused) return;
   Voice.paused = false;
-  if (!Voice.utter) { voicePlay(Voice.idx); return; }   // 暫停時被引擎丟掉，重讀這一段
+  if (!Voice.utter) { voicePlay(Voice.idx, Voice.ci); return; }   // 暫停時被引擎丟掉，重讀這一句
   try { window.speechSynthesis.resume(); } catch (e) {}
+  Voice.started = Date.now();
   voiceKeepAlive();
   voicePaint(Voice.btn);
+}
+// 真的停下來：暫停中的引擎（iPhone）要先繼續再取消，不然取消無效；
+// 有些 Android 剛開始唸時會漏掉第一次取消，稍後再取消一次。
+function voiceCancel() {
+  if (!voiceSupported()) return;
+  const synth = window.speechSynthesis;
+  try { if (synth.paused) synth.resume(); } catch (e) {}
+  try { synth.cancel(); } catch (e) {}
+  const gen = Voice.gen;
+  setTimeout(() => {
+    if (gen !== Voice.gen || Voice.utter) return;   // 之後又開始唸了，就不要再取消
+    try { if (synth.speaking || synth.pending) synth.cancel(); } catch (e) {}
+  }, 250);
 }
 function voiceStop() {
   Voice.gen++;
   clearInterval(Voice.keep); Voice.keep = null;
-  if (voiceSupported()) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+  voiceCancel();
   const b = Voice.btn;
   document.querySelectorAll('.vseg-on').forEach(el => el.classList.remove('vseg-on'));
-  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.paused = false;
+  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.ci = 0; Voice.paused = false;
   voicePaint(b);
 }
 function voiceFinish() {
+  Voice.gen++;
   clearInterval(Voice.keep); Voice.keep = null;
   const b = Voice.btn;
   document.querySelectorAll('.vseg-on').forEach(el => el.classList.remove('vseg-on'));
-  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.paused = false;
+  Voice.utter = null; Voice.btn = null; Voice.segs = []; Voice.idx = -1; Voice.ci = 0; Voice.paused = false;
   voicePaint(b);
 }
-// Chrome 有時在 15 秒左右把長句停掉；定期暫停再繼續，可以避開。使用者暫停時不做。
+// 每秒看一次：
+// 1. 看門狗：手機引擎有時唸完一句卻不通知，整段就卡住；引擎已經沒聲音、時間也差不多了，就自己接下一句。
+// 2. 電腦版 Chrome 有時在 15 秒左右把長句停掉，每 10 秒暫停再繼續一次可以避開；
+//    手機上不做，因為手機的暫停再繼續會讓它直接停住。
 function voiceKeepAlive() {
   clearInterval(Voice.keep);
+  let tick = 0;
   Voice.keep = setInterval(() => {
     if (!Voice.utter || !Voice.segs.length || Voice.paused || document.hidden) return;
-    try { window.speechSynthesis.pause(); window.speechSynthesis.resume(); } catch (e) {}
-  }, 10000);
+    const synth = window.speechSynthesis;
+    tick++;
+    try {
+      if (!synth.speaking && !synth.pending && Date.now() - Voice.started > Voice.expect) {
+        voiceNext(Voice.gen);
+        return;
+      }
+      if (!VOICE_MOBILE && tick % 10 === 0) { synth.pause(); synth.resume(); }
+    } catch (e) {}
+  }, 1000);
 }
 // 每個回答下面的朗讀控制：朗讀／暫停／繼續，另有停止，以及「第幾段／共幾段」的進度。
 function voiceButton(el) {
@@ -1997,8 +2079,9 @@ function voicePaintToggle() {
   b.classList.toggle('on', Voice.on);
   b.setAttribute('aria-pressed', Voice.on ? 'true' : 'false');
   b.setAttribute('aria-label', T('語音'));
+  // 正在唸的時候一律顯示喇叭：這時按它就是靜音。
   const ic = document.getElementById('voiceIcon');
-  if (ic) ic.textContent = Voice.on ? '🔊' : '🔇';
+  if (ic) ic.textContent = (Voice.on || Voice.segs.length) ? '🔊' : '🔇';
   const sel = document.getElementById('voicePick');
   if (sel) {
     sel.classList.toggle('hidden', !Voice.on);   // 開了語音才出現，平時不佔地方
@@ -2039,6 +2122,16 @@ function setVoice(name) {
 }
 function toggleVoice() {
   if (!voiceSupported()) { showToast(T('這部裝置不支援語音朗讀')); return; }
+  // 正在唸（自動朗讀或按了回答下面的朗讀）時，這個鈕就是靜音：馬上停，也關掉自動朗讀。
+  let busy = Voice.segs.length > 0;
+  try { busy = busy || window.speechSynthesis.speaking || window.speechSynthesis.pending; } catch (e) {}
+  if (busy) {
+    Voice.on = false;
+    try { localStorage.setItem(VOICE_KEY, '0'); } catch (e) {}
+    voiceStop();
+    voicePaintToggle();
+    return;
+  }
   Voice.on = !Voice.on;
   try { localStorage.setItem(VOICE_KEY, Voice.on ? '1' : '0'); } catch (e) {}
   voicePaintToggle();
