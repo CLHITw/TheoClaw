@@ -1,0 +1,86 @@
+# 聖公會平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「聖公會知識庫與立場」。
+#   之前：python -m theoclaw.evals run --tasks tasks/lay_anglican.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1 --label anglican-before
+#   之後：python -m theoclaw.evals run --tasks tasks/lay_anglican.yaml --tools scripture,kb,rag --kb anglican.en.deepseek-flash --denomination anglican --n 1 --label anglican-after
+#   評分：python -m theoclaw.evals ground score <兩個 run> --model deepseek-flash
+# expect.facts 是聖公會的立場（《三十九條》、《講道集》、《公禱書》、胡克）；ground 的 fact recall 就是「忠於宗派」的分數。
+
+- id: an-via-media
+  category: identity
+  prompt: 聽說聖公會是「中庸之道」（via media），這是甚麼意思？
+  expect:
+    facts:
+      - 聖公會自視為改革了的大公教會，介於羅馬天主教和激進的改革宗之間。
+      - 聖經是最高的權威，但也尊重早期教會的傳統和理性（胡克）。
+  graders: []
+
+- id: an-episcopacy
+  category: polity
+  prompt: 聖公會為甚麼要有主教？主教、牧師和執事是怎樣來的？
+  expect:
+    facts:
+      - 聖公會保留主教、牧師（會長）、執事三個聖職，認為這是從使徒時代以來就有的（公禱書按立禮文序言）。
+      - 主教按立聖職人員，《三十九條》第 36 條確認按立禮文的合法性。
+  graders: []
+
+- id: an-sacraments
+  category: sacraments
+  prompt: 《三十九條》說聖禮有幾個？堅振、告解、婚禮算不算聖禮？
+  expect:
+    facts:
+      - 福音中基督所設立的聖禮只有兩個：洗禮和主的晚餐（第 25 條）。
+      - 堅振、告解、聖職、婚姻和終傅五項，不算福音的聖禮。
+  graders: []
+
+- id: an-lords-supper
+  category: sacraments
+  prompt: How does the Anglican Church understand the Lord's Supper? Is it transubstantiation?
+  expect:
+    facts:
+      - The body of Christ is given, taken and eaten in the Supper only after a heavenly and spiritual manner, and the means is faith (Article 28).
+      - Transubstantiation cannot be proved by Holy Writ and is repugnant to Scripture (Article 28).
+  graders: []
+
+- id: an-scripture
+  category: doctrine
+  prompt: 聖公會怎樣看聖經的權威？教會可以規定聖經以外的信仰嗎？
+  expect:
+    facts:
+      - 聖經包含一切得救必需的事，聖經沒有記載、也不能由聖經證明的，不可要求人當作信仰的條文（第 6 條）。
+      - 教會有權定禮儀，但不可規定違反聖經的事（第 20 條）。
+  graders: []
+
+- id: an-justification
+  category: doctrine
+  prompt: 聖公會也相信因信稱義嗎？
+  expect:
+    facts:
+      - 我們在上帝面前被算為義，只是因主耶穌基督的功勞、藉著信心，不是因自己的行為（第 11 條）。
+      - 《講道集》中有〈論救恩〉（Homily of Salvation）詳細說明這一點。
+  graders: []
+
+- id: an-bcp
+  category: worship
+  prompt: What is the Book of Common Prayer and why is it important for Anglicans?
+  expect:
+    facts:
+      - The Book of Common Prayer sets out the services of the church (Morning and Evening Prayer, Holy Communion, Baptism, etc.) in the language of the people.
+      - Anglicans share a common pattern of worship through it, so the prayer book shapes their belief (lex orandi, lex credendi).
+  graders: []
+
+- id: an-infant-baptism
+  category: sacraments
+  prompt: 聖公會給嬰孩施洗嗎？堅振禮是做甚麼的？
+  expect:
+    facts:
+      - 嬰孩受洗應該在教會中保留，因為最合乎基督的設立（第 27 條）。
+      - 受洗的孩子長大後在堅振禮中親自承認受洗時的誓約，由主教按手。
+  graders: []
+
+- id: an-methodist-roots
+  category: contrast
+  prompt: 循道衛理宗和聖公會有甚麼關係？衛斯理是聖公會的牧師嗎？
+  expect:
+    facts:
+      - 約翰·衛斯理一生是英格蘭教會（聖公會）的牧師，循道運動起初是聖公會內的復興運動。
+      - 答案應以聖公會的立場說明，不把循道衛理的特色說成聖公會的教導。
+  graders: []

@@ -10,6 +10,12 @@ narrowed to some pages of a PDF, turned into plain text, or converted to 繁體:
     - file: 06_The_General_Rules_Bilingual_Wesley_1743.md
       s2t: true                 # convert Simplified characters to 繁體
     - wesley_nt_notes: true     # Wesley's NT notes, parsed from the 03 PDF into data/wesley_nt.json
+    - file: augsburg-confession.md
+      split: 60000              # a long text cut at its headings into parts of at most this many characters
+    - file: spurgeon-sermons.md
+      search_only: true         # not compiled: copied into wiki/library/ for rag_search (costs nothing)
+
+A profile can name its own source_dir (another tradition's folder) instead of the file's one.
 """
 
 from __future__ import annotations
@@ -34,7 +40,7 @@ TEXT_SUFFIXES = (".md", ".txt", ".markdown")
 class PreparedInput:
     path: str             # the file in inputs/ that OpenKB compiles
     origin: str           # where it came from (a file in the Methodist folder)
-    kind: str             # pdf | md
+    kind: str             # pdf | md | search (search_only: not compiled, searched in wiki/library/)
     pages: int | None     # PDF pages
     sha256: str
 
@@ -185,6 +191,42 @@ def write_nt_notes(folder: Path) -> list[Path]:
     return written
 
 
+# ---------------------------------------------------------------- long plain texts
+
+_HEADING = re.compile(r"^#{1,3} ", re.M)
+
+
+def split_text(text: str, limit: int) -> list[str]:
+    """Cut a Markdown text at its headings (#, ##, ###) into parts of at most ``limit``
+    characters; a single section longer than that is cut at blank lines."""
+    starts = [m.start() for m in _HEADING.finditer(text)]
+    if not starts or starts[0] != 0:
+        starts.insert(0, 0)
+    sections = [text[a:b] for a, b in zip(starts, starts[1:] + [len(text)])]
+    pieces: list[str] = []
+    for sec in sections:
+        while len(sec) > limit:
+            cut = sec.rfind("\n\n", 0, limit)
+            cut = cut if cut > limit // 2 else limit
+            pieces.append(sec[:cut])
+            sec = sec[cut:]
+        pieces.append(sec)
+    parts, cur = [], ""
+    for piece in pieces:
+        if cur and len(cur) + len(piece) > limit:
+            parts.append(cur)
+            cur = ""
+        cur += piece
+    if cur.strip():
+        parts.append(cur)
+    return [p.strip() + "\n" for p in parts if p.strip()]
+
+
+def _title(text: str, fallback: str) -> str:
+    m = re.match(r"^#\s+(.+)$", text.lstrip(), re.M)
+    return m.group(1).strip() if m else fallback
+
+
 # ---------------------------------------------------------------- one source
 
 def prepare_source(spec: dict, source_dir: Path, out_dir: Path) -> list[PreparedInput]:
@@ -221,8 +263,26 @@ def prepare_source(spec: dict, source_dir: Path, out_dir: Path) -> list[Prepared
         kind, n_pages = "pdf", len(pages) if pages else len(_reader(dst).pages)
     elif src.suffix.lower() in TEXT_SUFFIXES:
         text = src.read_text(encoding="utf-8")
-        dst.write_text(to_traditional(text) if spec.get("s2t") else text, encoding="utf-8")
-        kind, n_pages = "md", None
+        text = to_traditional(text) if spec.get("s2t") else text
+        dst = dst.with_suffix(".md")
+        if spec.get("search_only"):  # kept apart, so OpenKB never compiles it
+            dst = out_dir / "search" / dst.name
+            dst.parent.mkdir(exist_ok=True)
+        limit = int(spec.get("split") or 0)
+        if limit and len(text) > limit:
+            origin = src.relative_to(source_dir).as_posix()
+            title = _title(text, dst.stem)
+            parts = split_text(text, limit)
+            out = []
+            for i, part in enumerate(parts, 1):
+                p = dst.with_name(f"{dst.stem}-{i:02d}.md")
+                head = "" if part.startswith("# ") else f"# {title} (part {i} of {len(parts)})\n\n"
+                p.write_text(head + part, encoding="utf-8")
+                out.append(PreparedInput(str(p), f"{origin} (part {i} of {len(parts)})",
+                                         "search" if spec.get("search_only") else "md", None, _sha(p)))
+            return out
+        dst.write_text(text, encoding="utf-8")
+        kind, n_pages = ("search" if spec.get("search_only") else "md"), None
     else:
         shutil.copy(src, dst)  # other formats OpenKB converts itself (docx, pptx, html, ...)
         kind, n_pages = src.suffix.lower().lstrip("."), None

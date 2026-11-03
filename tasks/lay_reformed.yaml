@@ -1,0 +1,85 @@
+# 加爾文宗（改革宗、長老會）平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「加爾文宗知識庫與立場」。
+#   之前：python -m theoclaw.evals run --tasks tasks/lay_reformed.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1 --label reformed-before
+#   之後：python -m theoclaw.evals run --tasks tasks/lay_reformed.yaml --tools scripture,kb,rag --kb reformed.en.deepseek-flash --denomination reformed --n 1 --label reformed-after
+#   評分：python -m theoclaw.evals ground score <兩個 run> --model deepseek-flash
+# expect.facts 是加爾文宗的立場（西敏信條與要理問答、海德堡要理問答、比利時信條、多特信經）；ground 的 fact recall 就是「忠於宗派」的分數。
+
+- id: re-predestination
+  category: doctrine
+  prompt: 改革宗怎樣理解預定論？上帝揀選人是因為預先看見他會信嗎？
+  expect:
+    facts:
+      - 上帝從永遠按祂旨意的定旨，預定一些人得永生（西敏信條第三章）。
+      - 揀選不是因為預見人的信心或善行，信心是揀選的果效，不是條件（多特信經第一要點）。
+  graders: []
+
+- id: re-tulip
+  category: doctrine
+  prompt: What do the five points of Calvinism (the Canons of Dort) teach?
+  expect:
+    facts:
+      - The Canons of Dort answer the Remonstrants on five heads of doctrine: total depravity, unconditional election, limited (particular) atonement, irresistible grace and the perseverance of the saints.
+      - Christ's death was effectual to redeem the elect (second head of doctrine).
+  graders: []
+
+- id: re-covenant
+  category: doctrine
+  prompt: 改革宗常說的「盟約神學」是甚麼？行為之約和恩典之約有甚麼分別？
+  expect:
+    facts:
+      - 上帝與人所立的第一個約是行為之約，應許亞當在完全順服的條件下得生命（西敏信條第七章）。
+      - 人墮落後，上帝立了恩典之約，白白地藉著耶穌基督把生命和救恩賜給罪人，要求他們信靠基督。
+  graders: []
+
+- id: re-infant-baptism
+  category: sacraments
+  prompt: 長老會為甚麼給嬰孩施洗？嬰孩又不會信。
+  expect:
+    facts:
+      - 嬰孩受洗，因為信徒的兒女也在恩典之約中，洗禮是恩典之約的記號和印證（西敏信條第二十八章；海德堡要理問答第 74 問）。
+      - 洗禮取代了舊約的割禮。
+  graders: []
+
+- id: re-lords-supper
+  category: sacraments
+  prompt: How do Presbyterians understand the Lord's Supper? Is Christ present in it?
+  expect:
+    facts:
+      - Worthy receivers, by faith, really and indeed, yet not carnally and corporally but spiritually, receive and feed upon Christ crucified (Westminster Confession, chapter 29).
+      - The body and blood of Christ are not corporally or carnally in, with, or under the bread and wine; transubstantiation is rejected.
+  graders: []
+
+- id: re-polity
+  category: polity
+  prompt: 長老會的教會是怎樣治理的？為甚麼叫「長老」會？
+  expect:
+    facts:
+      - 教會由牧師、長老和執事治理，長老與牧師一同組成治理教會的議會（比利時信條第 30 條）。
+      - 為了更好地治理教會，應該有稱為大會或會議的聚會（西敏信條第三十一章）。
+  graders: []
+
+- id: re-perseverance
+  category: contrast
+  prompt: 得救的人會不會失去救恩？加爾文宗和衛斯理的看法一樣嗎？
+  expect:
+    facts:
+      - 上帝在愛子裡所接納、有效呼召並使之成聖的人，必不會完全或最終從恩典中墮落，必定堅忍到底而得救（西敏信條第十七章；多特信經第五要點）。
+      - 這和衛斯理（認為信徒可能失去救恩）不同，答案應指出兩者的分別。
+  graders: []
+
+- id: re-chief-end
+  category: catechism
+  prompt: What is the chief end of man, according to the Westminster Shorter Catechism?
+  expect:
+    facts:
+      - Man's chief end is to glorify God, and to enjoy him for ever (Shorter Catechism, Q1).
+  graders: []
+
+- id: re-only-comfort
+  category: catechism
+  prompt: 海德堡要理問答第一問「你生與死唯一的安慰是甚麼？」怎樣回答？
+  expect:
+    facts:
+      - 我身體與靈魂，無論生死，都不屬於自己，而是屬於我信實的救主耶穌基督（海德堡要理問答第 1 問）。
+      - 祂用寶血完全付清了我一切的罪債，救我脫離魔鬼的一切權勢。
+  graders: []

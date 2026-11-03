@@ -34,6 +34,7 @@ def main(argv=None) -> None:
     p.add_argument("--effort", help='default: the agent role in config/llm.yaml; "none" to omit')
     p.add_argument("--tools", default="scripture,wesley", help="tool groups: scripture, wesley, kb")
     p.add_argument("--kb", help="compiled knowledge base for the kb tools: a name in knowledge/ or a path")
+    p.add_argument("--denomination", help="church tradition of the prompt: methodist (default), lutheran, baptist, anglican")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--max-steps", type=int, default=12)
     p.add_argument("--out", default=str(RUNS_DIR))
@@ -167,7 +168,8 @@ def main(argv=None) -> None:
         from .runner import grade_run, run_tasks
         run_dir = run_tasks(args.tasks, model=args.model, n=args.n, effort=args.effort, workers=args.workers,
                             out_root=args.out, label=args.label, only=args.only, max_steps=args.max_steps,
-                            resume=args.resume, tools=args.tools, kb=args.kb)
+                            resume=args.resume, tools=args.tools, kb=args.kb,
+                            denomination=args.denomination)
         if args.no_grade:
             print(f"next: python -m theoclaw.evals grade {run_dir}")
             return

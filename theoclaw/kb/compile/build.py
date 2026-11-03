@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -67,7 +68,7 @@ def make_plan(profile: str, *, model: str | None = None, language: str | None = 
     language = language or p.get("language") or defaults.get("language", "en")
     if language not in LANGUAGES:
         raise SystemExit(f"--language must be one of {list(LANGUAGES)}")
-    src = Path(source_dir or cfg.get("source_dir") or ".")
+    src = Path(source_dir or p.get("source_dir") or cfg.get("source_dir") or ".")
     if not src.is_dir():
         raise SystemExit(f"source folder {src} not found; set source_dir in {profiles_file} or pass --source-dir")
     return BuildPlan(profile, str(p.get("description", "")), list(p.get("sources") or []), src, model, language,
@@ -80,6 +81,29 @@ def prepare_inputs(plan: BuildPlan) -> list[PreparedInput]:
     for spec in plan.sources:
         inputs += prepare_source(spec, plan.source_dir, inputs_dir)
     return inputs
+
+
+# Measured with deepseek-flash, USD per 100k characters: Markdown and short PDFs (compiled whole)
+# about 0.06-0.08 (plain-account $0.110 for 190k; 2026-10-31 split confessions about 0.08);
+# long PDFs page by page through PageIndex about 0.10 (2026-10-31: lutheran, baptist, anglican $2.87 for
+# 2.9M characters; the methodist build's $1.28 for 4.82M was lower because its sermons index cheaply).
+COMPILE_USD_PER_100K = {"deepseek-flash": {"short": 0.08, "pageindex": 0.10}}
+PAGEINDEX_PAGES = 20  # OpenKB's pageindex_threshold: PDFs this long are compiled page by page
+
+
+def estimate_cost(rows: list[dict], model: str) -> float | None:
+    """A rough compile cost from the characters to compile (search-only inputs are free);
+    None for a model with no measurement."""
+    rates = COMPILE_USD_PER_100K.get(model_slug(model))
+    if rates is None:
+        return None
+    usd = 0.0
+    for r in rows:
+        if r["kind"] == "search":
+            continue
+        long_pdf = r["kind"] == "pdf" and (r.get("pages") or 0) >= PAGEINDEX_PAGES
+        usd += r["chars"] / 100_000 * rates["pageindex" if long_pdf else "short"]
+    return round(usd, 3)
 
 
 def describe_inputs(inputs: list[PreparedInput], counter=None) -> list[dict]:
@@ -161,6 +185,8 @@ def compile_kb(plan: BuildPlan, inputs: list[PreparedInput], *, to_traditional: 
 
     cli = _openkb()
     init_kb(plan)
+    search_only = [i for i in inputs if i.kind == "search"]
+    inputs = [i for i in inputs if i.kind != "search"]
     log = UsageLog(plan.root / "compile_usage.jsonl")
     logger = litellm_logger(log)
     litellm.callbacks = [*(litellm.callbacks or []), logger]
@@ -180,6 +206,11 @@ def compile_kb(plan: BuildPlan, inputs: list[PreparedInput], *, to_traditional: 
 
     totals = log.totals(plan.model)
     wiki = plan.root / "wiki"
+    if search_only:  # the full text of long works, searched with rag_search, never compiled
+        library = wiki / "library"
+        library.mkdir(parents=True, exist_ok=True)
+        for inp in search_only:
+            shutil.copy(inp.path, library / Path(inp.path).name)
     manifest_path = plan.root / MANIFEST
     previous = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
     this_run = {"started": started, "duration_s": round(time.time() - t0, 1), "calls": totals["calls"],
@@ -197,7 +228,7 @@ def compile_kb(plan: BuildPlan, inputs: list[PreparedInput], *, to_traditional: 
     manifest = {
         "name": plan.name, "profile": plan.profile, "description": plan.description,
         "model": plan.model, "language": plan.language, "openkb_language": LANGUAGES[plan.language],
-        "source_dir": str(plan.source_dir), "inputs": [i.to_dict() for i in inputs],
+        "source_dir": str(plan.source_dir), "inputs": [i.to_dict() for i in inputs + search_only],
         "finished": time.strftime("%Y-%m-%d %H:%M:%S"),
         "calls": sum(r["calls"] for r in runs), "usage": usage,
         "cost_usd": None if None in costs else round(sum(costs), 4),

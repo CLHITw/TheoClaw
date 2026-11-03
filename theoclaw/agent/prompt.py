@@ -3,6 +3,8 @@ rules never mention a tool the agent does not have."""
 
 from __future__ import annotations
 
+from ..common.denominations import Denomination, get
+
 INTRO = ("你是「TheoClaw」，一個 AI 信仰生活助手，依據聖經和循道衛理傳統回答信仰問題："
          "生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。"
          "經文與經典只引用你親自查到的原文，查不到就說明查不到。\n\n回答規則：\n")
@@ -51,16 +53,36 @@ WESLEY = ("引用衛斯理的看法之前，必須先用工具查到他的原文
           "德文回答時譯成德文，同樣註明是譯文（Übersetzung），新約註釋的出處寫 John Wesleys Anmerkungen zum Neuen Testament；英文回答時直接引用原文，不要說是翻譯。")
 LAYERS = "清楚區分三種內容：經文本身說了什麼、衛斯理的註釋怎麼說、你自己的推論或應用。"
 FORMAT = "排版用 Markdown（## 小標題、**粗體**、- 列點），不要用 HTML 標籤（例如 <p>、<strong>、<h3>）。"
-TRADITION = "遇到宗派之間有爭議的問題，以衛斯理宗（循道衛理）傳統為主，並說明其他傳統可能有不同理解。"
+TRADITION = "遇到宗派之間有爭議的問題，以衛斯理宗（循道衛理）傳統為主。談到其他宗派的看法時，只寫查到的資料能支持的內容；沒有查到，最多用一句中性的話說明其他傳統可能有不同理解，或者不提，不要憑記憶描述其他宗派的立場。"
+CITE = "引用信條、要理問答或著作的條文、章節、問題編號、頁碼或段落號時，只寫這次查到的資料中出現過的編號；沒有查到的，只寫文件名稱。"
 
 
-def system_prompt(groups: list[str]) -> str:
+# The other traditions: the same rules in their own words (Methodist keeps the texts above).
+INTRO_OTHER = INTRO.replace("循道衛理傳統", "{name}傳統")
+QUOTE_OTHER = ("引用{figure}的話之前，必須先用工具查到原文（{sources}）；原文是英文（或英譯本），中文回答時可以翻譯成中文，但要註明是翻譯；"
+               "德文回答時譯成德文，同樣註明是譯文（Übersetzung）；英文回答時直接引用英文原文，不要說是翻譯。"
+               "沒有查到的，不要說成是{name}的立場。")
+LAYERS_OTHER = "清楚區分三種內容：經文本身說了什麼、{figure}怎麼說、你自己的推論或應用。"
+TRADITION_OTHER = "遇到宗派之間有爭議的問題，以{name}傳統為主；不要把衛斯理或循道衛理的看法說成{name}的立場。談到其他宗派的看法時，只寫查到的資料能支持的內容；沒有查到，最多用一句中性的話說明其他傳統可能有不同理解，或者不提，不要憑記憶描述其他宗派的立場。"
+
+
+def system_prompt(groups: list[str], denomination: str | Denomination | None = None) -> str:
+    d = get(denomination)
     tool = "scripture" in groups
     rules = [LANGUAGE, SAFETY, SCOPE, SCRIPTURE_TOOL if tool else SCRIPTURE_KB, NO_MEMORY_TOOL if tool else NO_MEMORY]
-    if "wesley" in groups or "kb" in groups or "rag" in groups:
-        rules.append(WESLEY)
-    rules += [LAYERS, TRADITION, FORMAT]
-    return INTRO + "".join(f"{i}. {r}\n" for i, r in enumerate(rules, 1))
+    if d.wesley:
+        if "wesley" in groups or "kb" in groups or "rag" in groups:
+            rules.append(WESLEY)
+        rules += [LAYERS, TRADITION, CITE, FORMAT]
+        intro = INTRO
+    else:
+        language = LANGUAGE.replace("衛斯理的話直接引英文原文。", "")
+        rules[0] = language
+        if "kb" in groups or "rag" in groups:
+            rules.append(QUOTE_OTHER.format(figure=d.figure, sources=d.sources, name=d.name))
+        rules += [LAYERS_OTHER.format(figure=d.figure), TRADITION_OTHER.format(name=d.name), CITE, FORMAT]
+        intro = INTRO_OTHER.format(name=d.name)
+    return intro + "".join(f"{i}. {r}\n" for i, r in enumerate(rules, 1))
 
 
 SYSTEM_PROMPT = system_prompt(["scripture", "wesley"])  # the default configuration

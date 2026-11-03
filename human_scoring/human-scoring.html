@@ -705,6 +705,16 @@
         </svg>
         <select id="bibleSel" class="notr" onchange="setBible(this.value)" aria-label="Bible version"></select>
       </label>
+      <label id="denomPick" class="lang-pick hidden" title="宗派傳統 · Church tradition">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2v5M9.5 4.5h5"/>
+          <path d="M5 21V12l7-5 7 5v9"/>
+          <path d="M10 21v-4a2 2 0 0 1 4 0v4"/>
+          <path d="M3 21h18"/>
+        </svg>
+        <select id="denomSel" class="notr" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
+      </label>
       <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()" aria-pressed="false" title="語音朗讀">
         <span id="voiceIcon" aria-hidden="true">🔇</span><span>語音</span>
       </button>
@@ -765,7 +775,11 @@
 
   <div id="enterCard" class="card hidden">
     <div class="card-title">歡迎使用 TheoClaw</div>
-    <div class="help">AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
+    <div class="help">AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
+    <div class="denom-choice hidden" style="margin-top:12px">
+      <div class="help">教會傳統（可不選；選了，回答就依這個傳統）</div>
+      <select id="frontDenom" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
+    </div>
     <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
       <button class="btn" onclick="enterAs('lay')">我是信徒</button>
       <button class="btn btn-secondary" onclick="showPastorCode()">我是牧者</button>
@@ -791,8 +805,11 @@
       <input class="ask-input" id="nameInput" maxlength="20" autocomplete="off"
              style="min-height:auto;height:40px" placeholder="例如 e.g. 小明 / Tom" oninput="updateJoin()">
     </div>
-    <!-- 宗派選擇暫時不顯示：目前只有循道衛理的資料，預設循道衛理；補上其他宗派的內容後再打開 -->
-    <div class="hidden"><select id="denomSelect" class="ask-input" style="min-height:auto;height:40px"></select></div>
+    <!-- 宗派：只列伺服器有資料的傳統（預設循道衛理）；同一個選擇也在首頁、頁首和「我的對話」裡，隨時可改 -->
+    <div class="denom-choice hidden" style="margin-top:12px">
+      <div class="help">教會傳統（可不選；選了，回答就依這個傳統）</div>
+      <select id="denomSelect" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
+    </div>
     <div id="joinFixedName" class="help hidden" style="margin-top:10px">
       <span>目前使用的稱呼：</span><strong id="joinFixedWho" class="notr"></strong>
     </div>
@@ -826,6 +843,10 @@
       <div class="card-title">我的對話 · My conversations</div>
       <div class="help">用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
 Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.</div>
+    <div class="denom-choice hidden" style="margin-top:12px">
+      <div class="help">教會傳統（可不選；可隨時更改，下一個問題起生效）</div>
+      <select id="askDenom" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
+    </div>
       <div class="actions" style="justify-content:flex-start"><button class="btn btn-secondary btn-sm" onclick="convNew()">＋ 開始新對話 · New conversation</button></div>
       <ul class="q-list hidden" id="convList"></ul>
       <div class="help" style="margin-top:6px">過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。</div>
@@ -962,7 +983,8 @@ try {
     localStorage.setItem('theoclaw_device', deviceKey);
   }
 } catch (e) { deviceKey = 'session' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
-try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
+// the tradition is also kept for the whole site, so a choice made on the front page (no link yet) carries over
+try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem('theoclaw_tradition') || localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
@@ -1002,7 +1024,8 @@ function saveJoinName() {
   if (!joinFixed && !validNick(v)) { showToast(T('請輸入 1 到 20 個字，不要用特殊符號')); return ''; }
   if (!joinFixed) nick = v;
   const sel = document.getElementById('denomSelect');
-  if (sel && sel.value) denom = sel.value;
+  if (sel && sel.value && traditions.includes(sel.value)) denom = sel.value;
+  else if (!denom) denom = traditions[0] || '循道衛理 Methodist';
   try {
     if (nick) localStorage.setItem(NICK_KEY, nick);
     localStorage.setItem(NICK_KEY + '_denom', denom);
@@ -1184,6 +1207,8 @@ function init() {
     document.getElementById('enterCard').classList.remove('hidden');
     document.getElementById('progressInfo').textContent = '';
     fetch('/api/session').then(r => r.json()).then(s => {
+      traditions = s.traditions || [];
+      paintDenom();
       googleOn = !!s.google;
       accountNick = s.nick || s.account || '';
       renderAccount();
@@ -1206,14 +1231,10 @@ function start() {
   api('/api/state').then(s => {
     if (s.error) { fail(s.error); return; }
     googleOn = !!s.google;
+    traditions = s.traditions || [];
+    paintDenom();
     if (s.need_name) {
       setHeader(s.group, s.pastor);
-      const sel = document.getElementById('denomSelect');
-      if (sel) {
-        sel.innerHTML = '';
-        s.denominations.forEach(d => { const o = document.createElement('option'); o.value = o.textContent = d; sel.appendChild(o); });
-        sel.value = s.denominations.find(d => d.startsWith('循道衛理')) || s.denominations[0];
-      }
       accountNick = '';
       renderAccount();
       showJoinCard('');
@@ -2901,8 +2922,10 @@ const EN = {
   '請選擇總評': 'Please choose a verdict',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Please agree to the training use of your questions first (tick “Agree” on the page to continue)',
   '歡迎使用 TheoClaw': 'Welcome to TheoClaw',
-  'AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
-    'An AI assistant for the life of faith: it answers questions of faith from the Bible and the Methodist tradition. Everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
+  'AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'An AI assistant for the life of faith: it answers questions of faith from the Bible and the church tradition you choose. Everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
+  '教會傳統（可不選；選了，回答就依這個傳統）': 'Church tradition (optional; if you choose one, the answers follow it)',
+  '教會傳統（可不選；可隨時更改，下一個問題起生效）': 'Church tradition (optional; change it any time, it applies from the next question)',
   '我是信徒': 'I am a church member', '我是牧者': 'I am a pastor', '請輸入團契碼（向負責人索取）': 'Please enter the fellowship code (ask the organiser)',
   '進入牧者模式': 'Enter as a pastor', '請輸入團契碼': 'Please enter the fellowship code', '團契碼不正確': 'The fellowship code is not correct',
   '嘗試太多次，請一小時後再試': 'Too many tries; please try again in an hour', '牧者入口尚未開放': 'The pastors’ entrance is not open yet',
@@ -3101,8 +3124,10 @@ const DE = {
   '請選擇總評': 'Bitte Gesamturteil wählen',
   '請先同意使用對話作改進（在頁面上勾選「同意」後繼續）': 'Bitte stimmen Sie zuerst der Nutzung Ihrer Fragen zur Verbesserung zu (haken Sie auf der Seite „Zustimmen“ an, um fortzufahren)',
   '歡迎使用 TheoClaw': 'Willkommen bei TheoClaw',
-  'AI 信仰生活助手：依據聖經和循道衛理傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
-    'Ein KI-Assistent für das Glaubensleben: Er beantwortet Glaubensfragen aus der Bibel und der methodistischen Tradition. Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
+  'AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
+    'Ein KI-Assistent für das Glaubensleben: Er beantwortet Glaubensfragen aus der Bibel und der von Ihnen gewählten kirchlichen Tradition. Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
+  '教會傳統（可不選；選了，回答就依這個傳統）': 'Kirchliche Tradition (freiwillig; wenn gewählt, folgen ihr die Antworten)',
+  '教會傳統（可不選；可隨時更改，下一個問題起生效）': 'Kirchliche Tradition (freiwillig; jederzeit änderbar, gilt ab der nächsten Frage)',
   '我是信徒': 'Ich bin Gemeindeglied', '我是牧者': 'Ich bin Pastor/in', '請輸入團契碼（向負責人索取）': 'Bitte Gruppencode eingeben (beim Verantwortlichen erfragen)',
   '進入牧者模式': 'Als Pastor/in eintreten', '請輸入團契碼': 'Bitte Gruppencode eingeben', '團契碼不正確': 'Der Gruppencode ist nicht richtig',
   '嘗試太多次，請一小時後再試': 'Zu viele Versuche; bitte in einer Stunde erneut', '牧者入口尚未開放': 'Der Zugang für Pastoren ist noch nicht offen',
@@ -3115,7 +3140,7 @@ const DE = {
   '段落': 'Absatz', '新標題': 'Neuer Titel', '修改這一段（可直接改寫）': 'Absatz bearbeiten (direkt umschreiben)', '刪除這一段？': 'Diesen Absatz löschen?',
   '把講稿板上的段落組成一篇完整講稿？（約 1 到 2 分鐘）': 'Absätze vom Entwurfsbrett zu einer Gesamtpredigt zusammenfügen? (etwa 1 bis 2 Minuten)',
   // 語音朗讀
-  '語音': 'Sprache', '🔊 朗讀': '🔊 Vorlesen', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Weiter', '⏹ 停止': '⏹ Stopp',
+  '宗派傳統 · Church tradition': 'Konfession', '語音': 'Sprache', '🔊 朗讀': '🔊 Vorlesen', '⏸ 暫停': '⏸ Pause', '▶ 繼續': '▶ Weiter', '⏹ 停止': '⏹ Stopp',
   '語音朗讀': 'Sprache: Antworten werden vorgelesen',
   '朗讀的聲音': 'Sprechstimme', '自動（預設）': 'Automatisch (beste Stimme)',
   '朗讀控制': 'Vorlesesteuerung', '停止朗讀': 'Vorlesen beenden',
@@ -3254,6 +3279,7 @@ function applyScript() {
   document.title = zhMode === 'de' ? 'TheoClaw – KI-Assistent für das Glaubensleben' : 'TheoClaw';
   renderAccount();
   paintBible();
+  paintDenom();
   convertNode(document.body);
   voiceRefresh();
   voicePaintToggle();
@@ -3297,6 +3323,45 @@ function paintBible() {
   sel.innerHTML = list.map(b => '<option value="' + b[0] + '" title="' + b[2] + '">' + b[1] + '</option>').join('');
   sel.value = bibleOf(lang);
   sel.title = list.find(b => b[0] === sel.value)[2];
+}
+
+// Church tradition the answers draw on: the server lists the ones it has sources for (Methodist
+// first, the default); the choice is kept with the nickname and sent with every question.
+const DENOM_NAMES = {'默認 Default': ['默認', 'Default', 'Standard'],
+                     '循道衛理 Methodist': ['循道衛理', 'Methodist', 'Methodistisch'],
+                     '信義會 Lutheran': ['路德宗', 'Lutheran', 'Lutherisch'],
+                     '浸信會 Baptist': ['浸信會', 'Baptist', 'Baptistisch'],
+                     '聖公會 Anglican': ['聖公會', 'Anglican', 'Anglikanisch'],
+                     '長老會／改革宗 Presbyterian / Reformed': ['加爾文宗', 'Calvinist (Reformed)', 'Calvinistisch (Reformiert)']};
+let traditions = [];
+function denomName(v) {
+  const n = DENOM_NAMES[v];
+  if (!n) return v;
+  return zhMode === 'en' ? n[1] : (zhMode === 'de' ? n[2] : (zhMode === 'hans' && zhMap ? toHans(n[0]) : n[0]));
+}
+function setDenom(v) {
+  denom = v;
+  try { localStorage.setItem(NICK_KEY + '_denom', v); localStorage.setItem('theoclaw_tradition', v); } catch (e) {}
+  paintDenom();
+}
+// The same choice in four places: the header, the front page, the join card and the conversations card.
+const DENOM_SELECTS = ['denomSel', 'frontDenom', 'denomSelect', 'askDenom'];
+function paintDenom() {
+  const box = document.getElementById('denomPick');
+  const show = traditions.length > 1;
+  if (box) box.classList.toggle('hidden', !show);
+  document.querySelectorAll('.denom-choice').forEach(el => el.classList.toggle('hidden', !show));
+  if (!show) return;
+  const cur = traditions.includes(denom) ? denom : traditions[0];  // an older choice (無宗派…) shows as the default
+  const opts = traditions.map(d => '<option value="' + d + '">' + denomName(d) + '</option>').join('');
+  DENOM_SELECTS.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = opts;
+    sel.value = cur;
+  });
+  const head = document.getElementById('denomSel');
+  if (head) head.setAttribute('aria-label', zhMode === 'en' ? 'Church tradition' : (zhMode === 'de' ? 'Konfession' : denomName(cur)));
 }
 
 // Theme: an explicit choice of 跟隨系統 / 白天 / 黑夜, kept in localStorage.

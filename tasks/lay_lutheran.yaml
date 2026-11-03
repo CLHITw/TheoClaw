@@ -1,0 +1,90 @@
+# 路德宗平信徒問題：比較「目前網站（循道衛理知識庫與立場）」與「路德宗知識庫與立場」。
+#   之前：python -m theoclaw.evals run --tasks tasks/lay_lutheran.yaml --tools scripture,wesley,kb,rag --kb methodist.en.deepseek-flash --n 1 --label lutheran-before
+#   之後：python -m theoclaw.evals run --tasks tasks/lay_lutheran.yaml --tools scripture,kb,rag --kb lutheran.en.deepseek-flash --denomination lutheran --n 1 --label lutheran-after
+#   評分：python -m theoclaw.evals ground score <兩個 run> --model deepseek-flash
+# expect.facts 是路德宗的立場（出自《協同書》），ground 的 fact recall 就是「忠於宗派」的分數；
+# faithfulness（有沒有依據查到的原文）是另一個分數。題目刻意碰路德宗和循道衛理不同的地方。
+
+- id: lu-real-presence
+  category: sacraments
+  prompt: 信義會怎樣看聖餐？餅和杯只是象徵，還是基督的身體和血真的在其中？
+  expect:
+    facts:
+      - 基督的身體和血真實地臨在於聖餐中，與餅和酒同在，分給領受的人（奧斯堡信條第十條）。
+      - 路德宗拒絕把聖餐只看為象徵或紀念的說法。
+      - 路德宗也不接受天主教的變質說（餅酒的本質沒有變成別的東西）。
+  graders: []
+
+- id: lu-law-gospel
+  category: doctrine
+  prompt: 路德說的「律法與福音」是甚麼意思？為甚麼要把兩者分清楚？
+  expect:
+    facts:
+      - 律法顯出人的罪、定人的罪；福音宣告罪人因基督白白得赦免。
+      - 正確分辨律法與福音是協同信條特別強調的（協同信條第五條）。
+      - 把福音變成律法（要人靠行為得救）會奪去良心的安慰。
+  graders: []
+
+- id: lu-baptism
+  category: sacraments
+  prompt: 信義會為甚麼給嬰孩施洗？洗禮真的能使人重生嗎？
+  expect:
+    facts:
+      - 洗禮是必要的，藉洗禮賜下恩典，嬰孩應該受洗（奧斯堡信條第九條）。
+      - 洗禮不只是水，而是與上帝的話連在一起的水，帶來罪得赦免、救人脫離死亡和魔鬼（小要理問答）。
+      - 洗禮的益處要憑信心領受。
+  graders: []
+
+- id: lu-justification
+  category: doctrine
+  prompt: How do Lutherans explain justification by faith? Do good works play any part in being saved?
+  expect:
+    facts:
+      - People are justified freely for Christ's sake through faith, not by their own strength, merits or works (Augsburg Confession, Article IV).
+      - Good works must follow faith, but they do not merit justification (Augsburg Confession, Article VI / XX).
+  graders: []
+
+- id: lu-two-kingdoms
+  category: life
+  prompt: 基督徒可以當兵、做公務員或上法庭嗎？信義會怎樣看信徒和政府的關係？
+  expect:
+    facts:
+      - 合法的政府和民事秩序是上帝所設立的美好安排，基督徒可以擔任公職、當兵、在法庭作證（奧斯堡信條第十六條）。
+      - 屬靈的權柄（傳福音、施行聖禮）和世俗的權柄要分清楚，不可混淆（奧斯堡信條第二十八條）。
+  graders: []
+
+- id: lu-confession
+  category: practice
+  prompt: 信義會有認罪和赦罪嗎？要向牧師逐一說出所有的罪嗎？
+  expect:
+    facts:
+      - 私下認罪和赦罪應該保留在教會中（奧斯堡信條第十一條）。
+      - 不需要列舉所有的罪，因為這是不可能的（引用詩篇 19:12）。
+  graders: []
+
+- id: lu-perfection
+  category: contrast
+  prompt: 基督徒今生可以達到完全、不再犯罪嗎？路德宗和衛斯理的看法一樣嗎？
+  expect:
+    facts:
+      - 路德宗認為信徒今生同時是義人又是罪人，原罪的私慾在受洗後仍然存在，直到死時。
+      - 路德宗不同於衛斯理的「基督徒完全」教導，答案應指出兩者的分別。
+  graders: []
+
+- id: lu-small-catechism
+  category: catechism
+  prompt: What is Luther's Small Catechism, and what does it teach about the first commandment?
+  expect:
+    facts:
+      - The Small Catechism was written by Luther for the head of the household to teach the family.
+      - On the first commandment, we should fear, love and trust in God above all things.
+  graders: []
+
+- id: lu-free-will
+  category: doctrine
+  prompt: 人有自由意志可以自己選擇信主嗎？路德怎樣說？
+  expect:
+    facts:
+      - 在屬靈的事上，人沒有聖靈就不能靠自己的能力成就上帝的義（奧斯堡信條第十八條）。
+      - 路德在《論意志的捆綁》中反對伊拉斯謨，主張人的意志在得救的事上是被捆綁的。
+  graders: []
