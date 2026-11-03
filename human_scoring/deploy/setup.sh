@@ -41,7 +41,7 @@ python3 -m venv "$APP/.venv"
 touch "$APP/.env"; chmod 600 "$APP/.env"
 chown -R "$USER_NAME:$USER_NAME" "$APP"
 
-# cloudflared（沒有網域時用它取得 https 網址）
+# cloudflared（theoclaw.app 的命名通道 cloudflared.service 需要；通道本身在 Cloudflare 後台建立）
 if ! command -v cloudflared >/dev/null; then
   ARCH=$(dpkg --print-architecture)
   curl -fsSL -o /tmp/cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${ARCH}.deb"
@@ -49,18 +49,17 @@ if ! command -v cloudflared >/dev/null; then
 fi
 
 install -m 644 "$APP/human_scoring/deploy/theoclaw-scoring.service" /etc/systemd/system/
-install -m 644 "$APP/human_scoring/deploy/theoclaw-tunnel.service" /etc/systemd/system/
+# 舊的臨時通道（trycloudflare 網址）不再使用：網站只走 https://theoclaw.app。還裝著的伺服器在這裡關掉並移除。
+systemctl disable --now theoclaw-tunnel 2>/dev/null || true
+rm -f /etc/systemd/system/theoclaw-tunnel.service
 systemctl daemon-reload
 systemctl enable --now theoclaw-scoring
 systemctl restart theoclaw-scoring
-# 臨時通道（trycloudflare 網址）一直保留、不重啟：已經發出去的舊連結繼續有效。
-# 有固定網域（.env 的 THEOCLAW_URL，通道由 Cloudflare 後台建立）時，從舊連結進來的人
-# 會被頁面帶到固定網址，暱稱和先前的對話都跟著過去。
-systemctl enable --now theoclaw-tunnel
 systemctl disable --now theoclaw-scoring-db theoclaw-tunnel-db 2>/dev/null || true   # the short-lived test pair
 
 sleep 8
 echo "評分伺服器狀態："; systemctl --no-pager --lines=3 status theoclaw-scoring || true
 echo
+echo "網站：https://theoclaw.app"
 bash "$APP/human_scoring/deploy/links.sh"
 
