@@ -68,7 +68,11 @@ _EN_CITE = re.compile(r"\b(" + "|".join(p for p, _ in _EN_KIND) + rf")\s*(\d+|{_
 # WCF 31.4 / WLC 79 / WSC Q1 / HC 74
 _ABBR_CITE = re.compile(r"\b(WCF|WLC|WSC|HC)\s*(Q?)\s*(\d+)(?:\.(\d+))?\b")
 
-_BOOK_NAMES = sorted({*ZH_NAME.values(), *EN_NAME.values()}, key=len, reverse=True)
+_ORDINALS = {w: i for i, w in enumerate(
+    ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"], 1)}
+_ORDINAL = re.compile(r"\b(" + "|".join(_ORDINALS) + r")(?:ly)?\b", re.I)
+
+_BOOK_NAMES =sorted({*ZH_NAME.values(), *EN_NAME.values()}, key=len, reverse=True)
 _BOOKS = "|".join(re.escape(n) for n in _BOOK_NAMES)
 _BOOK_BEFORE = re.compile(rf"(?:{_BOOKS})\s*$")
 _BOOK_AFTER = re.compile(rf"\s*(?:of\s+)?(?:{_BOOKS})")
@@ -110,6 +114,9 @@ def evidence_numbers(texts: list[str]) -> dict[str, set[int]]:
             n = _num(m.group(1))
             if n is not None:
                 found["article"].add(n)
+        # rules written out as ordinals ("First, by doing no harm ... Secondly ... Thirdly"), cited as 第一條
+        for m in _ORDINAL.finditer(t):
+            found["article"].add(_ORDINALS[m.group(1).lower()])
         # a bare section number on its own line (WCF "6", then "AS God hath ..."): only for chapter.section pairs
         for m in re.finditer(r"(?m)^\s*(\d{1,2})\s*$(?=\n[A-Z])", t):
             found["bare"].add(int(m.group(1)))

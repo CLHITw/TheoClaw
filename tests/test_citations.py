@@ -52,6 +52,14 @@ def test_pages_requested_count_as_read_and_prompt_counts_as_evidence():
     assert "第三章" in out
 
 
+def test_rules_written_as_ordinals_count_as_numbered():
+    rules = "First, by doing no harm ... Secondly, by doing good ... Thirdly, by attending upon all the ordinances"
+    text = "**第一條：不作惡**；第二條是行善，第三條是守條例，第四條另有規定。"
+    out, dropped = check_citations(text, "", _steps(rules))
+    assert "第一條" in out and "第二條" in out and "第三條" in out
+    assert dropped == ["第四條"]
+
+
 def test_emptied_parentheses_disappear():
     out, _ = check_citations("He says so (Westminster Confession, chapter 29).", "", _steps(""))
     assert out == "He says so (Westminster Confession)."
