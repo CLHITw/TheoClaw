@@ -1130,10 +1130,11 @@ def test_tradition_picks_the_knowledge_base_and_stance(tmp_path, monkeypatch):
     code = hs.add_group("查經班", path)
     store = hs.Store(path, chat={"model": "m", "daily_limit": 5, "budget_usd": 1.0, "kb": "no-such-kb",
                                  "kbs": {"lutheran": "no-such-lutheran-kb", "baptist": "no-such-baptist-kb",
-                                         "anglican": "no-such-anglican-kb"}},
+                                         "anglican": "no-such-anglican-kb", "reformed": "no-such-reformed-kb"}},
                      chat_dir=tmp_path / "chat")
     # only traditions with a knowledge base on the server are offered; Methodist always
     assert store.state(code)["traditions"] == ["循道衛理 Methodist"]
+    assert hs.denoms.get(hs.denoms.DEFAULT_LABEL).key == "methodist" and hs.denoms.DEFAULT_LABEL in hs.DENOMINATIONS
     assert store.kb_for("lutheran") is None
     ts = store._lay_tools("信義會 Lutheran")  # no KB: scripture only, Lutheran stance, no Wesley
     assert ts.meta["tools"] == ["scripture"] and ts.meta["denomination"] == "lutheran" and "路德宗" in ts.system

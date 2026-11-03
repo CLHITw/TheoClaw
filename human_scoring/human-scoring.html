@@ -777,7 +777,7 @@
     <div class="card-title">歡迎使用 TheoClaw</div>
     <div class="help">AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。</div>
     <div class="denom-choice hidden" style="margin-top:12px">
-      <div class="help">您的教會傳統（回答會依這個傳統）</div>
+      <div class="help">教會傳統（可不選；選了，回答就依這個傳統）</div>
       <select id="frontDenom" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
     </div>
     <div class="actions" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
@@ -807,7 +807,7 @@
     </div>
     <!-- 宗派：只列伺服器有資料的傳統（預設循道衛理）；同一個選擇也在首頁、頁首和「我的對話」裡，隨時可改 -->
     <div class="denom-choice hidden" style="margin-top:12px">
-      <div class="help">您的教會傳統（回答會依這個傳統）</div>
+      <div class="help">教會傳統（可不選；選了，回答就依這個傳統）</div>
       <select id="denomSelect" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
     </div>
     <div id="joinFixedName" class="help hidden" style="margin-top:10px">
@@ -844,7 +844,7 @@
       <div class="help">用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。<br>
 Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.</div>
     <div class="denom-choice hidden" style="margin-top:12px">
-      <div class="help">回答依據的教會傳統（可隨時更改，下一個問題起生效）</div>
+      <div class="help">教會傳統（可不選；可隨時更改，下一個問題起生效）</div>
       <select id="askDenom" class="ask-input notr" style="min-height:auto;height:40px" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
     </div>
       <div class="actions" style="justify-content:flex-start"><button class="btn btn-secondary btn-sm" onclick="convNew()">＋ 開始新對話 · New conversation</button></div>
@@ -1025,7 +1025,7 @@ function saveJoinName() {
   if (!joinFixed) nick = v;
   const sel = document.getElementById('denomSelect');
   if (sel && sel.value && traditions.includes(sel.value)) denom = sel.value;
-  else if (!denom) denom = '循道衛理 Methodist';
+  else if (!denom) denom = traditions[0] || '循道衛理 Methodist';
   try {
     if (nick) localStorage.setItem(NICK_KEY, nick);
     localStorage.setItem(NICK_KEY + '_denom', denom);
@@ -2831,8 +2831,8 @@ const EN = {
   '歡迎使用 TheoClaw': 'Welcome to TheoClaw',
   'AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
     'An AI assistant for the life of faith: it answers questions of faith from the Bible and the church tradition you choose. Everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Pastors can also use it to prepare sermons. Scripture and the classic texts are looked up word for word by the program, and only what it has looked up is quoted. Only you can see your questions.',
-  '您的教會傳統（回答會依這個傳統）': 'Your church tradition (answers follow it)',
-  '回答依據的教會傳統（可隨時更改，下一個問題起生效）': 'Church tradition for the answers (change it any time; it applies from the next question)',
+  '教會傳統（可不選；選了，回答就依這個傳統）': 'Church tradition (optional; if you choose one, the answers follow it)',
+  '教會傳統（可不選；可隨時更改，下一個問題起生效）': 'Church tradition (optional; change it any time, it applies from the next question)',
   '我是信徒': 'I am a church member', '我是牧者': 'I am a pastor', '請輸入團契碼（向負責人索取）': 'Please enter the fellowship code (ask the organiser)',
   '進入牧者模式': 'Enter as a pastor', '請輸入團契碼': 'Please enter the fellowship code', '團契碼不正確': 'The fellowship code is not correct',
   '嘗試太多次，請一小時後再試': 'Too many tries; please try again in an hour', '牧者入口尚未開放': 'The pastors’ entrance is not open yet',
@@ -3033,8 +3033,8 @@ const DE = {
   '歡迎使用 TheoClaw': 'Willkommen bei TheoClaw',
   'AI 信仰生活助手：依據聖經和您所選的教會傳統回答信仰問題，生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；牧者也可以用它預備講章。經文與經典由程式逐字查出，只引用查到的原文。您的提問只有您自己看得到。':
     'Ein KI-Assistent für das Glaubensleben: Er beantwortet Glaubensfragen aus der Bibel und der von Ihnen gewählten kirchlichen Tradition. Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Auch Pastorinnen und Pastoren können damit Predigten vorbereiten. Bibeltexte und klassische Schriften schlägt das Programm Wort für Wort nach und zitiert nur, was es nachgeschlagen hat. Nur Sie sehen Ihre Fragen.',
-  '您的教會傳統（回答會依這個傳統）': 'Ihre kirchliche Tradition (die Antworten folgen ihr)',
-  '回答依據的教會傳統（可隨時更改，下一個問題起生效）': 'Kirchliche Tradition der Antworten (jederzeit änderbar; gilt ab der nächsten Frage)',
+  '教會傳統（可不選；選了，回答就依這個傳統）': 'Kirchliche Tradition (freiwillig; wenn gewählt, folgen ihr die Antworten)',
+  '教會傳統（可不選；可隨時更改，下一個問題起生效）': 'Kirchliche Tradition (freiwillig; jederzeit änderbar, gilt ab der nächsten Frage)',
   '我是信徒': 'Ich bin Gemeindeglied', '我是牧者': 'Ich bin Pastor/in', '請輸入團契碼（向負責人索取）': 'Bitte Gruppencode eingeben (beim Verantwortlichen erfragen)',
   '進入牧者模式': 'Als Pastor/in eintreten', '請輸入團契碼': 'Bitte Gruppencode eingeben', '團契碼不正確': 'Der Gruppencode ist nicht richtig',
   '嘗試太多次，請一小時後再試': 'Zu viele Versuche; bitte in einer Stunde erneut', '牧者入口尚未開放': 'Der Zugang für Pastoren ist noch nicht offen',
@@ -3234,7 +3234,8 @@ function paintBible() {
 
 // Church tradition the answers draw on: the server lists the ones it has sources for (Methodist
 // first, the default); the choice is kept with the nickname and sent with every question.
-const DENOM_NAMES = {'循道衛理 Methodist': ['循道衛理', 'Methodist', 'Methodistisch'],
+const DENOM_NAMES = {'默認 Default': ['默認', 'Default', 'Standard'],
+                     '循道衛理 Methodist': ['循道衛理', 'Methodist', 'Methodistisch'],
                      '信義會 Lutheran': ['路德宗', 'Lutheran', 'Lutherisch'],
                      '浸信會 Baptist': ['浸信會', 'Baptist', 'Baptistisch'],
                      '聖公會 Anglican': ['聖公會', 'Anglican', 'Anglikanisch'],

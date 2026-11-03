@@ -81,7 +81,7 @@ PAGE = HERE / "human-scoring.html"
 MAX_BODY = 64 * 1024
 # 宗派：記在提問與評分裡。頁面上可選有知識庫的傳統（theoclaw.common.denominations：循道衛理、路德宗、
 # 浸信會、聖公會、加爾文宗），回答就用該傳統的知識庫和立場；其他選項只作記錄，回答以循道衛理立場為主。
-DENOMINATIONS = ["循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
+DENOMINATIONS = [denoms.DEFAULT_LABEL, "循道衛理 Methodist", "聖公會 Anglican", "浸信會 Baptist", "長老會／改革宗 Presbyterian / Reformed",
                  "信義會 Lutheran", "五旬節／靈恩 Pentecostal / Charismatic", "天主教 Catholic", "東正教 Orthodox",
                  "無宗派 Non-denominational", "其他 Other"]
 # 經文版本：每種頁面語言可選的版本，第一個是預設（不必另外提示模型）。只放公有領域的版本：
@@ -1334,11 +1334,13 @@ class Store:
         return kb if kb and (ROOT / "knowledge" / kb / "wiki" / "index.md").is_file() else None
 
     def traditions(self) -> list[str]:
-        """The traditions a reader can pick on the page: Methodist, and every other one whose
-        knowledge base is on this server."""
+        """The traditions a reader can pick on the page: 默認 first (no particular tradition, answered
+        as Methodist), Methodist, and every other one whose knowledge base is on this server. With no
+        other tradition there is nothing to pick: Methodist alone, and the page shows no choice."""
         if not self.chat:
             return [denoms.METHODIST.label]
-        return [d.label for d in denoms.DENOMS.values() if d.wesley or self.kb_for(d)]
+        found = [d.label for d in denoms.DENOMS.values() if d.wesley or self.kb_for(d)]
+        return [denoms.DEFAULT_LABEL, *found] if len(found) > 1 else found
 
     def _lay_tools(self, denomination: str | None = None):
         """Lay members' tools for a tradition: scripture (Methodist also Wesley's notes), plus the

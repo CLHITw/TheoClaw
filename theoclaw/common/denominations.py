@@ -67,6 +67,8 @@ REFORMED = Denomination(
 
 DENOMS: dict[str, Denomination] = {d.key: d for d in (METHODIST, LUTHERAN, BAPTIST, ANGLICAN, REFORMED)}
 DEFAULT = METHODIST
+# "No particular tradition": the page's first choice, answered as Methodist but recorded as its own value.
+DEFAULT_LABEL = "默認 Default"
 
 
 def get(ref: str | Denomination | None) -> Denomination:
