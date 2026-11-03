@@ -137,13 +137,16 @@ profiles:
       - {file: 06_fuller_gospel_worthy_of_all_acceptation.md, search_only: true, name: fuller-gospel-worthy-of-all-acceptation.md}
 
   anglican:
-    description: 聖公會知識庫：三十九條、1928 年美國公禱書（主要禮文）、朱厄爾《英格蘭教會辯護》；講道集與胡克只供檢索
+    description: 聖公會知識庫：三十九條、1928 年美國公禱書（主要禮文）、朱厄爾《英格蘭教會辯護》、講道集教義篇章、胡克第五卷論聖禮；講道集與胡克全文另供檢索
     model: deepseek-flash
     source_dir: E:/DESK/theoclaw/Denominations/Anglican
     sources:
       - {file: pdf/01_thirty_nine_articles_1571.pdf, name: thirty-nine-articles.pdf}
       - {file: pdf/03_book_of_common_prayer_1928_us_core.pdf, name: book-of-common-prayer-1928.pdf}
       - {file: pdf/05_jewel_apology_of_the_church_of_england.pdf, name: jewel-apology-of-the-church-of-england.pdf}
+      # 2026-11-03 補編（按頁）：講道集中的教義篇章（救恩、信心、善行、聖禮等）與胡克第五卷論聖禮
+      - {file: pdf/07_homilies_doctrinal_selection.pdf, name: homilies-doctrinal-selection.pdf}
+      - {file: pdf/08_hooker_book5_sacraments.pdf, name: hooker-book5-sacraments.pdf}
       - {file: 02_books_of_homilies.md, search_only: true, name: books-of-homilies.md}
       - {file: 04_hooker_laws_of_ecclesiastical_polity_selection.md, search_only: true, name: hooker-laws-of-ecclesiastical-polity.md}
 
