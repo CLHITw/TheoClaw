@@ -17,6 +17,7 @@ from ..common import zh
 from ..common.tooling import Handler, ToolError
 from ..llm import ProviderAPIError, anthropic_usage, supports_effort
 from .prompt import SYSTEM_PROMPT
+from .citations import check_citations
 from .quotes import answer_language, fill_placeholders, html_to_markdown, scrub_internal
 from .tools import TOOL_DEFS
 
@@ -67,6 +68,7 @@ class AgentRun:
     simplified_fixed: list[str] = field(default_factory=list)
     script: str = "hant"  # "hans": the question was Simplified, so the answer is too
     model_text: str | None = None  # the model's answer before placeholders and conversion, when it changed
+    citations_dropped: list[str] = field(default_factory=list)  # citation numbers not found in what the run read
 
     @property
     def tool_calls(self) -> list[ToolCall]:
@@ -202,6 +204,7 @@ def run_agent(
                 run.final_text, fills = fill_placeholders(run.final_text, handlers, bible)
                 step.tool_calls.extend(fills)
                 run.final_text, _ = scrub_internal(run.final_text, lang)
+                run.final_text, run.citations_dropped = check_citations(run.final_text, prompt, run.steps)
             if run.script == "hans":
                 run.final_text = zh.to_simplified(run.final_text)
             if run.final_text != model_text:
