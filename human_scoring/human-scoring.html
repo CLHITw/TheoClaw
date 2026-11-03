@@ -470,6 +470,9 @@
   .turn > summary .tag { font-size: 0.8rem; color: var(--text-light); white-space: nowrap; }
   .turn[open] > summary .ask::before { content: "▾ "; }
   .turn:not([open]) > summary .ask::before { content: "▸ "; }
+  /* 折疊時問題最多顯示三行，多出的以「…」收尾；展開後顯示全文 */
+  .turn > summary .ask { min-width: 0; overflow-wrap: anywhere; }
+  .turn:not([open]) > summary .ask { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
   .rate-panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; }
   .rate-panel .dim-btn { min-width: 34px; }
   /* One-tap rating under every answer: thumbs or a direct 0-10. */
