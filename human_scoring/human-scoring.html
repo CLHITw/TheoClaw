@@ -575,6 +575,8 @@
     background: var(--card); color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0 4px; }
   @media (max-width: 600px) { .voice-pick { max-width: 120px; } }
   .speak-row { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; flex-wrap: wrap; }
+  .speak-row-end { margin: 10px 0 4px; }
+  .speak-end.speaking { background: var(--read-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .speak-btn.speaking { background: var(--read-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .speak-stop { color: var(--danger); }
   .speak-pos { font-size: 0.8rem; color: var(--text-light); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1711,6 +1713,10 @@ function voicePaint(btn) {
     btn.classList.toggle('paused', paused);
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     voiceSetText(btn.querySelector('.vlabel'), active ? (paused ? '▶ 繼續' : '⏸ 暫停') : '🔊 朗讀');
+    if (btn._end) {   // 回答末尾那顆鈕跟著同步
+      btn._end.classList.toggle('speaking', active);
+      voiceSetText(btn._end.querySelector('.vlabel'), active ? (paused ? '▶ 繼續' : '⏸ 暫停') : '🔊 朗讀');
+    }
     if (row) {
       const stop = row.querySelector('.speak-stop');
       const pos = row.querySelector('.speak-pos');
@@ -2073,6 +2079,22 @@ function voiceButton(el) {
   }
   return row;
 }
+// 回答末尾再放一顆朗讀鈕：讀完想再聽一遍，不必捲回上面。它和上面那顆是同一組控制。
+function voiceEndButton(row) {
+  const top = row && row.querySelector('.speak-btn');
+  const wrap = document.createElement('div'); wrap.className = 'speak-row speak-row-end';
+  if (!top) return wrap;
+  const b = document.createElement('button');
+  b.className = 'btn btn-secondary btn-sm speak-end';
+  b.type = 'button';
+  const label = document.createElement('span'); label.className = 'vlabel';
+  voiceSetText(label, '🔊 朗讀');
+  b.appendChild(label);
+  b.onclick = () => top.click();
+  top._end = b;
+  wrap.appendChild(b);
+  return wrap;
+}
 function voicePaintToggle() {
   const b = document.getElementById('voiceBtn');
   if (!b) return;
@@ -2352,8 +2374,10 @@ function renderTurns(box, turns, openId, onAdd) {
     tag.textContent = (t.rated ? '✓ 已評分' : '未評分') + (c.unsupported ? '｜未能核實 ' + c.unsupported : '');
     sm.appendChild(ask); sm.appendChild(tag); d.appendChild(sm);
     const rep = document.createElement('div'); rep.className = 'card-content'; setRich(rep, t.reply, t.lang);
-    d.appendChild(voiceButton(rep));   // 朗讀列放在回答最前面，不必先滑到最下面才能開始聽
+    const vrow = voiceButton(rep);
+    d.appendChild(vrow);   // 朗讀列放在回答最前面，不必先滑到最下面才能開始聽
     d.appendChild(rep);
+    d.appendChild(voiceEndButton(vrow));   // 末尾也有一顆，想再聽一遍不必捲回上面
     const chkText = wsCheckText(t.check);
     if (chkText) { const chk = document.createElement('div'); chk.className = 'help'; chk.style.marginTop = '6px'; chk.textContent = chkText; d.appendChild(chk); }
     const act = document.createElement('div'); act.className = 'actions'; act.style.justifyContent = 'flex-start';
@@ -2526,7 +2550,8 @@ function shareView(s) {
     const note = document.createElement('div'); note.className = 'help'; note.style.marginTop = '12px';
     note.textContent = T('由 TheoClaw 生成，僅供參考');
     const rt = document.createElement('div'); rt.style.marginTop = '14px';
-    [qt, q, at, voiceButton(rep), rep, note, rt].forEach(e => box.appendChild(e));
+    const vrow = voiceButton(rep);
+    [qt, q, at, vrow, rep, voiceEndButton(vrow), note, rt].forEach(e => box.appendChild(e));
     const token = (location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/) || [])[1];
     if (token) shareRate(token, rt);
   }
