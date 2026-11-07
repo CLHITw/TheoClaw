@@ -50,7 +50,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -1455,21 +1455,52 @@ ICON_FILES = {"icon-192.png", "icon-512.png", "maskable-192.png", "maskable-512.
 _LINK_CODE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def pwa_manifest(code: str = "", move: str = "") -> dict:
+class Handoff:
+    """iPhone home-screen apps start with their own empty storage. So that the app is still the
+    same person, Safari's page posts who it is (k, n, d, l: device key, nickname, tradition,
+    script) here, in the request body, and gets a random one-time token; only the token goes into
+    the manifest's start_url, after "#" (never sent to a server). The app, on first start, posts
+    the token back and gets the identity once. Tokens live in memory, expire after TTL seconds
+    and work once; the device key never appears in any address."""
+
+    TTL = 7 * 24 * 3600
+    MAX = 5000
+
+    def __init__(self):
+        self._items: dict[str, tuple[float, dict]] = {}
+        self._lock = threading.Lock()
+
+    def put(self, data: dict) -> str | None:
+        keep = {f: data[f] for f in ("k", "n", "d", "l") if isinstance(data.get(f), str) and len(data[f]) <= 200}
+        if not keep.get("k"):
+            return None
+        h = secrets.token_urlsafe(18)
+        now = time.time()
+        with self._lock:
+            self._items = {t: v for t, v in self._items.items() if v[0] > now}
+            if len(self._items) >= self.MAX:
+                self._items.pop(min(self._items, key=lambda t: self._items[t][0]))
+            self._items[h] = (now + self.TTL, keep)
+        return h
+
+    def take(self, h: str) -> dict | None:
+        with self._lock:
+            v = self._items.pop(h, None)
+        return v[1] if v and v[0] > time.time() else None
+
+
+HANDOFF = Handoff()
+
+
+def pwa_manifest(code: str = "", handoff: str = "") -> dict:
     """The web app manifest. The installed app opens on the link it was installed from (?t=code);
-    iPhone home-screen apps start with their own empty storage, so the page may also pass this
-    browser's identity (`move`: base64url JSON with k, n, d, l, the same as the old address's
-    #move=) and the app picks it up on first start, when it has none of its own."""
+    in iPhone Safari the page also passes a one-time handoff token (see Handoff), which the app
+    redeems on first start when it has no identity of its own."""
     start = "/"
     if _LINK_CODE.match(code or ""):
         start = "/?" + urlencode({"t": code})
-        try:
-            m = json.loads(base64.urlsafe_b64decode(move + "=" * (-len(move) % 4)).decode("utf-8")) if move else None
-        except (ValueError, UnicodeDecodeError):
-            m = None
-        if isinstance(m, dict) and isinstance(m.get("k"), str) and m["k"]:
-            keep = {f: m[f] for f in ("k", "n", "d", "l") if isinstance(m.get(f), str) and len(m[f]) <= 200}
-            start += "#move=" + quote(json.dumps(keep, ensure_ascii=False), safe="")
+        if re.fullmatch(r"[A-Za-z0-9_-]{16,64}", handoff or ""):
+            start += "#h=" + handoff
     icons = [{"src": f"/icons/icon-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "any"} for s in (192, 512)]
     icons += [{"src": f"/icons/maskable-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "maskable"} for s in (192, 512)]
     return {"id": "/", "name": "TheoClaw", "short_name": "TheoClaw", "description": "信仰問答助手 · Faith Q&A assistant",
@@ -1649,7 +1680,7 @@ def make_handler(store: Store):
                 self.wfile.write(body)
                 return
             if u.path == "/manifest.webmanifest":  # home-screen install (PWA): opens on this link's code
-                body = json.dumps(pwa_manifest((q.get("t") or [""])[0], (q.get("m") or [""])[0]),
+                body = json.dumps(pwa_manifest((q.get("t") or [""])[0], (q.get("h") or [""])[0]),
                                   ensure_ascii=False).encode("utf-8")
                 return self._static(body, "application/manifest+json; charset=utf-8", "no-store")
             if u.path == "/sw.js":  # the service worker: caches the icons and the bare page, never answers or the API
@@ -1812,6 +1843,20 @@ def make_handler(store: Store):
                 client = self.headers.get("CF-Connecting-IP") or self.client_address[0]
                 out = store.enter(str(body.get("role") or ""), str(body.get("code") or ""), client)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            if u.path in ("/api/pwa-handoff", "/api/pwa-claim"):  # iPhone home-screen app: who this browser is
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 2048:
+                    return self._json({"error": "資料過大"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                except json.JSONDecodeError:
+                    return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+                body = body if isinstance(body, dict) else {}
+                if u.path == "/api/pwa-handoff":
+                    h = HANDOFF.put(body)
+                    return self._json({"h": h}) if h else self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+                data = HANDOFF.take(str(body.get("h") or ""))
+                return self._json(data) if data else self._json({"error": "已失效"}, HTTPStatus.NOT_FOUND)
             m = SHARE_API.match(u.path)
             if m and m.group(2) == "rate":  # a visitor scores a shared answer: no link code, no name
                 length = int(self.headers.get("Content-Length") or 0)

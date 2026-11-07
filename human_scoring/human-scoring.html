@@ -1000,8 +1000,27 @@ try {
 try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem('theoclaw_tradition') || localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
 // Home-screen app (PWA). The installed app opens on this link (?t=code). An iPhone home-screen
-// app starts with its own empty storage, so in Safari the manifest also carries who this browser
-// is (the same as #move= from the old address); the app takes it only when it has no one yet.
+// app starts with its own empty storage, so in Safari the page posts who this browser is to the
+// server (request body) for a one-time token, and only that token goes into the app's start
+// address after "#h="; the app redeems it once on first start. The device key is never in an address.
+(function () {
+  if (!location.hash.startsWith('#h=')) return;
+  const h = location.hash.slice(3);
+  history.replaceState(null, '', location.pathname + location.search);
+  fetch('/api/pwa-claim', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({h: h})})
+    .then(r => r.ok ? r.json() : null)
+    .then(m => {
+      if (!m || !m.k) return;
+      try {
+        if (localStorage.getItem(NICK_KEY)) return;   // this app already is someone: keep it
+        localStorage.setItem('theoclaw_device', m.k);
+        if (m.n) localStorage.setItem(NICK_KEY, m.n);
+        if (m.d) localStorage.setItem(NICK_KEY + '_denom', m.d);
+        if (m.l && !localStorage.getItem('theoclaw_script')) localStorage.setItem('theoclaw_script', m.l);
+      } catch (e) { return; }
+      location.reload();
+    }).catch(() => {});
+})();
 const PWA_STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 const PWA_IOS_SAFARI = navigator.standalone === false;
 try {
@@ -1015,13 +1034,15 @@ try {
 function pwaManifest() {
   const el = document.getElementById('pwaManifest');
   if (!el || !code || location.pathname.startsWith('/s/')) return;
-  let href = '/manifest.webmanifest?t=' + encodeURIComponent(code);
-  if (PWA_IOS_SAFARI && deviceKey) {
-    let l = ''; try { l = localStorage.getItem('theoclaw_script') || ''; } catch (e) {}
-    const json = JSON.stringify({k: deviceKey, n: nick, d: denom, l: l});
-    href += '&m=' + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
+  const href = '/manifest.webmanifest?t=' + encodeURIComponent(code);
   el.href = href;
+  if (!PWA_IOS_SAFARI || !deviceKey || !nick) return;
+  let l = ''; try { l = localStorage.getItem('theoclaw_script') || ''; } catch (e) {}
+  fetch('/api/pwa-handoff', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify({k: deviceKey, n: nick, d: denom, l: l})})
+    .then(r => r.ok ? r.json() : null)
+    .then(o => { if (o && o.h) el.href = href + '&h=' + encodeURIComponent(o.h); })
+    .catch(() => {});
 }
 pwaManifest();
 if ('serviceWorker' in navigator) {

@@ -1154,21 +1154,23 @@ def test_tradition_picks_the_knowledge_base_and_stance(tmp_path, monkeypatch):
 def test_pwa_manifest_service_worker_and_icons(tmp_path):
     """Home-screen install: the manifest opens on the link it came from; the service worker
     never caches the API or answers; the icons are real PNGs."""
-    import base64
     m = hs.pwa_manifest()
     assert m["start_url"] == "/" and m["display"] == "standalone" and m["scope"] == "/"
     assert {i["purpose"] for i in m["icons"]} == {"any", "maskable"}
     assert {i["sizes"] for i in m["icons"]} == {"192x192", "512x512"}
     assert hs.pwa_manifest("abc_DEF-1")["start_url"] == "/?t=abc_DEF-1"
     assert hs.pwa_manifest("bad code/<x>")["start_url"] == "/"       # only a well-formed link code
-    move = base64.urlsafe_b64encode(json.dumps({"k": "KEY123", "n": "小明", "d": "路德宗", "x": "drop"},
-                                               ensure_ascii=False).encode()).decode().rstrip("=")
-    start = hs.pwa_manifest("abc", move)["start_url"]
-    assert start.startswith("/?t=abc#move=")
-    from urllib.parse import unquote
-    assert json.loads(unquote(start.split("#move=", 1)[1])) == {"k": "KEY123", "n": "小明", "d": "路德宗"}
-    assert hs.pwa_manifest("abc", "!!notbase64")["start_url"] == "/?t=abc"
-    assert hs.pwa_manifest("abc", base64.urlsafe_b64encode(b'{"n":"x"}').decode())["start_url"] == "/?t=abc"  # no key
+    # iPhone identity handoff: the key goes in a POST body; only a one-time token is in the address
+    h = hs.HANDOFF.put({"k": "KEY123", "n": "小明", "d": "路德宗", "x": "drop"})
+    start = hs.pwa_manifest("abc", h)["start_url"]
+    assert start == f"/?t=abc#h={h}" and "KEY123" not in start
+    assert hs.HANDOFF.take(h) == {"k": "KEY123", "n": "小明", "d": "路德宗"}
+    assert hs.HANDOFF.take(h) is None                                   # once only
+    assert hs.HANDOFF.put({"n": "no key"}) is None
+    assert hs.pwa_manifest("abc", "short")["start_url"] == "/?t=abc"
+    old = hs.HANDOFF.put({"k": "K"})
+    hs.HANDOFF._items[old] = (0, {"k": "K"})                            # expired
+    assert hs.HANDOFF.take(old) is None
 
     a = _run(tmp_path, "a", 1)
     path = tmp_path / "assignment.json"
@@ -1192,6 +1194,15 @@ def test_pwa_manifest_service_worker_and_icons(tmp_path):
                 assert name.startswith("..")
                 continue
             assert r.headers["Content-Type"] == "image/png" and r.read()[:8] == b"\x89PNG\r\n\x1a\n"
+        post = lambda p, d: json.loads(urllib.request.urlopen(urllib.request.Request(
+            base + p, data=json.dumps(d).encode(), headers={"Content-Type": "application/json"})).read())
+        h = post("/api/pwa-handoff", {"k": "DEV", "n": "阿明"})["h"]
+        assert post("/api/pwa-claim", {"h": h}) == {"k": "DEV", "n": "阿明"}
+        try:
+            post("/api/pwa-claim", {"h": h})
+            assert False
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
         page = urllib.request.urlopen(base + "/").read().decode()
         assert 'rel="manifest"' in page and "serviceWorker" in page and 'rel="apple-touch-icon"' in page
     finally:
