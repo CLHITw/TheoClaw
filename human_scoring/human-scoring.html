@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TheoClaw</title>
 <meta id="metaTheme" name="theme-color" content="#f8f7f4">
+<!-- 加到主畫面（PWA）：manifest 的連結由下面的程式帶上這條連結的代碼 -->
+<link id="pwaManifest" rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TheoClaw">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>
   (function () {
     var m = null; try { m = localStorage.getItem('theoclaw_theme'); } catch (e) {}
@@ -991,6 +999,35 @@ try {
 // the tradition is also kept for the whole site, so a choice made on the front page (no link yet) carries over
 try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem('theoclaw_tradition') || localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
+// Home-screen app (PWA). The installed app opens on this link (?t=code). An iPhone home-screen
+// app starts with its own empty storage, so in Safari the manifest also carries who this browser
+// is (the same as #move= from the old address); the app takes it only when it has no one yet.
+const PWA_STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const PWA_IOS_SAFARI = navigator.standalone === false;
+try {
+  if (code) localStorage.setItem('theoclaw_last_code', code);
+  // opened from the home screen without a link (installed from the front page): the last link used here
+  else if (PWA_STANDALONE && !location.pathname.startsWith('/s/')) {
+    const last = localStorage.getItem('theoclaw_last_code');
+    if (last) location.replace('/?t=' + encodeURIComponent(last));
+  }
+} catch (e) { /* no storage: the front page */ }
+function pwaManifest() {
+  const el = document.getElementById('pwaManifest');
+  if (!el || !code || location.pathname.startsWith('/s/')) return;
+  let href = '/manifest.webmanifest?t=' + encodeURIComponent(code);
+  if (PWA_IOS_SAFARI && deviceKey) {
+    let l = ''; try { l = localStorage.getItem('theoclaw_script') || ''; } catch (e) {}
+    const json = JSON.stringify({k: deviceKey, n: nick, d: denom, l: l});
+    href += '&m=' + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  el.href = href;
+}
+pwaManifest();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
   return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : '') +
@@ -1035,6 +1072,7 @@ function saveJoinName() {
     if (nick) localStorage.setItem(NICK_KEY, nick);
     localStorage.setItem(NICK_KEY + '_denom', denom);
   } catch (e) { /* lasts until the page closes */ }
+  pwaManifest();
   return v;
 }
 

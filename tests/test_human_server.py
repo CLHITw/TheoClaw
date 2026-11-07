@@ -1149,3 +1149,50 @@ def test_tradition_picks_the_knowledge_base_and_stance(tmp_path, monkeypatch):
     store.ask(code, "Another?", nick="Tom", denomination="made up")
     time.sleep(0.3)
     assert seen == ["浸信會 Baptist", None]
+
+
+def test_pwa_manifest_service_worker_and_icons(tmp_path):
+    """Home-screen install: the manifest opens on the link it came from; the service worker
+    never caches the API or answers; the icons are real PNGs."""
+    import base64
+    m = hs.pwa_manifest()
+    assert m["start_url"] == "/" and m["display"] == "standalone" and m["scope"] == "/"
+    assert {i["purpose"] for i in m["icons"]} == {"any", "maskable"}
+    assert {i["sizes"] for i in m["icons"]} == {"192x192", "512x512"}
+    assert hs.pwa_manifest("abc_DEF-1")["start_url"] == "/?t=abc_DEF-1"
+    assert hs.pwa_manifest("bad code/<x>")["start_url"] == "/"       # only a well-formed link code
+    move = base64.urlsafe_b64encode(json.dumps({"k": "KEY123", "n": "小明", "d": "路德宗", "x": "drop"},
+                                               ensure_ascii=False).encode()).decode().rstrip("=")
+    start = hs.pwa_manifest("abc", move)["start_url"]
+    assert start.startswith("/?t=abc#move=")
+    from urllib.parse import unquote
+    assert json.loads(unquote(start.split("#move=", 1)[1])) == {"k": "KEY123", "n": "小明", "d": "路德宗"}
+    assert hs.pwa_manifest("abc", "!!notbase64")["start_url"] == "/?t=abc"
+    assert hs.pwa_manifest("abc", base64.urlsafe_b64encode(b'{"n":"x"}').decode())["start_url"] == "/?t=abc"  # no key
+
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["李傳道"], None, None, path)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), hs.make_handler(hs.Store(path)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        r = urllib.request.urlopen(base + "/manifest.webmanifest?t=abc")
+        assert r.headers["Content-Type"].startswith("application/manifest+json")
+        assert r.headers["Cache-Control"] == "no-store"
+        assert json.loads(r.read())["start_url"] == "/?t=abc"
+        r = urllib.request.urlopen(base + "/sw.js")
+        assert r.headers["Content-Type"].startswith("text/javascript")
+        sw = r.read().decode()
+        assert "'/api" not in sw and "/s/" not in sw.split("const SHELL", 1)[1].split("\n", 1)[0]
+        for name in sorted(hs.ICON_FILES) + ["../human_server.py"]:
+            try:
+                r = urllib.request.urlopen(base + "/icons/" + name)
+            except urllib.error.HTTPError:
+                assert name.startswith("..")
+                continue
+            assert r.headers["Content-Type"] == "image/png" and r.read()[:8] == b"\x89PNG\r\n\x1a\n"
+        page = urllib.request.urlopen(base + "/").read().decode()
+        assert 'rel="manifest"' in page and "serviceWorker" in page and 'rel="apple-touch-icon"' in page
+    finally:
+        srv.shutdown()

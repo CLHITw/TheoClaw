@@ -50,7 +50,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -1450,6 +1450,62 @@ def _plain(text: str, limit: int) -> str:
     return t if len(t) <= limit else t[:limit].rstrip() + "…"
 
 
+ICONS = HERE / "icons"  # drawn by scripts/make_icons.py
+ICON_FILES = {"icon-192.png", "icon-512.png", "maskable-192.png", "maskable-512.png", "apple-touch-icon.png"}
+_LINK_CODE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def pwa_manifest(code: str = "", move: str = "") -> dict:
+    """The web app manifest. The installed app opens on the link it was installed from (?t=code);
+    iPhone home-screen apps start with their own empty storage, so the page may also pass this
+    browser's identity (`move`: base64url JSON with k, n, d, l, the same as the old address's
+    #move=) and the app picks it up on first start, when it has none of its own."""
+    start = "/"
+    if _LINK_CODE.match(code or ""):
+        start = "/?" + urlencode({"t": code})
+        try:
+            m = json.loads(base64.urlsafe_b64decode(move + "=" * (-len(move) % 4)).decode("utf-8")) if move else None
+        except (ValueError, UnicodeDecodeError):
+            m = None
+        if isinstance(m, dict) and isinstance(m.get("k"), str) and m["k"]:
+            keep = {f: m[f] for f in ("k", "n", "d", "l") if isinstance(m.get(f), str) and len(m[f]) <= 200}
+            start += "#move=" + quote(json.dumps(keep, ensure_ascii=False), safe="")
+    icons = [{"src": f"/icons/icon-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "any"} for s in (192, 512)]
+    icons += [{"src": f"/icons/maskable-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "maskable"} for s in (192, 512)]
+    return {"id": "/", "name": "TheoClaw", "short_name": "TheoClaw", "description": "信仰問答助手 · Faith Q&A assistant",
+            "lang": "zh-Hant", "start_url": start, "scope": "/", "display": "standalone",
+            "background_color": "#f8f7f4", "theme_color": "#f8f7f4", "icons": icons}
+
+
+# The service worker. It keeps only what holds no one's data: the icons, and the bare page
+# (no link code, no answers; the page loads everything personal from the API). Pages are
+# network-first, so an update shows at once; the cached page is only for being offline.
+# The API, sign-in, shared answers (/s/...) and /admin always go to the network, never the cache.
+SW_JS = """\
+const CACHE = 'theoclaw-shell-v1';
+const SHELL = ['/', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', e => {
+  const r = e.request, u = new URL(r.url);
+  if (r.method !== 'GET' || u.origin !== location.origin) return;
+  if (u.pathname.startsWith('/icons/')) {
+    e.respondWith(caches.match(r).then(hit => hit || fetch(r)));
+    return;
+  }
+  if (r.mode === 'navigate' && (u.pathname === '/' || u.pathname === '/index.html')) {
+    e.respondWith(fetch(r).catch(() => caches.match('/', {ignoreSearch: true})));
+  }
+  // everything else (API, answers, sign-in, shared answers): straight to the network, not cached
+});
+"""
+
+
 def share_page(shared: dict | None) -> bytes:
     """The page itself, opened on one shared answer: the link preview (Open Graph) and the data
     are written into its head, so a chat app's preview shows the question without running the
@@ -1473,6 +1529,14 @@ def make_handler(store: Store):
 
         def log_message(self, fmt, *args):  # no codes in the log: only path without query
             sys.stderr.write(f"{self.log_date_time_string()} {self.command} {urlparse(self.path).path} {args[1] if len(args) > 1 else ''}\n")
+
+        def _static(self, body: bytes, ctype: str, cache: str):
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", cache)
+            self.end_headers()
+            self.wfile.write(body)
 
         def _json(self, data, status=HTTPStatus.OK):
             body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -1584,6 +1648,15 @@ def make_handler(store: Store):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if u.path == "/manifest.webmanifest":  # home-screen install (PWA): opens on this link's code
+                body = json.dumps(pwa_manifest((q.get("t") or [""])[0], (q.get("m") or [""])[0]),
+                                  ensure_ascii=False).encode("utf-8")
+                return self._static(body, "application/manifest+json; charset=utf-8", "no-store")
+            if u.path == "/sw.js":  # the service worker: caches the icons and the bare page, never answers or the API
+                return self._static(SW_JS.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache")
+            if u.path == "/favicon.ico" or (u.path.startswith("/icons/") and u.path[7:] in ICON_FILES):
+                name = "icon-192.png" if u.path == "/favicon.ico" else u.path[7:]
+                return self._static((ICONS / name).read_bytes(), "image/png", "public, max-age=604800")
             if u.path == "/zhmap.json":  # 繁 -> 簡 for the page's switch; no code needed, it holds no data
                 body = zh_map()
                 self.send_response(HTTPStatus.OK)
