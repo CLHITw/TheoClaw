@@ -528,6 +528,21 @@
   .saved-tag { background: var(--ok-bg); color: var(--success); padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; }
   /* Theme picker: 跟隨系統 / 白天 / 黑夜 */
   .theme-wrap { position: relative; }
+  /* 安裝 App（PWA）：頁首最右邊；窄螢幕只顯示圖示 */
+  .install-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; cursor: pointer;
+    background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
+  .install-btn svg { width: 18px; height: 18px; flex: none; }
+  .install-btn.hidden { display: none; }
+  @media (max-width: 600px) { .install-btn { width: 34px; padding: 0; justify-content: center; } .install-label { display: none; } }
+  .install-sheet { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; }
+  .install-sheet.hidden { display: none; }
+  .install-card { background: var(--card); color: var(--text); width: 100%; max-width: 460px; border-radius: 16px 16px 0 0;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px rgba(0,0,0,0.2); }
+  .install-card h3 { margin: 0 0 12px; font-size: 1.05rem; }
+  .install-card ol { margin: 0 0 14px; padding-left: 1.3em; line-height: 1.9; }
+  .install-card .ios-share { display: inline-block; width: 20px; height: 20px; vertical-align: -4px; color: #007aff; }
+  .install-card .install-arrow { text-align: center; font-size: 26px; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  .install-card .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
   .theme-menu {
     position: absolute; top: calc(100% + 6px); right: 0; z-index: 70;
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -741,10 +756,20 @@
           <button type="button" role="menuitemradio" data-mode="dark" aria-checked="false" onclick="setThemeMode('dark')">黑夜</button>
         </div>
       </div>
+      <button id="installBtn" class="install-btn notr hidden" type="button" onclick="pwaInstall()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/><path d="M10.5 18.5h3"/>
+        </svg><span id="installLabel" class="install-label"></span>
+      </button>
     </div>
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 </header>
+
+<div id="installSheet" class="install-sheet notr hidden" onclick="if (event.target === this) pwaSheet(false)">
+  <div class="install-card" role="dialog" aria-modal="true" id="installCard"></div>
+</div>
 
 <aside class="sidebar" id="sidebar">
   <div class="sb-head"><button class="btn btn-sm" id="sbNew">＋ 新對話</button><button class="sb-close" onclick="sbToggle(false)">✕</button></div>
@@ -1045,6 +1070,81 @@ function pwaManifest() {
     .catch(() => {});
 }
 pwaManifest();
+
+// 「安裝 App」鈕（頁首右上）。Chrome、Edge（Android 與電腦）：瀏覽器給了安裝提示才顯示，一按就裝。
+// iPhone、iPad 的 Safari 不能由網頁直接安裝：按鈕打開說明（分享 → 加入主畫面）。
+// iPhone 上的其他瀏覽器和聊天軟體內建的瀏覽器（微信、LINE、Facebook、Instagram）：說明先用 Safari／系統瀏覽器打開。
+// 已經從主畫面打開，或兩條路都沒有的瀏覽器：不顯示。文字按頁面語言直接寫好（四種），不經字形轉換。
+const PWA_UA = navigator.userAgent || '';
+const PWA_IOS = /iPhone|iPad|iPod/.test(PWA_UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const PWA_INAPP = /MicroMessenger|WeChat|\bLine\/|FBAN|FBAV|FB_IAB|Instagram/i.test(PWA_UA);
+const PWA_IOS_OTHER = PWA_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(PWA_UA);
+let pwaPrompt = null, pwaMode = '';   // 'prompt' | 'ios' | 'open-elsewhere'
+const PWA_TEXT = {
+  hant: {btn: '安裝 App', title: '把 TheoClaw 加到主畫面', ios1: '點瀏覽器的「分享」按鈕', iosWhere: '（iPhone 在畫面底部，iPad 在右上角）',
+         ios2: '往下找，選「加入主畫面」', ios3: '按「新增」，以後從主畫面的圖示打開', other: '這個瀏覽器不能安裝。請先用 {b} 打開這個網頁，再按「安裝 App」。',
+         safari: 'Safari', sys: '手機的瀏覽器（Chrome 或 Safari）', copy: '複製網址', copied: '已複製，請到瀏覽器貼上打開', close: '知道了'},
+  hans: {btn: '安装 App', title: '把 TheoClaw 添加到主屏幕', ios1: '点浏览器的「分享」按钮', iosWhere: '（iPhone 在屏幕底部，iPad 在右上角）',
+         ios2: '往下找，选「添加到主屏幕」', ios3: '点「添加」，以后从主屏幕的图标打开', other: '这个浏览器不能安装。请先用 {b} 打开这个网页，再点「安装 App」。',
+         safari: 'Safari', sys: '手机的浏览器（Chrome 或 Safari）', copy: '复制网址', copied: '已复制，请到浏览器粘贴打开', close: '知道了'},
+  en:   {btn: 'Install app', title: 'Add TheoClaw to your home screen', ios1: 'Tap the browser’s Share button', iosWhere: ' (at the bottom on iPhone, top right on iPad)',
+         ios2: 'Scroll down and choose “Add to Home Screen”', ios3: 'Tap “Add”, then open TheoClaw from its icon', other: 'This browser cannot install apps. Open this page in {b} first, then tap “Install app”.',
+         safari: 'Safari', sys: 'your phone’s browser (Chrome or Safari)', copy: 'Copy link', copied: 'Copied — paste it into your browser', close: 'Got it'},
+  de:   {btn: 'App installieren', title: 'TheoClaw zum Home-Bildschirm hinzufügen', ios1: 'Tippe im Browser auf „Teilen“', iosWhere: ' (iPhone: unten, iPad: oben rechts)',
+         ios2: 'Nach unten scrollen und „Zum Home-Bildschirm“ wählen', ios3: 'Auf „Hinzufügen“ tippen und TheoClaw künftig über das Symbol öffnen', other: 'In diesem Browser lässt sich nichts installieren. Öffne die Seite zuerst in {b} und tippe dann auf „App installieren“.',
+         safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden'},
+};
+function pwaT() { return PWA_TEXT[typeof zhMode === 'string' && PWA_TEXT[zhMode] ? zhMode : 'hant']; }
+function pwaPaint() {
+  const b = document.getElementById('installBtn');
+  if (!b) return;
+  const t = pwaT();
+  document.getElementById('installLabel').textContent = t.btn;
+  b.title = t.title; b.setAttribute('aria-label', t.title);
+  b.classList.toggle('hidden', PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/'));
+  if (!document.getElementById('installSheet').classList.contains('hidden')) pwaSheet(true);
+}
+function pwaSheet(open) {
+  const sheet = document.getElementById('installSheet'), card = document.getElementById('installCard');
+  sheet.classList.toggle('hidden', !open);
+  if (!open) return;
+  const t = pwaT(), esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const share = '<svg class="ios-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+  let body;
+  if (pwaMode === 'ios') {
+    body = '<ol><li>' + esc(t.ios1) + ' ' + share + esc(t.iosWhere) + '</li><li>' + esc(t.ios2) + '</li><li>' + esc(t.ios3) + '</li></ol>' +
+           '<div class="install-arrow" aria-hidden="true">↓</div>';
+  } else {
+    body = '<p>' + esc(t.other).replace('{b}', '<b>' + esc(PWA_IOS ? t.safari : t.sys) + '</b>') + '</p>' +
+           '<div class="row" style="margin-bottom:10px"><button class="btn btn-secondary btn-sm" type="button" onclick="pwaCopy(this)">' + esc(t.copy) + '</button></div>';
+  }
+  card.innerHTML = '<h3>' + esc(t.title) + '</h3>' + body +
+    '<div class="row"><button class="btn btn-sm" type="button" onclick="pwaSheet(false)">' + esc(t.close) + '</button></div>';
+}
+function pwaCopy(btn) {
+  const done = () => { btn.textContent = pwaT().copied; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(location.href).then(done, () => prompt('', location.href));
+  else prompt('', location.href);
+}
+function pwaInstall() {
+  if (pwaMode === 'prompt' && pwaPrompt) {
+    const p = pwaPrompt; pwaPrompt = null;
+    p.prompt();
+    p.userChoice.then(c => { if (c.outcome !== 'accepted') pwaPrompt = p; }).catch(() => {});
+    return;
+  }
+  pwaSheet(true);
+}
+if (!PWA_STANDALONE) {
+  if (PWA_INAPP || PWA_IOS_OTHER) pwaMode = 'open-elsewhere';
+  else if (PWA_IOS) pwaMode = 'ios';
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pwaPrompt = e; pwaMode = 'prompt'; pwaPaint(); });
+}
+window.addEventListener('appinstalled', () => { pwaMode = ''; pwaPrompt = null; pwaPaint(); });
+document.addEventListener('DOMContentLoaded', pwaPaint);
+if (document.readyState !== 'loading') pwaPaint();
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
@@ -3370,6 +3470,7 @@ function applyScript() {
   convertNode(document.body);
   voiceRefresh();
   voicePaintToggle();
+  pwaPaint();
   syncHeaderHeight();
   applyTheme();
 }
