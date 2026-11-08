@@ -547,6 +547,10 @@
     background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
   .install-btn svg { width: 18px; height: 18px; flex: none; }
   .install-btn.hidden { display: none; }
+  .install-btn.update { position: relative; background: var(--accent-solid); border-color: var(--accent-solid);
+    color: var(--on-accent); font-weight: 600; text-shadow: var(--on-accent-shadow, none); }
+  .install-btn.update::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--danger); border: 2px solid var(--card); }
   @media (max-width: 600px) {
     .install-btn { width: 34px; padding: 0; justify-content: center; position: absolute; top: 12px; right: 16px; }
     .install-label { display: none; }
@@ -803,9 +807,12 @@
         </div>
       </div>
       <button id="installBtn" class="install-btn notr hidden" type="button" onclick="pwaInstall()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        <svg id="installIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/><path d="M10.5 18.5h3"/>
+        </svg><svg id="updateIcon" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>
         </svg><span id="installLabel" class="install-label"></span>
       </button>
     </div>
@@ -1125,17 +1132,20 @@ const PWA_UA = navigator.userAgent || '';
 const PWA_IOS = /iPhone|iPad|iPod/.test(PWA_UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const PWA_INAPP = /MicroMessenger|WeChat|\bLine\/|FBAN|FBAV|FB_IAB|Instagram/i.test(PWA_UA);
 const PWA_IOS_OTHER = PWA_IOS && /CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(PWA_UA);
-let pwaPrompt = null, pwaMode = '';   // 'prompt' | 'ios' | 'open-elsewhere'
+let pwaPrompt = null, pwaMode = '', pwaUpdate = false, pwaUpdateWanted = false, jobRunning = false;   // 'prompt' | 'ios' | 'open-elsewhere'
 const PWA_TEXT = {
   hant: {btn: '安裝 App', title: '把 TheoClaw 加到主畫面', ios1: '點瀏覽器的「分享」按鈕', iosWhere: '（iPhone 在畫面底部，iPad 在右上角）',
          ios2: '往下找，選「加入主畫面」', ios3: '按「新增」，以後從主畫面的圖示打開', other: '這個瀏覽器不能安裝。請先用 {b} 打開這個網頁，再按「安裝 App」。',
-         safari: 'Safari', sys: '手機的瀏覽器（Chrome 或 Safari）', copy: '複製網址', copied: '已複製，請到瀏覽器貼上打開', close: '知道了'},
+         safari: 'Safari', sys: '手機的瀏覽器（Chrome 或 Safari）', copy: '複製網址', copied: '已複製，請到瀏覽器貼上打開', close: '知道了',
+         upd: '有更新', updTitle: '有新版本，按一下更新', updWait: '回答完成後會自動更新', updDone: '已更新到最新版本'},
   en:   {btn: 'Install app', title: 'Add TheoClaw to your home screen', ios1: 'Tap the browser’s Share button', iosWhere: ' (at the bottom on iPhone, top right on iPad)',
          ios2: 'Scroll down and choose “Add to Home Screen”', ios3: 'Tap “Add”, then open TheoClaw from its icon', other: 'This browser cannot install apps. Open this page in {b} first, then tap “Install app”.',
-         safari: 'Safari', sys: 'your phone’s browser (Chrome or Safari)', copy: 'Copy link', copied: 'Copied — paste it into your browser', close: 'Got it'},
+         safari: 'Safari', sys: 'your phone’s browser (Chrome or Safari)', copy: 'Copy link', copied: 'Copied — paste it into your browser', close: 'Got it',
+         upd: 'Update', updTitle: 'A new version is available — tap to update', updWait: 'Will update when the answer is finished', updDone: 'Updated to the latest version'},
   de:   {btn: 'App installieren', title: 'TheoClaw zum Home-Bildschirm hinzufügen', ios1: 'Tippe im Browser auf „Teilen“', iosWhere: ' (iPhone: unten, iPad: oben rechts)',
          ios2: 'Nach unten scrollen und „Zum Home-Bildschirm“ wählen', ios3: 'Auf „Hinzufügen“ tippen und TheoClaw künftig über das Symbol öffnen', other: 'In diesem Browser lässt sich nichts installieren. Öffne die Seite zuerst in {b} und tippe dann auf „App installieren“.',
-         safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden'},
+         safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden',
+         upd: 'Aktualisieren', updTitle: 'Neue Version verfügbar – zum Aktualisieren tippen', updWait: 'Wird nach der Antwort aktualisiert', updDone: 'Auf die neueste Version aktualisiert'},
 };
 // 簡體：用繁體的句子換成大陸用語（iPhone 的選項叫「添加到主屏幕」），再逐字轉換
 const PWA_HANS_WORDS = [['加入主畫面', '添加到主屏幕'], ['主畫面', '主屏幕'], ['新增', '添加'], ['貼上', '粘貼'], ['畫面', '屏幕'], ['圖示', '圖標'], ['按「', '點「']];
@@ -1154,9 +1164,12 @@ function pwaPaint() {
   const b = document.getElementById('installBtn');
   if (!b) return;
   const t = pwaT();
-  document.getElementById('installLabel').textContent = t.btn;
-  b.title = t.title; b.setAttribute('aria-label', t.title);
-  const off = PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/');
+  document.getElementById('installLabel').textContent = pwaUpdate ? t.upd : t.btn;
+  b.title = pwaUpdate ? t.updTitle : t.title; b.setAttribute('aria-label', b.title);
+  b.classList.toggle('update', pwaUpdate);
+  document.getElementById('installIcon').classList.toggle('hidden', pwaUpdate);
+  document.getElementById('updateIcon').classList.toggle('hidden', !pwaUpdate);
+  const off = !pwaUpdate && (PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/'));
   b.classList.toggle('hidden', off);
   document.querySelector('.header').classList.toggle('has-install', !off);
   syncHeaderHeight();
@@ -1186,6 +1199,7 @@ function pwaCopy(btn) {
   else prompt('', location.href);
 }
 function pwaInstall() {
+  if (pwaUpdate) { pwaApplyUpdate(); return; }
   if (pwaMode === 'prompt' && pwaPrompt) {
     const p = pwaPrompt; pwaPrompt = null;
     p.prompt();
@@ -1200,6 +1214,44 @@ if (!PWA_STANDALONE) {
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pwaPrompt = e; pwaMode = 'prompt'; pwaPaint(); });
 }
 window.addEventListener('appinstalled', () => { pwaMode = ''; pwaPrompt = null; pwaPaint(); });
+
+// 「有更新」：同一個右上角的鈕。伺服器每次部署都有新的版本號（/version）；頁面打開時、從背景回來時、
+// 每 30 分鐘比一次，和自己載入時的版本不同就顯示。按下去：先存好還沒送出的字，正在等回答就等它完成，再重新載入。
+const APP_VERSION = (document.querySelector('meta[name="theoclaw-version"]') || {}).content || '';
+const DRAFT_KEY = 'theoclaw_update_draft', DRAFT_IDS = ['askInput', 'wsInput', 'commentInput'];
+function pwaCheckUpdate() {
+  if (!APP_VERSION || document.visibilityState === 'hidden') return;
+  if (navigator.serviceWorker) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  fetch('/version', {cache: 'no-store'}).then(r => r.json()).then(o => {
+    if (o.v && o.v !== APP_VERSION && !pwaUpdate) { pwaUpdate = true; pwaPaint(); }
+  }).catch(() => {});
+}
+function pwaApplyUpdate() {
+  if (jobRunning) { pwaUpdateWanted = true; showToast(pwaT().updWait); return; }
+  try {
+    const d = {};
+    DRAFT_IDS.forEach(id => { const el = document.getElementById(id); if (el && el.value.trim()) d[id] = el.value; });
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    sessionStorage.setItem('theoclaw_updated', '1');
+  } catch (e) { /* the reload still happens */ }
+  location.reload();
+}
+// 剛更新完：放回沒送出的字，提示一下（只一次）
+(function () {
+  let d = null, done = false;
+  try {
+    d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); done = sessionStorage.getItem('theoclaw_updated') === '1';
+    sessionStorage.removeItem(DRAFT_KEY); sessionStorage.removeItem('theoclaw_updated');
+  } catch (e) {}
+  if (!d && !done) return;
+  window.addEventListener('load', () => setTimeout(() => {
+    if (d) Object.entries(d).forEach(([id, v]) => { const el = document.getElementById(id); if (el && !el.value) el.value = v; });
+    if (done) showToast(pwaT().updDone);
+  }, 1500));
+})();
+window.addEventListener('load', () => setTimeout(pwaCheckUpdate, 3000));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pwaCheckUpdate(); });
+setInterval(pwaCheckUpdate, 30 * 60 * 1000);
 document.addEventListener('DOMContentLoaded', pwaPaint);
 if (document.readyState !== 'loading') pwaPaint();
 
@@ -2422,11 +2474,16 @@ function keepScroll(fn) {
 
 function pollJob(jobId, onWait, onDone, onError) {
   clearInterval(polling);
+  jobRunning = true;
+  const finish = () => {
+    clearInterval(polling); jobRunning = false;
+    if (pwaUpdateWanted) setTimeout(pwaApplyUpdate, 4000);   // 「回答完成後會自動更新」：讓人先看到回答
+  };
   polling = setInterval(() => {
     api('/api/job?id=' + jobId).then(j => {
-      if (j.error && !j.status) { clearInterval(polling); onError(T('找不到這個工作（伺服器可能剛重新啟動），請再送出一次。')); return; }
+      if (j.error && !j.status) { finish(); onError(T('找不到這個工作（伺服器可能剛重新啟動），請再送出一次。')); return; }
       if (j.status === 'running') { onWait(j.elapsed); return; }
-      clearInterval(polling);
+      finish();
       if (j.status === 'error') onError(j.error); else onDone(j);
     }).catch(() => onWait(-1));
   }, 3000);

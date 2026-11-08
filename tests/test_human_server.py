@@ -1277,3 +1277,30 @@ def test_link_previews_carry_the_share_picture():
     assert "og:image" not in hs.share_page(None).decode("utf-8")
     assert "og.png" in hs.ICON_FILES and (hs.ICONS / "og.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     assert 'href="/icons/icon-192.png"' in (hs.HERE / "admin.html").read_text(encoding="utf-8")
+
+
+def test_update_button_has_a_build_version_to_compare(tmp_path, monkeypatch):
+    """Every deploy has a new build version: the page carries the one it was served with, /version
+    gives the current one, the service worker's bytes change with it (so browsers fetch it again);
+    the page reloads only when the reader taps 「有更新」, never by itself."""
+    v = hs.app_version()
+    assert len(v) == 10 and f'<meta name="theoclaw-version" content="{v}">' in hs.main_page("https://x").decode("utf-8")
+    assert f'content="{v}"' in hs.share_page(None).decode("utf-8")
+    page = tmp_path / "page.html"
+    page.write_text(hs.PAGE.read_text(encoding="utf-8") + "\n<!-- changed -->", encoding="utf-8")
+    monkeypatch.setattr(hs, "PAGE", page)
+    assert hs.app_version() != v                                         # a changed page is a new build
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["李傳道"], None, None, path)
+    srv, base = _serve(hs.Store(path))
+    try:
+        r = urllib.request.urlopen(base + "/version")
+        assert r.headers["Cache-Control"] == "no-store" and json.loads(r.read()) == {"v": hs.app_version()}
+        sw = urllib.request.urlopen(base + "/sw.js").read().decode()
+        assert f"const VERSION = '{hs.app_version()}'" in sw
+    finally:
+        srv.shutdown()
+    src = hs.PAGE.read_text(encoding="utf-8")
+    reload_calls = src.split("function pwaApplyUpdate()", 1)[1].split("\n}", 1)[0]
+    assert "location.reload()" in reload_calls and "if (jobRunning)" in reload_calls

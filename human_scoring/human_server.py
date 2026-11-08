@@ -1466,7 +1466,7 @@ def og_image_tags(base: str) -> list[str]:
 def main_page(base: str = "") -> bytes:
     """The page with its link preview: name, one line, the share picture (no link code or data in it)."""
     head = ['<meta property="og:site_name" content="TheoClaw">', '<meta property="og:title" content="TheoClaw">',
-            '<meta property="og:description" content="信仰問答助手 · Faith Q&amp;A assistant">'] + og_image_tags(base)
+            '<meta property="og:description" content="信仰問答助手 · Faith Q&amp;A assistant">', _version_meta()] + og_image_tags(base)
     page = versioned_icons(PAGE.read_text(encoding="utf-8"))
     return page.replace("<title>TheoClaw</title>", "<title>TheoClaw</title>" + chr(10) + chr(10).join(head), 1).encode("utf-8")
 _LINK_CODE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -1484,6 +1484,26 @@ def _icon_version() -> str:
 
 
 ICON_V = _icon_version()
+_SERVER_HASH = hashlib.sha1(Path(__file__).read_bytes()).hexdigest()
+_app_v: tuple[float, str] = (0.0, "")
+
+
+def app_version() -> str:
+    """The build the page belongs to: a hash of the page, this server and the icons. The page
+    compares it with /version to offer an update; the service worker carries it too, so every
+    deploy changes the worker's bytes. Recomputed only when the page file changes."""
+    global _app_v
+    mtime = PAGE.stat().st_mtime
+    if _app_v[0] != mtime:
+        h = hashlib.sha1(PAGE.read_bytes() + _SERVER_HASH.encode() + ICON_V.encode())
+        _app_v = (mtime, h.hexdigest()[:10])
+    return _app_v[1]
+
+
+def _version_meta() -> str:
+    return f'<meta name="theoclaw-version" content="{app_version()}">'
+
+
 _ICON_REF = re.compile(r"(/icons/[a-z0-9-]+\.png)(?![?\w])")
 
 
@@ -1555,7 +1575,8 @@ def pwa_manifest(code: str = "", handoff: str = "") -> dict:
 # network-first, so an update shows at once; the cached page is only for being offline.
 # The API, sign-in, shared answers (/s/...) and /admin always go to the network, never the cache.
 SW_JS = """\
-const CACHE = 'theoclaw-shell-{v}';
+const VERSION = '{build}';   // changes with every deploy, so the browser fetches this worker again
+const CACHE = 'theoclaw-shell-' + VERSION;
 const SHELL = ['/', '/icons/icon-192.png?v={v}', '/icons/icon-512.png?v={v}', '/icons/apple-touch-icon.png?v={v}'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -1591,7 +1612,7 @@ def share_page(shared: dict | None, base: str = "") -> bytes:
                  f'<meta property="og:description" content="{html.escape(_plain(shared["reply"], 100))}">']
     else:
         head.append('<meta property="og:title" content="TheoClaw">')
-    head += og_image_tags(base)
+    head += og_image_tags(base) + [_version_meta()]
     data = json.dumps(shared or {"gone": True}, ensure_ascii=False).replace("<", "\\u003c")
     head.append(f'<script id="shareData" type="application/json">{data}</script>')
     return page.replace("<title>TheoClaw</title>", "<title>TheoClaw</title>\n" + "\n".join(head), 1).encode("utf-8")
@@ -1735,7 +1756,10 @@ def make_handler(store: Store):
                                   ensure_ascii=False).encode("utf-8")
                 return self._static(body, "application/manifest+json; charset=utf-8", "no-store")
             if u.path == "/sw.js":  # the service worker: caches the icons and the bare page, never answers or the API
-                return self._static(SW_JS.replace("{v}", ICON_V).encode("utf-8"), "text/javascript; charset=utf-8", "no-cache")
+                sw = SW_JS.replace("{build}", app_version()).replace("{v}", ICON_V)
+                return self._static(sw.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache")
+            if u.path == "/version":  # the current build, for the page's 「有更新」 button
+                return self._json({"v": app_version()})
             if u.path == "/favicon.ico" or (u.path.startswith("/icons/") and u.path[7:] in ICON_FILES):
                 name = "icon-192.png" if u.path == "/favicon.ico" else u.path[7:]
                 return self._static((ICONS / name).read_bytes(), "image/png", "public, max-age=604800")
