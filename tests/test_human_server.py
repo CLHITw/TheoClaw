@@ -1314,5 +1314,5 @@ def test_share_app_qr_points_at_the_public_front_page():
     assert "+ '/?install=1'" in fn and "theoclaw-public-url" in fn and "code" not in fn and "nick" not in fn
     assert '<meta name="theoclaw-public-url" content="https://theoclaw.app">' in hs.main_page("https://test.example").decode("utf-8")
     assert "function qrMatrix(text)" in page and "<script src=" not in page
-    assert 'onclick="acctMenuOpen(false); shareApp()">分享 App</button>' in page
+    assert 'id="shareBtn"' in page and 'onclick="shareApp()"' in page and 'id="acctShare"' not in page  # in the header, not the avatar menu
     assert "q.get('install') !== '1'" in page and "history.replaceState" in page

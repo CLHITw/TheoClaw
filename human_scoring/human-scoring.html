@@ -546,16 +546,18 @@
   .install-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; cursor: pointer;
     background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
   .install-btn svg { width: 18px; height: 18px; flex: none; }
-  .install-btn { position: relative; }   /* 手機版下面改成 absolute（右上角）；兩種都能放更新的小紅點 */
+  .install-btn { position: relative; }   /* 能放「有更新」的小紅點 */
+  .header-actions { display: flex; gap: 10px; align-items: center; }
   .install-btn.hidden { display: none; }
   .install-btn.update { background: var(--accent-solid); border-color: var(--accent-solid);
     color: var(--on-accent); font-weight: 600; text-shadow: var(--on-accent-shadow, none); }
   .install-btn.update::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
     border-radius: 50%; background: var(--danger); border: 2px solid var(--card); }
   @media (max-width: 600px) {
-    .install-btn { width: 34px; padding: 0; justify-content: center; position: absolute; top: 12px; right: 16px; }
+    .install-btn { width: 34px; padding: 0; justify-content: center; }
     .install-label { display: none; }
-    .header.has-install .header-left { padding-right: 44px; }   /* 標題不會跑到右上角的鈕底下 */
+    .header-left { width: 100%; max-width: 100%; box-sizing: border-box; padding-right: 52px; }   /* 標題不會跑到右上角的鈕底下：分享 */
+    .header.has-install .header-left { padding-right: 98px; }   /* 分享 + 安裝／有更新 */
   }
   .install-sheet { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; }
   .install-sheet.hidden { display: none; }
@@ -613,8 +615,8 @@
     .voice-btn .vtext { display: none; }
     .theme-wrap { flex: none; }
     #themeBtn { width: 40px !important; height: 40px !important; }
-    .install-btn { width: 40px !important; height: 40px; top: calc(10px + env(safe-area-inset-top)) !important; right: 12px !important; }
-    .header.has-install .header-left { padding-right: 48px; }
+    .header-actions { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px; gap: 6px; }
+    .install-btn { width: 40px !important; height: 40px; }
   }
   .acct-wrap { position: relative; flex: none; }
   .avatar {
@@ -761,7 +763,6 @@
             <div id="acctName" class="acct-name notr">訪客</div>
             <div id="acctSub" class="acct-sub">進入後可登入 Google</div>
           </div>
-          <button id="acctShare" class="acct-item" type="button" role="menuitem" onclick="acctMenuOpen(false); shareApp()">分享 App</button>
           <button id="acctLogin" class="acct-item hidden" type="button" role="menuitem" onclick="accountLogin()">用 Google 登入</button>
           <button id="acctLogout" class="acct-item hidden" type="button" role="menuitem" onclick="logout()">退出登錄</button>
           <div id="acctNote" class="acct-note hidden">只儲存帳號編號，不存電郵、姓名或頭像。</div>
@@ -816,6 +817,14 @@
           <button type="button" role="menuitemradio" data-mode="dark" aria-checked="false" onclick="setThemeMode('dark')">黑夜</button>
         </div>
       </div>
+      <div class="header-actions">
+      <button id="shareBtn" class="install-btn share-btn" type="button" onclick="shareApp()" title="分享 TheoClaw" aria-label="分享 TheoClaw">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/>
+          <path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/>
+        </svg><span class="install-label">分享</span>
+      </button>
       <button id="installBtn" class="install-btn notr hidden" type="button" onclick="pwaInstall()">
         <svg id="installIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -825,6 +834,7 @@
           <path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>
         </svg><span id="installLabel" class="install-label"></span>
       </button>
+      </div>
     </div>
   </div>
   <div class="progress-bar" style="max-width:100%"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -1315,6 +1325,8 @@ function pwaPaint() {
   document.getElementById('installLabel').textContent = pwaUpdate ? t.upd : t.btn;
   b.title = pwaUpdate ? t.updTitle : t.title; b.setAttribute('aria-label', b.title);
   b.classList.toggle('update', pwaUpdate);
+  const sb = document.getElementById('shareBtn');
+  if (sb) { sb.title = t.shareTitle; sb.setAttribute('aria-label', t.shareTitle); }
   document.getElementById('installIcon').classList.toggle('hidden', pwaUpdate);
   document.getElementById('updateIcon').classList.toggle('hidden', !pwaUpdate);
   const off = !pwaUpdate && (PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/'));
