@@ -1501,7 +1501,11 @@ def app_version() -> str:
 
 
 def _version_meta() -> str:
-    return f'<meta name="theoclaw-version" content="{app_version()}">'
+    """The build version, and the public address the 「分享 App」 QR code points to: always the
+    production site (THEOCLAW_PUBLIC_URL, default https://theoclaw.app), also on the test server."""
+    public = html.escape((os.environ.get("THEOCLAW_PUBLIC_URL", "").strip() or "https://theoclaw.app").rstrip("/"))
+    return (f'<meta name="theoclaw-version" content="{app_version()}">' + chr(10) +
+            f'<meta name="theoclaw-public-url" content="{public}">')
 
 
 _ICON_REF = re.compile(r"(/icons/[a-z0-9-]+\.png)(?![?\w])")

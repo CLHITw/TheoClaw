@@ -1374,9 +1374,12 @@ function pwaCopy(btn, text) {
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, () => prompt('', v));
   else prompt('', v);
 }
-// 「分享 App」：一個 QR 碼和連結，指向公開的首頁（加 ?install=1，掃了就出現安裝說明）。
+// 「分享 App」：一個 QR 碼和連結，指向正式網站的公開首頁（加 ?install=1，掃了就出現安裝說明）。
 // 不含這條連結的團體代碼、暱稱或裝置鑰匙：團體代碼不公開，掃碼的人從首頁自己選信徒或牧者。
-function shareAppUrl() { return location.origin + '/?install=1'; }
+function shareAppUrl() {
+  const m = document.querySelector('meta[name="theoclaw-public-url"]');   // 正式網站，測試伺服器上也一樣
+  return ((m && m.content) || location.origin) + '/?install=1';
+}
 function shareApp() { pwaSheet(true, 'share'); }
 function shareAppSystem() {
   const t = pwaT();
