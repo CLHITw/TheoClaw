@@ -1074,7 +1074,7 @@ pwaManifest();
 // 「安裝 App」鈕（頁首右上）。Chrome、Edge（Android 與電腦）：瀏覽器給了安裝提示才顯示，一按就裝。
 // iPhone、iPad 的 Safari 不能由網頁直接安裝：按鈕打開說明（分享 → 加入主畫面）。
 // iPhone 上的其他瀏覽器和聊天軟體內建的瀏覽器（微信、LINE、Facebook、Instagram）：說明先用 Safari／系統瀏覽器打開。
-// 已經從主畫面打開，或兩條路都沒有的瀏覽器：不顯示。文字按頁面語言直接寫好（四種），不經字形轉換。
+// 已經從主畫面打開，或兩條路都沒有的瀏覽器：不顯示。文字按頁面語言寫好，不經頁面的自動轉換。
 const PWA_UA = navigator.userAgent || '';
 const PWA_IOS = /iPhone|iPad|iPod/.test(PWA_UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const PWA_INAPP = /MicroMessenger|WeChat|\bLine\/|FBAN|FBAV|FB_IAB|Instagram/i.test(PWA_UA);
@@ -1084,9 +1084,6 @@ const PWA_TEXT = {
   hant: {btn: '安裝 App', title: '把 TheoClaw 加到主畫面', ios1: '點瀏覽器的「分享」按鈕', iosWhere: '（iPhone 在畫面底部，iPad 在右上角）',
          ios2: '往下找，選「加入主畫面」', ios3: '按「新增」，以後從主畫面的圖示打開', other: '這個瀏覽器不能安裝。請先用 {b} 打開這個網頁，再按「安裝 App」。',
          safari: 'Safari', sys: '手機的瀏覽器（Chrome 或 Safari）', copy: '複製網址', copied: '已複製，請到瀏覽器貼上打開', close: '知道了'},
-  hans: {btn: '安装 App', title: '把 TheoClaw 添加到主屏幕', ios1: '点浏览器的「分享」按钮', iosWhere: '（iPhone 在屏幕底部，iPad 在右上角）',
-         ios2: '往下找，选「添加到主屏幕」', ios3: '点「添加」，以后从主屏幕的图标打开', other: '这个浏览器不能安装。请先用 {b} 打开这个网页，再点「安装 App」。',
-         safari: 'Safari', sys: '手机的浏览器（Chrome 或 Safari）', copy: '复制网址', copied: '已复制，请到浏览器粘贴打开', close: '知道了'},
   en:   {btn: 'Install app', title: 'Add TheoClaw to your home screen', ios1: 'Tap the browser’s Share button', iosWhere: ' (at the bottom on iPhone, top right on iPad)',
          ios2: 'Scroll down and choose “Add to Home Screen”', ios3: 'Tap “Add”, then open TheoClaw from its icon', other: 'This browser cannot install apps. Open this page in {b} first, then tap “Install app”.',
          safari: 'Safari', sys: 'your phone’s browser (Chrome or Safari)', copy: 'Copy link', copied: 'Copied — paste it into your browser', close: 'Got it'},
@@ -1094,7 +1091,19 @@ const PWA_TEXT = {
          ios2: 'Nach unten scrollen und „Zum Home-Bildschirm“ wählen', ios3: 'Auf „Hinzufügen“ tippen und TheoClaw künftig über das Symbol öffnen', other: 'In diesem Browser lässt sich nichts installieren. Öffne die Seite zuerst in {b} und tippe dann auf „App installieren“.',
          safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden'},
 };
-function pwaT() { return PWA_TEXT[typeof zhMode === 'string' && PWA_TEXT[zhMode] ? zhMode : 'hant']; }
+// 簡體：用繁體的句子換成大陸用語（iPhone 的選項叫「添加到主屏幕」），再逐字轉換
+const PWA_HANS_WORDS = [['加入主畫面', '添加到主屏幕'], ['主畫面', '主屏幕'], ['新增', '添加'], ['貼上', '粘貼'], ['畫面', '屏幕']];
+function pwaT() {
+  const m = typeof zhMode === 'string' ? zhMode : 'hant';
+  if (PWA_TEXT[m]) return PWA_TEXT[m];
+  if (m !== 'hans' || !zhMap) return PWA_TEXT.hant;
+  const out = {};
+  for (const [k, v] of Object.entries(PWA_TEXT.hant)) {
+    let w = v; for (const [a, b] of PWA_HANS_WORDS) w = w.split(a).join(b);
+    out[k] = toHans(w);
+  }
+  return out;
+}
 function pwaPaint() {
   const b = document.getElementById('installBtn');
   if (!b) return;
