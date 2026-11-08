@@ -59,28 +59,28 @@
   /* Dark: the device's setting by default, or the page's own choice (the header picker).
      Warm dark greys are easier on the eyes than pure black. */
   html[data-theme="dark"] {
-    /* 黑夜：黑金。近黑底、略冷的暖白字；香檳金（不那麼黃）：實心按鈕用淡淡的金屬漸層配近黑字，
-       連結和小字 #D6BE8E，描邊 #A88A55。 */
+    /* 黑夜：黑金。近黑底、略冷的暖白字；明亮的流金（照 Lorenz 給的參考圖取色）：實心按鈕用金屬漸層
+       配近黑字，加一點金色光暈；連結和小字 #F2CF7A，描邊 #D9A944。 */
     color-scheme: dark;
     --bg: #0e0e0f;
     --card: #17171a;
     --border: #2e2c27;
     --text: #e8e2d6;
     --text-light: #b3ab9c;
-    --accent: #d6be8e;
-    --accent-solid: #c5a572;
-    --accent-hover: #cfb07c;
-    --accent-fill: linear-gradient(180deg, #dcc59a 0%, #b8955f 100%);
-    --accent-hover-fill: linear-gradient(180deg, #e3cea6 0%, #c29f69 100%);
-    --accent-fill-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    --accent-line: #a88a55;
-    --input-line: #a88a55;
-    --input-bg: #1c1b18;
-    --focus-glow: rgba(197, 165, 114, 0.25);
-    --accent-light: #252119;
-    --read-bg: #3a3324;
-    --brand: #c5a572;
-    --on-accent: #141414;
+    --accent: #f2cf7a;
+    --accent-solid: #e8b84f;
+    --accent-hover: #f2c35e;
+    --accent-fill: linear-gradient(180deg, #ffe19f 0%, #f2c35e 45%, #c9932e 100%);
+    --accent-hover-fill: linear-gradient(180deg, #ffe8b3 0%, #f6cd70 45%, #d39c3a 100%);
+    --accent-fill-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 12px rgba(242, 195, 94, 0.25);
+    --accent-line: #d9a944;
+    --input-line: #d9a944;
+    --input-bg: #1c1a15;
+    --focus-glow: rgba(242, 195, 94, 0.28);
+    --accent-light: #2a2214;
+    --read-bg: #3d311a;
+    --brand: #e8b84f;
+    --on-accent: #1a1408;
     --on-accent-shadow: none;
     --danger: #e08a7e;
     --success: #7fce94;
@@ -219,6 +219,7 @@
     background: transparent;
     color: var(--accent);
     border: 1px solid var(--accent-line, var(--accent));
+    box-shadow: none;   /* 描邊按鈕不發光，只有實心的金色按鈕有光暈 */
   }
   .btn-secondary:hover { background: var(--accent-light); }
   .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
