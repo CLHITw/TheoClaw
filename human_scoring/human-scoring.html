@@ -41,6 +41,9 @@
     --accent-hover: #6fcfc6;
     --accent-light: #e8f7f5;
     --read-bg: #dff3f0;
+    --input-line: #087570;          /* 輸入框：深青邊（白底上 5.6:1），淡淡的底色，聚焦時一圈光 */
+    --input-bg: #f5fbfa;
+    --focus-glow: rgba(8, 117, 112, 0.18);
     --danger: #c0392b;
     --success: #27ae60;
     --code-bg: #f5f3ef;
@@ -56,19 +59,27 @@
   /* Dark: the device's setting by default, or the page's own choice (the header picker).
      Warm dark greys are easier on the eyes than pure black. */
   html[data-theme="dark"] {
-    /* 黑夜：黑金。近黑底、暖白字；實心按鈕金底配近黑字，連結和小字用亮一點的金色。 */
+    /* 黑夜：黑金。近黑底、略冷的暖白字；香檳金（不那麼黃）：實心按鈕用淡淡的金屬漸層配近黑字，
+       連結和小字 #D6BE8E，描邊 #A88A55。 */
     color-scheme: dark;
     --bg: #0e0e0f;
     --card: #17171a;
     --border: #2e2c27;
-    --text: #ede6d6;
-    --text-light: #b5ac98;
-    --accent: #e2c463;
-    --accent-solid: #d4af37;
-    --accent-hover: #e0bd4a;
-    --accent-light: #29251a;
-    --read-bg: #3a3219;
-    --brand: #d4af37;
+    --text: #e8e2d6;
+    --text-light: #b3ab9c;
+    --accent: #d6be8e;
+    --accent-solid: #c5a572;
+    --accent-hover: #cfb07c;
+    --accent-fill: linear-gradient(180deg, #dcc59a 0%, #b8955f 100%);
+    --accent-hover-fill: linear-gradient(180deg, #e3cea6 0%, #c29f69 100%);
+    --accent-fill-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    --accent-line: #a88a55;
+    --input-line: #a88a55;
+    --input-bg: #1c1b18;
+    --focus-glow: rgba(197, 165, 114, 0.25);
+    --accent-light: #252119;
+    --read-bg: #3a3324;
+    --brand: #c5a572;
     --on-accent: #141414;
     --on-accent-shadow: none;
     --danger: #e08a7e;
@@ -77,7 +88,7 @@
     --ok-bg: #1f2a20;
     --bad-bg: #33211f;
     --toast-bg: #2a2a2e;
-    --toast-text: #ede6d6;
+    --toast-text: #e8e2d6;
     --backdrop: rgba(0,0,0,0.6);
     --shadow: 0 1px 3px rgba(0,0,0,0.5);
   }
@@ -190,7 +201,8 @@
   .btn {
     display: inline-block;
     padding: 10px 24px;
-    background: var(--accent-solid);
+    background: var(--accent-fill, var(--accent-solid));
+    box-shadow: var(--accent-fill-shadow, none);
     color: var(--on-accent);
     border: none;
     border-radius: var(--radius);
@@ -198,7 +210,7 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  .btn:hover { background: var(--accent-hover); }
+  .btn:hover { background: var(--accent-hover-fill, var(--accent-hover)); }
   /* 實心的主題色按鈕、標籤、頭像：字加粗，加上 --on-accent-shadow（白天模式的白字試驗用） */
   .btn:not(.btn-secondary), .tab.active, .dim-btn.active, .q-thumb.active, .avatar, .voice-float-main {
     font-weight: 600; text-shadow: var(--on-accent-shadow, none);
@@ -206,7 +218,7 @@
   .btn-secondary {
     background: transparent;
     color: var(--accent);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--accent-line, var(--accent));
   }
   .btn-secondary:hover { background: var(--accent-light); }
   .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
@@ -293,7 +305,8 @@
   }
   .dim-btn:hover { border-color: var(--accent); color: var(--accent); }
   .dim-btn.active {
-    background: var(--accent-solid);
+    background: var(--accent-fill, var(--accent-solid));
+    box-shadow: var(--accent-fill-shadow, none);
     color: var(--on-accent);
     border-color: var(--accent-solid);
   }
@@ -478,10 +491,16 @@
   .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .tab { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
          color: var(--text); cursor: pointer; font-size: 0.95rem; }
-  .tab.active { background: var(--accent-solid); color: var(--on-accent); border-color: var(--accent-solid); }
-  .ask-input { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border);
-               border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px;
-               background: var(--card); color: var(--text); }
+  .tab.active { background: var(--accent-fill, var(--accent-solid)); box-shadow: var(--accent-fill-shadow, none); color: var(--on-accent); border-color: var(--accent-solid); }
+  .ask-input { width: 100%; min-height: 110px; padding: 12px 14px; border: 2px solid var(--input-line, var(--border));
+               border-radius: 12px; font-size: 1rem; font-family: inherit; margin-top: 8px; box-sizing: border-box;
+               background: var(--input-bg, var(--card)); color: var(--text); transition: box-shadow 0.15s, border-color 0.15s; }
+  /* 單行的欄位（暱稱、講章表單、宗派選單）：不用多行框的高度，字不會被擠扁 */
+  input.ask-input, select.ask-input { min-height: 46px; height: auto !important; padding-top: 8px; padding-bottom: 8px; }
+  .ask-input:focus { outline: none; border-color: var(--accent-solid); box-shadow: 0 0 0 4px var(--focus-glow, transparent); }
+  .ask-hint { margin: 4px 0 0; font-weight: 600; color: var(--accent); }
+  .send-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 1.05rem; padding: 12px 28px; }
+  .send-btn svg { width: 20px; height: 20px; flex: none; }
   .rich { white-space: pre-wrap; line-height: 1.75; }
   .rich .rh { display: inline-block; font-weight: 700; font-size: 1.03em; margin-top: 4px; color: var(--text); }
   .rich strong { font-weight: 700; }
@@ -504,7 +523,7 @@
   .q-thumb { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: var(--radius);
              padding: 5px 12px; font-size: 0.88rem; cursor: pointer; }
   .q-thumb:hover { border-color: var(--accent); }
-  .q-thumb.active { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); }
+  .q-thumb.active { background: var(--accent-fill, var(--accent-solid)); border-color: var(--accent-solid); color: var(--on-accent); }
   .q-score { background: var(--accent-light); border-radius: var(--radius); padding: 4px 8px; display: inline-flex;
              gap: 4px; align-items: center; flex-wrap: wrap; }
   .q-score .q-label { color: var(--accent); font-weight: 600; }
@@ -545,12 +564,12 @@
   .theme-wrap { position: relative; }
   /* 安裝 App（PWA）：頁首最右邊；窄螢幕只顯示圖示 */
   .install-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; cursor: pointer;
-    background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
+    background: none; border: 1px solid var(--accent-line, var(--accent)); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
   .install-btn svg { width: 18px; height: 18px; flex: none; }
   .install-btn { position: relative; }   /* 能放「有更新」的小紅點 */
   .header-actions { display: flex; gap: 10px; align-items: center; }
   .install-btn.hidden { display: none; }
-  .install-btn.update { background: var(--accent-solid); border-color: var(--accent-solid);
+  .install-btn.update { background: var(--accent-fill, var(--accent-solid)); border-color: var(--accent-solid);
     color: var(--on-accent); font-weight: 600; text-shadow: var(--on-accent-shadow, none); }
   .install-btn.update::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
     border-radius: 50%; background: var(--danger); border: 2px solid var(--card); }
@@ -694,7 +713,7 @@
   .voice-float-main {
     display: inline-flex; align-items: center; justify-content: center;
     min-height: 42px; padding: 0 18px; border: 0; border-radius: 999px;
-    background: var(--accent-solid); color: var(--on-accent);
+    background: var(--accent-fill, var(--accent-solid)); color: var(--on-accent);
     font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer;
     white-space: nowrap;
   }
@@ -967,9 +986,10 @@ Ask in your own words, in English or Chinese: everyday struggles, questions abou
     <div class="card" id="convCard">
       <div class="card-title" id="convTitle">新對話 · New conversation</div>
       <div id="convTurns"></div>
-      <textarea class="ask-input" id="askInput" placeholder="例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?"></textarea>
+      <div class="ask-hint hidden" id="askHint">👇 在下面輸入你的問題，再按「送出」</div>
+      <textarea class="ask-input" id="askInput" placeholder="在這裡輸入你的問題，例如：什麼是因信稱義？我怕自己不真的相信，這正常嗎？"></textarea>
       <div class="help ask-quota" id="askQuota"></div>
-      <div class="actions"><button class="btn" id="askBtn" onclick="ask()">送出 · Send</button></div>
+      <div class="actions"><button class="btn send-btn" id="askBtn" onclick="ask()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>送出 · Send</span></button></div>
       <div class="help" id="waitText" style="margin-top:8px"></div>
     </div>
   </div>
@@ -1014,7 +1034,7 @@ Ask in your own words, in English or Chinese: everyday struggles, questions abou
         <div class="card-title">對話</div>
         <div id="wsTurns"></div>
         <textarea class="ask-input" id="wsInput" placeholder="例如：15:20「動了慈心」原文是甚麼字？／幫我寫引言，約 300 字，從「回家」切入。／第二點給一個青年人能明白的例子。"></textarea>
-        <div class="actions"><button class="btn" id="wsSendBtn" onclick="wsSend()">送出</button></div>
+        <div class="actions"><button class="btn send-btn" id="wsSendBtn" onclick="wsSend()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>送出</span></button></div>
         <div class="help" id="wsWait" style="margin-top:8px"></div>
       </div>
     </div>
@@ -1843,6 +1863,7 @@ function mode(m) {
 let convId = null;
 
 function refreshAsk() {
+  askHintPaint();
   api('/api/state').then(s => {
     const before = state.chat ? state.chat.remaining_today : null;
     state.chat = s.chat;
@@ -1892,6 +1913,7 @@ function convNew() {
   document.getElementById('convTurns').innerHTML = '';
   document.getElementById('askInput').placeholder = document.getElementById('askInput').dataset.ph ||
     document.getElementById('askInput').placeholder;
+  askHintPaint();
   refreshAsk();
   document.getElementById('convCard').scrollIntoView({behavior: 'smooth'});
   document.getElementById('askInput').focus();
@@ -1912,9 +1934,16 @@ function convOpen(id, openNewest) {
   });
 }
 
+function askHintPaint() {
+  let asked = false; try { asked = localStorage.getItem('theoclaw_asked') === '1'; } catch (e) {}
+  const h = document.getElementById('askHint');
+  if (h) h.classList.toggle('hidden', asked || !!convId);
+}
 function ask() {
   const q = document.getElementById('askInput').value.trim();
   if (q.length < 2) { showToast(T('請輸入問題')); return; }
+  try { localStorage.setItem('theoclaw_asked', '1'); } catch (e) {}
+  askHintPaint();
   const btn = document.getElementById('askBtn'), text = document.getElementById('waitText');
   btn.disabled = true;
   api('/api/ask', {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -3352,8 +3381,9 @@ const EN = {
     'Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.',
   'Ask in your own words, in English or Chinese: everyday struggles, questions about doctrine, difficult passages in scripture — you can ask about any of them. Keep asking follow-up questions: the assistant remembers the conversation. Please score the answers. Please do not enter real names or private details.': '',
   '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Your past conversations are in the list on the left (on a phone, tap ☰ at the top left); tap one to continue it.',
-  '例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
-    'e.g. I am afraid I do not really believe — is that normal? / How can we discuss the parable of the prodigal son (Luke 15) in our Bible study?',
+  '在這裡輸入你的問題，例如：什麼是因信稱義？我怕自己不真的相信，這正常嗎？':
+    'Type your question here, e.g. What is justification by faith? I am afraid I do not really believe — is that normal?',
+  '👇 在下面輸入你的問題，再按「送出」': '👇 Type your question below, then tap “Send”',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Ask a follow-up… (e.g. And verse 9? Could you give an example?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'The question allowance for this trial has been used up. Thank you for taking part.',
   '今天的提問次數已經用完，明天可以再問。': "You've used all of today's questions. You can ask again tomorrow.",
@@ -3553,8 +3583,9 @@ const DE = {
   '用平常說話的方式提問就好，中文或英文都可以：生活中的困惑、教義上的疑問、讀經遇到的難處，都可以提問；可以一直接著問下去，助手記得這個對話前面說過的話。回答後請打個分。請不要輸入真實姓名或私人資料。':
     'Fragen Sie mit Ihren eigenen Worten, auf Deutsch, Englisch oder Chinesisch: Fragen aus dem Alltag, Fragen zur Lehre, schwierige Bibelstellen – Sie können zu allem fragen. Stellen Sie gerne Rückfragen: Der Assistent erinnert sich an das Gespräch. Bitte bewerten Sie die Antworten. Bitte geben Sie keine echten Namen oder privaten Daten ein.',
   '過去的對話在左邊的清單（手機上按左上角 ☰），點一下就可以接著問。': 'Ihre früheren Gespräche finden Sie in der Liste links (auf dem Handy: ☰ oben links); tippen Sie eines an, um fortzufahren.',
-  '例如：我怕自己不真的相信，這正常嗎？／路加福音 15 章浪子的比喻，可以怎樣在查經班討論？ / e.g. How can we discuss the parable of the prodigal son (Luke 15)?':
-    'z. B. Ich fürchte, ich glaube nicht wirklich — ist das normal? / Wie können wir das Gleichnis vom verlorenen Sohn (Lukas 15) in unserer Bibelgruppe besprechen?',
+  '在這裡輸入你的問題，例如：什麼是因信稱義？我怕自己不真的相信，這正常嗎？':
+    'Hier Ihre Frage eingeben, z. B.: Was ist Rechtfertigung aus Glauben? Ich fürchte, ich glaube nicht wirklich — ist das normal?',
+  '👇 在下面輸入你的問題，再按「送出」': '👇 Unten Ihre Frage eingeben, dann auf „Senden“ tippen',
   '接著問……（例如：那第 9 節呢？可以舉個例子嗎？）': 'Rückfrage stellen… (z. B. Und Vers 9? Ein Beispiel?)',
   '本次測試的提問額度已用完，謝謝您的參與。': 'Das Fragenkontingent für diesen Versuch ist aufgebraucht. Vielen Dank für Ihre Teilnahme.',
   '今天的提問次數已經用完，明天可以再問。': 'Ihre Fragen für heute sind aufgebraucht. Morgen können Sie wieder fragen.',
