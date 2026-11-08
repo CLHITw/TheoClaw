@@ -1,5 +1,6 @@
-"""Draw the home-screen icons (PWA): a dark-teal cross on the site's Tiffany blue (#81D8D0).
-(A white cross on that light blue would be too faint: 1.7:1; dark teal is 7.5:1.)
+"""Draw the home-screen icons (PWA): a white cross on the site's Tiffany blue (#81D8D0).
+White on that light blue is faint (1.7:1), so the cross is bold and sits on a soft deep-teal
+shadow at low opacity: it still looks white, with a crisp edge even at 16-32 px.
 
     python scripts/make_icons.py      writes human_scoring/icons/*.png
 
@@ -12,11 +13,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 OUT = Path(__file__).resolve().parents[1] / "human_scoring" / "icons"
 BLUE = (129, 216, 208, 255)  # --brand in human-scoring.html (light theme)
-CROSS = (11, 59, 58, 255)    # --on-accent
+CROSS = (11, 59, 58, 255)    # --on-accent (the share picture's text)
+WHITE = (255, 255, 255, 255)
+SHADOW = (8, 117, 112)       # --accent, drawn at low opacity under the white cross
 TEAL = (8, 117, 112, 255)    # --accent
 # Fonts for the share picture: Windows first, then common Linux ones; the default font otherwise.
 LATIN = ["C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
@@ -31,16 +34,13 @@ def _font(paths: list[str], size: int):
 
 
 def share_picture() -> Image.Image:
-    """1200x630: the app icon's cross on a white tile, the name and what it is, on Tiffany blue."""
+    """1200x630: the white cross, the name and what it is (dark teal), on Tiffany blue."""
     w, h, k = 1200, 630, 2
     im = Image.new("RGBA", (w * k, h * k), BLUE)
-    d = ImageDraw.Draw(im)
     tile = 300 * k
     x0, y0 = 120 * k, (h * k - tile) // 2
-    d.rounded_rectangle([x0, y0, x0 + tile, y0 + tile], radius=tile * 0.22, fill=(255, 255, 255, 255))
-    sub = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
-    _cross(ImageDraw.Draw(sub), tile, 0.62)
-    im.alpha_composite(sub, (x0, y0))
+    im.alpha_composite(_white_cross(tile, 0.78), (x0, y0))
+    d = ImageDraw.Draw(im)
     tx = x0 + tile + 70 * k
     d.text((tx, 200 * k), "TheoClaw", font=_font(LATIN, 112 * k), fill=CROSS)
     d.text((tx, 350 * k), "信仰問答助手", font=_font(CJK, 56 * k), fill=CROSS)
@@ -48,14 +48,23 @@ def share_picture() -> Image.Image:
     return im.resize((w, h), Image.LANCZOS).convert("RGB")
 
 
-def _cross(d: ImageDraw.ImageDraw, size: int, scale: float) -> None:
+def _cross(d: ImageDraw.ImageDraw, size: int, scale: float, fill, dy: float = 0) -> None:
     """A Latin cross centred in the square, `scale` of its height."""
     h = size * scale
-    w = h * 0.12                         # beam thickness
-    cx, top = size / 2, (size - h) / 2
-    d.rectangle([cx - w / 2, top, cx + w / 2, top + h], fill=CROSS)
+    w = h * 0.14                         # beam thickness: bold, so white reads on the light blue
+    cx, top = size / 2, (size - h) / 2 + dy
+    d.rectangle([cx - w / 2, top, cx + w / 2, top + h], fill=fill)
     arm, y = h * 0.62, top + h * 0.30
-    d.rectangle([cx - arm / 2, y - w / 2, cx + arm / 2, y + w / 2], fill=CROSS)
+    d.rectangle([cx - arm / 2, y - w / 2, cx + arm / 2, y + w / 2], fill=fill)
+
+
+def _white_cross(size: int, scale: float) -> Image.Image:
+    """The white cross over a soft deep-teal shadow, on a transparent square."""
+    shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    _cross(ImageDraw.Draw(shadow), size, scale, SHADOW + (110,), dy=size * 0.012)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(size * 0.018))
+    _cross(ImageDraw.Draw(shadow), size, scale, WHITE)
+    return shadow
 
 
 def icon(size: int, maskable: bool) -> Image.Image:
@@ -64,10 +73,10 @@ def icon(size: int, maskable: bool) -> Image.Image:
     d = ImageDraw.Draw(im)
     if maskable:
         d.rectangle([0, 0, big, big], fill=BLUE)
-        _cross(d, big, 0.50)  # inside the 80% safe circle
+        im.alpha_composite(_white_cross(big, 0.50))  # inside the 80% safe circle
     else:
         d.rounded_rectangle([0, 0, big - 1, big - 1], radius=big * 0.22, fill=BLUE)
-        _cross(d, big, 0.62)
+        im.alpha_composite(_white_cross(big, 0.62))
     return im.resize((size, size), Image.LANCZOS)
 
 
