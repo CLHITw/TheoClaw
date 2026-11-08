@@ -1451,7 +1451,23 @@ def _plain(text: str, limit: int) -> str:
 
 
 ICONS = HERE / "icons"  # drawn by scripts/make_icons.py
-ICON_FILES = {"icon-192.png", "icon-512.png", "maskable-192.png", "maskable-512.png", "apple-touch-icon.png"}
+ICON_FILES = {"icon-192.png", "icon-512.png", "maskable-192.png", "maskable-512.png", "apple-touch-icon.png", "og.png"}
+
+
+def og_image_tags(base: str) -> list[str]:
+    """The picture chat apps (WeChat, WhatsApp, LINE) show for a shared link; they need a full address."""
+    if not base:
+        return []
+    img = html.escape(base.rstrip("/") + "/icons/og.png")
+    return [f'<meta property="og:image" content="{img}">', '<meta property="og:image:width" content="1200">',
+            '<meta property="og:image:height" content="630">', '<meta name="twitter:card" content="summary_large_image">']
+
+
+def main_page(base: str = "") -> bytes:
+    """The page with its link preview: name, one line, the share picture (no link code or data in it)."""
+    head = ['<meta property="og:site_name" content="TheoClaw">', '<meta property="og:title" content="TheoClaw">',
+            '<meta property="og:description" content="信仰問答助手 · Faith Q&amp;A assistant">'] + og_image_tags(base)
+    return PAGE.read_text(encoding="utf-8").replace("<title>TheoClaw</title>", "<title>TheoClaw</title>" + chr(10) + chr(10).join(head), 1).encode("utf-8")
 _LINK_CODE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -1542,7 +1558,7 @@ self.addEventListener('fetch', e => {
 """
 
 
-def share_page(shared: dict | None) -> bytes:
+def share_page(shared: dict | None, base: str = "") -> bytes:
     """The page itself, opened on one shared answer: the link preview (Open Graph) and the data
     are written into its head, so a chat app's preview shows the question without running the
     page. None: the link was revoked or never existed (the page says so, for both alike)."""
@@ -1554,6 +1570,7 @@ def share_page(shared: dict | None) -> bytes:
                  f'<meta property="og:description" content="{html.escape(_plain(shared["reply"], 100))}">']
     else:
         head.append('<meta property="og:title" content="TheoClaw">')
+    head += og_image_tags(base)
     data = json.dumps(shared or {"gone": True}, ensure_ascii=False).replace("<", "\\u003c")
     head.append(f'<script id="shareData" type="application/json">{data}</script>')
     return page.replace("<title>TheoClaw</title>", "<title>TheoClaw</title>\n" + "\n".join(head), 1).encode("utf-8")
@@ -1640,13 +1657,16 @@ def make_handler(store: Store):
             return f"{proto}://{host}/auth/google/callback"
 
         def _share_url(self, token: str) -> str:
+            return f"{self._base()}/s/{token}"
+
+        def _base(self) -> str:
             """THEOCLAW_URL when set (the fixed address), else the address this request came to."""
             base = os.environ.get("THEOCLAW_URL", "").strip().rstrip("/")
             if not base:
                 proto = (self.headers.get("X-Forwarded-Proto") or "http").split(",")[0].strip() or "http"
                 host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").split(",")[0].strip()
                 base = f"{proto}://{host}"
-            return f"{base}/s/{token}"
+            return base
 
         def _identity(self, q):
             """Who a request belongs to: a signed-in account (session cookie) if any, set for who();
@@ -1673,7 +1693,7 @@ def make_handler(store: Store):
             u = urlparse(self.path)
             q = parse_qs(u.query)
             if u.path in ("/", "/index.html"):
-                body = PAGE.read_bytes()
+                body = main_page(self._base())
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -1714,7 +1734,7 @@ def make_handler(store: Store):
             m = SHARE_PATH.match(u.path)
             if m or u.path.startswith("/s/"):  # one shared answer: no link code, read-only
                 shared = store.shared(m.group(1)) if m else None
-                body = share_page(shared)
+                body = share_page(shared, self._base())
                 self.send_response(HTTPStatus.OK if shared else HTTPStatus.NOT_FOUND)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))

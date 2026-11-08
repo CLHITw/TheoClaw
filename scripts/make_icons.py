@@ -5,17 +5,47 @@
 
 icon-*.png have rounded corners on a transparent background; maskable-*.png fill the whole
 square (Android crops them to its own shape), with the cross inside the central safe zone.
+og.png (1200x630) is the picture chat apps show when a link is shared.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 OUT = Path(__file__).resolve().parents[1] / "human_scoring" / "icons"
 BLUE = (129, 216, 208, 255)  # --brand in human-scoring.html (light theme)
 CROSS = (11, 59, 58, 255)    # --on-accent
+TEAL = (8, 117, 112, 255)    # --accent
+# Fonts for the share picture: Windows first, then common Linux ones; the default font otherwise.
+LATIN = ["C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+CJK = ["C:/Windows/Fonts/msjhbd.ttc", "C:/Windows/Fonts/msjh.ttc", "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"]
+
+
+def _font(paths: list[str], size: int):
+    for p in paths:
+        if Path(p).exists():
+            return ImageFont.truetype(p, size)
+    return ImageFont.load_default()
+
+
+def share_picture() -> Image.Image:
+    """1200x630: the app icon's cross on a white tile, the name and what it is, on Tiffany blue."""
+    w, h, k = 1200, 630, 2
+    im = Image.new("RGBA", (w * k, h * k), BLUE)
+    d = ImageDraw.Draw(im)
+    tile = 300 * k
+    x0, y0 = 120 * k, (h * k - tile) // 2
+    d.rounded_rectangle([x0, y0, x0 + tile, y0 + tile], radius=tile * 0.22, fill=(255, 255, 255, 255))
+    sub = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    _cross(ImageDraw.Draw(sub), tile, 0.62)
+    im.alpha_composite(sub, (x0, y0))
+    tx = x0 + tile + 70 * k
+    d.text((tx, 200 * k), "TheoClaw", font=_font(LATIN, 112 * k), fill=CROSS)
+    d.text((tx, 350 * k), "信仰問答助手", font=_font(CJK, 56 * k), fill=CROSS)
+    d.text((tx, 430 * k), "Faith Q&A assistant", font=_font(LATIN, 44 * k), fill=TEAL)
+    return im.resize((w, h), Image.LANCZOS).convert("RGB")
 
 
 def _cross(d: ImageDraw.ImageDraw, size: int, scale: float) -> None:
@@ -48,6 +78,7 @@ def main() -> None:
         icon(size, True).save(OUT / f"maskable-{size}.png", optimize=True)
     # iOS draws its own rounded corners and shows black behind transparency: a full square
     icon(180, True).convert("RGB").save(OUT / "apple-touch-icon.png", optimize=True)
+    share_picture().save(OUT / "og.png", optimize=True)
     print("寫出", ", ".join(sorted(p.name for p in OUT.glob("*.png"))))
 
 

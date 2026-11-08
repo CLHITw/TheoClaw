@@ -1263,3 +1263,16 @@ def test_header_voice_switch_gates_every_read_aloud_button():
     assert "if (!Voice.on) { voiceNeedOn(); return false; }" in body
     assert "'請先打開上方的語音朗讀按鈕': 'Turn on voice" in page
     assert '<div class="header-tools">' in page and ".header-tools { width: 100%; flex-wrap: nowrap;" in page
+
+
+def test_link_previews_carry_the_share_picture():
+    """Chat apps show og:image for a shared link: the main page and a shared answer both point
+    at /icons/og.png with a full address; without a known address there is no tag."""
+    base = "https://test.example"
+    page = hs.main_page(base).decode("utf-8")
+    assert f'<meta property="og:image" content="{base}/icons/og.png">' in page and "og:title" in page
+    shared = hs.share_page({"ask": "問題", "reply": "回答", "lang": "zh"}, base).decode("utf-8")
+    assert f'content="{base}/icons/og.png"' in shared
+    assert "og:image" not in hs.share_page(None).decode("utf-8")
+    assert "og.png" in hs.ICON_FILES and (hs.ICONS / "og.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    assert 'href="/icons/icon-192.png"' in (hs.HERE / "admin.html").read_text(encoding="utf-8")
