@@ -1158,11 +1158,25 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
+// This browser's private key goes in a request header, never in an address (addresses end up in
+// proxy logs, history and screenshots).
+function deviceHeaders(extra) { return Object.assign({'X-TheoClaw-Device': deviceKey}, extra || {}); }
+
 function api(path, opts) {
   const sep = path.includes('?') ? '&' : '?';
-  return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : '') +
-               '&k=' + encodeURIComponent(deviceKey), opts)
+  opts = Object.assign({}, opts || {});
+  opts.headers = deviceHeaders(opts.headers);
+  return fetch(path + sep + 't=' + encodeURIComponent(code) + (nick ? '&u=' + encodeURIComponent(nick) : ''), opts)
     .then(r => r.json());
+}
+
+// Google sign-in leaves the page, so it cannot send a header: post first for a one-time token.
+function googleStart(u) {
+  fetch('/auth/google/prepare?t=' + encodeURIComponent(code) + (u ? '&u=' + encodeURIComponent(u) : ''),
+        {method: 'POST', headers: deviceHeaders()})
+    .then(r => r.json())
+    .then(r => { if (r.url) location.href = r.url; else showToast(r.error || T('無法連線，請稍後再試')); })
+    .catch(() => showToast(T('無法連線，請稍後再試')));
 }
 
 // ---- join card: consent, nickname, then 匿名進入 or Google
@@ -1224,10 +1238,7 @@ function submitJoin(google) {
       return;
     }
     // No nickname is needed for Google: a returning account keeps its previous one.
-    let url = '/auth/google/start?t=' + encodeURIComponent(code) + '&k=' + encodeURIComponent(deviceKey);
-    const u = typed || nick;
-    if (u) url += '&u=' + encodeURIComponent(u);
-    location.href = url;
+    googleStart(typed || nick);
   };
   if (google && !named) { go(); return; }  // consent is recorded after a first-time account picks its name
   api('/api/consent', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
@@ -1344,8 +1355,7 @@ function toggleAcctMenu() {
 function accountLogin() {
   acctMenuOpen(false);
   if (!code || !nick) return;
-  location.href = '/auth/google/start?t=' + encodeURIComponent(code) +
-    '&u=' + encodeURIComponent(nick) + '&k=' + encodeURIComponent(deviceKey);
+  googleStart(nick);
 }
 
 function logout() {
@@ -2701,7 +2711,7 @@ function shareRate(token, box) {
     head.appendChild(again);
     box.appendChild(head); box.appendChild(voteView(v, v.mine));
   };
-  fetch('/s/' + encodeURIComponent(token) + '/votes?k=' + encodeURIComponent(deviceKey))
+  fetch('/s/' + encodeURIComponent(token) + '/votes', {headers: deviceHeaders()})
     .then(r => r.json()).then(v => { if (v.mine) done(v); else ask(null); }).catch(() => ask(null));
 }
 

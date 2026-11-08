@@ -1207,3 +1207,48 @@ def test_pwa_manifest_service_worker_and_icons(tmp_path):
         assert 'rel="manifest"' in page and "serviceWorker" in page and 'rel="apple-touch-icon"' in page
     finally:
         srv.shutdown()
+
+
+def test_device_key_travels_in_a_header_not_the_address(tmp_path, monkeypatch):
+    """The browser's private key: the X-TheoClaw-Device header; ?k= still works for pages
+    opened before the change; Google sign-in gets a one-time token instead of the key."""
+    a = _run(tmp_path, "a", 1)
+    path = tmp_path / "assignment.json"
+    hs.prepare([str(a)], ["牧者1"], None, None, path)
+    code = hs.add_group("查經班", path)
+    store = hs.Store(path, chat_dir=tmp_path / "chat")
+    store.google = {"client_id": "123456789012-abc_DEF.apps.googleusercontent.com", "client_secret": "secret"}
+    monkeypatch.setattr(hs, "exchange_google_code", lambda *a, **k: "token")
+    monkeypatch.setattr(hs, "fetch_google_sub", lambda token: "sub-new")
+    srv, base = _serve(store)
+    key, old_key = "H" * 24, "Q" * 24
+
+    def post(p, headers=None):
+        req = urllib.request.Request(base + p, data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json", **(headers or {})})
+        try:
+            return json.loads(urllib.request.urlopen(req).read())
+        except urllib.error.HTTPError as e:
+            return json.loads(e.read())
+    try:
+        assert post("/api/consent?" + urlencode({"t": code, "u": "小明"}), {hs.DEVICE_HEADER: key}).get("ok", True)
+        assert store.db.consented(store.who(code, ("小明", key))["name"])
+        assert post("/api/consent?" + urlencode({"t": code, "u": "老王", "k": old_key})).get("ok", True)  # old pages
+        assert store.db.consented(store.who(code, ("老王", old_key))["name"])
+
+        # Google: the key is posted in a header for a token; the sign-in address holds only the token
+        r = post("/auth/google/prepare?" + urlencode({"t": code, "u": "小明"}), {hs.DEVICE_HEADER: key})
+        assert key not in r["url"] and parse_qs(urlparse(r["url"]).query).keys() == {"t", "s"}
+        assert "error" in post("/auth/google/prepare?t=wrong", {hs.DEVICE_HEADER: key})
+        step = _get(base, "/auth/google/start?t=" + code)
+        state = parse_qs(urlparse(step.headers["Location"]).query)["state"][0]
+        back = _get(base, f"/auth/google/callback?state={state}&code=abc", cookies={hs.LOGIN_COOKIE: state})
+        pending = _cookie_value(back, hs.GOOGLE_PENDING_COOKIE)
+        done = _get(base, r["url"], cookies={hs.GOOGLE_PENDING_COOKIE: pending})
+        assert done.code == 303 and done.headers["Location"] == f"/?t={code}"
+        assert store.session_account(_cookie_value(done, hs.SESSION_COOKIE))["name"] == store.who(code, ("小明", key))["name"]
+        assert hs.AUTH_START.take(parse_qs(urlparse(r["url"]).query)["s"][0]) is None  # used once
+    finally:
+        srv.shutdown()
+    page = hs.PAGE.read_text(encoding="utf-8")
+    assert "&k=" not in page and "?k=" not in page and "X-TheoClaw-Device" in page

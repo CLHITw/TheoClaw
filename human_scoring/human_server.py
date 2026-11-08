@@ -1463,15 +1463,15 @@ class Handoff:
     the token back and gets the identity once. Tokens live in memory, expire after TTL seconds
     and work once; the device key never appears in any address."""
 
-    TTL = 7 * 24 * 3600
     MAX = 5000
 
-    def __init__(self):
+    def __init__(self, ttl: float = 7 * 24 * 3600, fields: tuple[str, ...] = ("k", "n", "d", "l")):
+        self.TTL, self.fields = ttl, fields
         self._items: dict[str, tuple[float, dict]] = {}
         self._lock = threading.Lock()
 
     def put(self, data: dict) -> str | None:
-        keep = {f: data[f] for f in ("k", "n", "d", "l") if isinstance(data.get(f), str) and len(data[f]) <= 200}
+        keep = {f: data[f] for f in self.fields if isinstance(data.get(f), str) and len(data[f]) <= 200}
         if not keep.get("k"):
             return None
         h = secrets.token_urlsafe(18)
@@ -1490,6 +1490,11 @@ class Handoff:
 
 
 HANDOFF = Handoff()
+# Google sign-in is a page navigation, which cannot carry the device-key header: the page first
+# posts (link code, nickname, key) in a request body for a short-lived one-time token, and only
+# that token is in the /auth/google/start address.
+AUTH_START = Handoff(ttl=600, fields=("k", "t", "u"))
+DEVICE_HEADER = "X-TheoClaw-Device"
 
 
 def pwa_manifest(code: str = "", handoff: str = "") -> dict:
@@ -1649,8 +1654,13 @@ def make_handler(store: Store):
             acct = store.session_account(self._cookie(SESSION_COOKIE))
             store.set_session(acct["name"] if acct else None)
             code = (q.get("t") or [""])[0]
-            nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
+            nick = ((q.get("u") or [""])[0], self._device(q))
             return code, nick
+
+        def _device(self, q):
+            """This browser's private key: the request header; the old ?k= only for pages that
+            were opened before the key moved out of addresses (it is never written to the log)."""
+            return (self.headers.get(DEVICE_HEADER) or "").strip() or (q.get("k") or [""])[0]
 
         def _google_back(self, error: str, code: str = "", keep_pending: bool = False):
             params = {"t": code, "auth_error": error} if code else {"auth_error": error}
@@ -1699,7 +1709,7 @@ def make_handler(store: Store):
                 return
             m = SHARE_API.match(u.path)
             if m and m.group(2) == "votes":  # this browser's rating and, once it has rated, everyone's
-                v = store.share_votes(m.group(1), (q.get("k") or [""])[0])
+                v = store.share_votes(m.group(1), self._device(q))
                 return self._json(v) if v is not None else self._json({"error": "這個分享已取消，或者不存在。"}, HTTPStatus.NOT_FOUND)
             m = SHARE_PATH.match(u.path)
             if m or u.path.startswith("/s/"):  # one shared answer: no link code, read-only
@@ -1731,9 +1741,13 @@ def make_handler(store: Store):
                 if not store.google:
                     return self._google_back("disabled")
                 code = (q.get("t") or [""])[0]
+                started = AUTH_START.take((q.get("s") or [""])[0])  # posted by the page: no key in this address
+                if started:
+                    code = started.get("t", "")
                 if not store.rater(code):
                     return self._google_back("link")
-                nick = ((q.get("u") or [""])[0], (q.get("k") or [""])[0])
+                nick = ((started.get("u", ""), started["k"]) if started
+                        else ((q.get("u") or [""])[0], self._device(q)))
                 pending = store.google_pending(self._cookie(GOOGLE_PENDING_COOKIE))
                 if pending and (pending.get("t") or "") == code:  # Google is done; this step just needs a nickname
                     r = store.who(code, nick)
@@ -1843,6 +1857,14 @@ def make_handler(store: Store):
                 client = self.headers.get("CF-Connecting-IP") or self.client_address[0]
                 out = store.enter(str(body.get("role") or ""), str(body.get("code") or ""), client)
                 return self._json(out, HTTPStatus.BAD_REQUEST if "error" in out else HTTPStatus.OK)
+            if u.path == "/auth/google/prepare":  # the page's sign-in step: the key goes in a header, never the address
+                code = (q.get("t") or [""])[0]
+                if not store.rater(code):
+                    return self._json({"error": "連結無效"}, HTTPStatus.FORBIDDEN)
+                token = AUTH_START.put({"k": self._device(q), "t": code, "u": (q.get("u") or [""])[0]})
+                if not token:
+                    return self._json({"error": "資料格式錯誤"}, HTTPStatus.BAD_REQUEST)
+                return self._json({"url": "/auth/google/start?" + urlencode({"t": code, "s": token})})
             if u.path in ("/api/pwa-handoff", "/api/pwa-claim"):  # iPhone home-screen app: who this browser is
                 length = int(self.headers.get("Content-Length") or 0)
                 if length > 2048:
