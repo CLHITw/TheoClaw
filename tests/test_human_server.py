@@ -1252,3 +1252,14 @@ def test_device_key_travels_in_a_header_not_the_address(tmp_path, monkeypatch):
         srv.shutdown()
     page = hs.PAGE.read_text(encoding="utf-8")
     assert "&k=" not in page and "?k=" not in page and "X-TheoClaw-Device" in page
+
+
+def test_header_voice_switch_gates_every_read_aloud_button():
+    """The header's voice switch is the master switch: voiceSpeak (used by every 朗讀 button and
+    the auto-read) refuses while it is off and points the reader at the switch; the phone header
+    keeps the tools on one row and the theme menu opens inside the screen."""
+    page = hs.PAGE.read_text(encoding="utf-8")
+    body = page.split("function voiceSpeak(el, btn) {", 1)[1].split("\n}", 1)[0]
+    assert "if (!Voice.on) { voiceNeedOn(); return false; }" in body
+    assert "'請先打開上方的語音朗讀按鈕': 'Turn on voice" in page
+    assert '<div class="header-tools">' in page and ".header-tools { width: 100%; flex-wrap: nowrap;" in page

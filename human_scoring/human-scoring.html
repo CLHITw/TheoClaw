@@ -563,6 +563,29 @@
   .theme-menu button[aria-checked="true"]::before { content: "✓"; }
   /* Account: the first character of the nickname opens sign-in / sign-out */
   .header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .header-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  /* 手機：頁首固定兩排。第一排：頭像、對話列表、標題，右上角「安裝 App」；第二排：語言、聖經版本、
+     宗派、語音、顯示模式，一排排滿不換行（選單會縮短），按鈕至少 40px 高，主題選單靠右展開不會跑出畫面。 */
+  @media (max-width: 600px) {
+    .header { padding-top: calc(10px + env(safe-area-inset-top)); padding-bottom: 8px; padding-left: 12px; padding-right: 12px; }
+    .header-inner { flex-direction: column !important; align-items: stretch !important; gap: 8px; }
+    .header-left { min-height: 40px; }
+    .header h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .avatar, #sbBtn { width: 40px !important; height: 40px !important; flex: none; }
+    .header-tools { width: 100%; flex-wrap: nowrap; gap: 6px; }
+    .header-tools .lang-pick { flex: 1 1 0; min-width: 0; }
+    .header-tools .lang-pick svg { display: none; }
+    .header-tools .lang-pick select { width: 100%; min-width: 0; height: 40px; text-overflow: ellipsis; }
+    .header-tools .voice-pick { flex: 1 1 0; min-width: 0; max-width: none; height: 40px; }
+    .header-tools .progress-info { flex: none; font-size: 0.75rem; }
+    .header-tools .progress-info:empty { display: none; }
+    .voice-btn { width: 40px !important; height: 40px !important; padding: 0 !important; justify-content: center; flex: none; }
+    .voice-btn .vtext { display: none; }
+    .theme-wrap { flex: none; }
+    #themeBtn { width: 40px !important; height: 40px !important; }
+    .install-btn { width: 40px !important; height: 40px; top: calc(10px + env(safe-area-inset-top)) !important; right: 12px !important; }
+    .header.has-install .header-left { padding-right: 48px; }
+  }
   .acct-wrap { position: relative; flex: none; }
   .avatar {
     position: relative; display: flex; align-items: center; justify-content: center;
@@ -601,6 +624,8 @@
   }
   .voice-btn:hover { border-color: var(--accent); }
   .voice-btn.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .voice-btn.flash { animation: voiceFlash 0.5s ease-in-out 3; }
+  @keyframes voiceFlash { 50% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); } }
   .voice-pick { max-width: 150px; height: 34px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--card); color: var(--text); font-family: inherit; font-size: 0.85rem; padding: 0 4px; }
   @media (max-width: 600px) { .voice-pick { max-width: 120px; } }
@@ -715,7 +740,7 @@
       <button id="sbBtn" onclick="sbToggle(true)" title="過去的對話">☰</button><h1>TheoClaw<span id="h1Sep" class="hidden"> · </span><span id="h1Label"></span></h1>
       <span id="modeBadge" class="mode-badge hidden">傳道模式</span>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="header-tools">
       <div class="progress-info" id="progressInfo"></div>
       <label class="lang-pick" title="Language · 語言">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -748,7 +773,7 @@
         <select id="denomSel" class="notr" onchange="setDenom(this.value)" aria-label="Church tradition"></select>
       </label>
       <button id="voiceBtn" class="voice-btn" onclick="toggleVoice()" aria-pressed="false" title="語音朗讀">
-        <span id="voiceIcon" aria-hidden="true">🔇</span><span>語音</span>
+        <span id="voiceIcon" aria-hidden="true">🔇</span><span class="vtext">語音</span>
       </button>
       <select id="voicePick" class="voice-pick hidden notr" title="朗讀的聲音" onchange="setVoice(this.value)" aria-label="朗讀的聲音"></select>
       <div id="themeWrap" class="theme-wrap">
@@ -2107,8 +2132,17 @@ function voiceNext(gen) {
   voicePlay(Voice.idx, Voice.ci + 1);
 }
 // el 是畫面上的回答；從第一段開始讀，並把控制列綁到它的朗讀鈕。
+// 頁首的「語音」是總開關：關著的時候，回答上的朗讀鈕不出聲，只提示先打開它（並閃一下那顆鈕）。
+function voiceNeedOn() {
+  showToast(T('請先打開上方的語音朗讀按鈕'));
+  const b = document.getElementById('voiceBtn');
+  if (!b) return;
+  b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
+  setTimeout(() => b.classList.remove('flash'), 1600);
+}
 function voiceSpeak(el, btn) {
   if (!voiceSupported()) { showToast(T('這部裝置不支援語音朗讀')); return false; }
+  if (!Voice.on) { voiceNeedOn(); return false; }
   const segs = voiceSegments(el);
   if (!segs.length) { showToast(T('這裡沒有可以讀出來的文字')); return false; }
   voiceStop();
@@ -3160,6 +3194,7 @@ const EN = {
   '（粵語）': ' (Cantonese)', '（普通話）': ' (Mandarin)',
   '語音已開啟，回答會讀出來。': 'Voice is on. Answers will be read aloud.',
   '這部裝置不支援語音朗讀': 'This device cannot read answers aloud',
+  '請先打開上方的語音朗讀按鈕': 'Turn on voice (the button at the top) first',
   '這裡沒有可以讀出來的文字': 'There is nothing here to read aloud',
   '你好，這是我的聲音。': 'Hello, this is my voice.',
   // 分享一個回答
@@ -3362,6 +3397,7 @@ const DE = {
   '（粵語）': ' (Kantonesisch)', '（普通話）': ' (Mandarin)',
   '語音已開啟，回答會讀出來。': 'Sprache ist an. Antworten werden vorgelesen.',
   '這部裝置不支援語音朗讀': 'Dieses Gerät kann Antworten nicht vorlesen',
+  '請先打開上方的語音朗讀按鈕': 'Bitte zuerst oben „Sprache“ einschalten',
   '這裡沒有可以讀出來的文字': 'Hier gibt es nichts zum Vorlesen',
   '你好，這是我的聲音。': 'Hallo, das ist meine Stimme.',
   // 分享一個回答
