@@ -56,29 +56,30 @@
   /* Dark: the device's setting by default, or the page's own choice (the header picker).
      Warm dark greys are easier on the eyes than pure black. */
   html[data-theme="dark"] {
+    /* 黑夜：黑金。近黑底、暖白字；實心按鈕金底配近黑字，連結和小字用亮一點的金色。 */
     color-scheme: dark;
-    --bg: #151411;
-    --card: #1e1c18;
-    --border: #35312a;
-    --text: #e7e2d8;
-    --text-light: #a69e91;
-    --accent: #a5cb9b;
-    --accent-solid: #4d7445;
-    --accent-hover: #54804a;
-    --accent-light: #242e21;
-    --read-bg: #45573a;
-    --brand: #4d7445;
-    --on-accent: #ffffff;
+    --bg: #0e0e0f;
+    --card: #17171a;
+    --border: #2e2c27;
+    --text: #ede6d6;
+    --text-light: #b5ac98;
+    --accent: #e2c463;
+    --accent-solid: #d4af37;
+    --accent-hover: #e0bd4a;
+    --accent-light: #29251a;
+    --read-bg: #3a3219;
+    --brand: #d4af37;
+    --on-accent: #141414;
     --on-accent-shadow: none;
     --danger: #e08a7e;
     --success: #7fce94;
-    --code-bg: #26231f;
-    --ok-bg: #1f2e22;
+    --code-bg: #222226;
+    --ok-bg: #1f2a20;
     --bad-bg: #33211f;
-    --toast-bg: #3a352e;
-    --toast-text: #f3efe6;
-    --backdrop: rgba(0,0,0,0.55);
-    --shadow: 0 1px 3px rgba(0,0,0,0.45);
+    --toast-bg: #2a2a2e;
+    --toast-text: #ede6d6;
+    --backdrop: rgba(0,0,0,0.6);
+    --shadow: 0 1px 3px rgba(0,0,0,0.5);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3909,7 +3910,7 @@ function applyTheme() {
   if (dark) document.documentElement.setAttribute('data-theme', 'dark');
   else document.documentElement.removeAttribute('data-theme');
   const meta = document.getElementById('metaTheme');
-  if (meta) meta.content = dark ? '#151411' : '#f8f7f4';
+  if (meta) meta.content = dark ? '#0e0e0f' : '#f8f7f4';
   document.querySelectorAll('#themeMenu [data-mode]').forEach(el => {
     el.setAttribute('aria-checked', el.dataset.mode === themeMode ? 'true' : 'false');
   });
