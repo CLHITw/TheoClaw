@@ -533,7 +533,11 @@
     background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
   .install-btn svg { width: 18px; height: 18px; flex: none; }
   .install-btn.hidden { display: none; }
-  @media (max-width: 600px) { .install-btn { width: 34px; padding: 0; justify-content: center; } .install-label { display: none; } }
+  @media (max-width: 600px) {
+    .install-btn { width: 34px; padding: 0; justify-content: center; position: absolute; top: 12px; right: 16px; }
+    .install-label { display: none; }
+    .header.has-install .header-left { padding-right: 44px; }   /* 標題不會跑到右上角的鈕底下 */
+  }
   .install-sheet { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; }
   .install-sheet.hidden { display: none; }
   .install-card { background: var(--card); color: var(--text); width: 100%; max-width: 460px; border-radius: 16px 16px 0 0;
@@ -1092,7 +1096,7 @@ const PWA_TEXT = {
          safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden'},
 };
 // 簡體：用繁體的句子換成大陸用語（iPhone 的選項叫「添加到主屏幕」），再逐字轉換
-const PWA_HANS_WORDS = [['加入主畫面', '添加到主屏幕'], ['主畫面', '主屏幕'], ['新增', '添加'], ['貼上', '粘貼'], ['畫面', '屏幕']];
+const PWA_HANS_WORDS = [['加入主畫面', '添加到主屏幕'], ['主畫面', '主屏幕'], ['新增', '添加'], ['貼上', '粘貼'], ['畫面', '屏幕'], ['圖示', '圖標'], ['按「', '點「']];
 function pwaT() {
   const m = typeof zhMode === 'string' ? zhMode : 'hant';
   if (PWA_TEXT[m]) return PWA_TEXT[m];
@@ -1110,7 +1114,10 @@ function pwaPaint() {
   const t = pwaT();
   document.getElementById('installLabel').textContent = t.btn;
   b.title = t.title; b.setAttribute('aria-label', t.title);
-  b.classList.toggle('hidden', PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/'));
+  const off = PWA_STANDALONE || !pwaMode || location.pathname.startsWith('/s/');
+  b.classList.toggle('hidden', off);
+  document.querySelector('.header').classList.toggle('has-install', !off);
+  syncHeaderHeight();
   if (!document.getElementById('installSheet').classList.contains('hidden')) pwaSheet(true);
 }
 function pwaSheet(open) {
