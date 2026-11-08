@@ -546,8 +546,9 @@
   .install-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; cursor: pointer;
     background: none; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font: inherit; font-size: 0.85rem; }
   .install-btn svg { width: 18px; height: 18px; flex: none; }
+  .install-btn { position: relative; }   /* 手機版下面改成 absolute（右上角）；兩種都能放更新的小紅點 */
   .install-btn.hidden { display: none; }
-  .install-btn.update { position: relative; background: var(--accent-solid); border-color: var(--accent-solid);
+  .install-btn.update { background: var(--accent-solid); border-color: var(--accent-solid);
     color: var(--on-accent); font-weight: 600; text-shadow: var(--on-accent-shadow, none); }
   .install-btn.update::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
     border-radius: 50%; background: var(--danger); border: 2px solid var(--card); }
