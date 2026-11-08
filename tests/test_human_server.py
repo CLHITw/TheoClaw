@@ -1270,9 +1270,10 @@ def test_link_previews_carry_the_share_picture():
     at /icons/og.png with a full address; without a known address there is no tag."""
     base = "https://test.example"
     page = hs.main_page(base).decode("utf-8")
-    assert f'<meta property="og:image" content="{base}/icons/og.png">' in page and "og:title" in page
+    assert f'<meta property="og:image" content="{base}/icons/og.png?v={hs.ICON_V}">' in page and "og:title" in page
+    assert f'href="/icons/apple-touch-icon.png?v={hs.ICON_V}"' in page   # redrawn icons get a new address
     shared = hs.share_page({"ask": "問題", "reply": "回答", "lang": "zh"}, base).decode("utf-8")
-    assert f'content="{base}/icons/og.png"' in shared
+    assert f'content="{base}/icons/og.png?v={hs.ICON_V}"' in shared
     assert "og:image" not in hs.share_page(None).decode("utf-8")
     assert "og.png" in hs.ICON_FILES and (hs.ICONS / "og.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     assert 'href="/icons/icon-192.png"' in (hs.HERE / "admin.html").read_text(encoding="utf-8")

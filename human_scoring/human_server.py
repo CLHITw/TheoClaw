@@ -1458,7 +1458,7 @@ def og_image_tags(base: str) -> list[str]:
     """The picture chat apps (WeChat, WhatsApp, LINE) show for a shared link; they need a full address."""
     if not base:
         return []
-    img = html.escape(base.rstrip("/") + "/icons/og.png")
+    img = html.escape(base.rstrip("/") + f"/icons/og.png?v={ICON_V}")
     return [f'<meta property="og:image" content="{img}">', '<meta property="og:image:width" content="1200">',
             '<meta property="og:image:height" content="630">', '<meta name="twitter:card" content="summary_large_image">']
 
@@ -1467,8 +1467,29 @@ def main_page(base: str = "") -> bytes:
     """The page with its link preview: name, one line, the share picture (no link code or data in it)."""
     head = ['<meta property="og:site_name" content="TheoClaw">', '<meta property="og:title" content="TheoClaw">',
             '<meta property="og:description" content="信仰問答助手 · Faith Q&amp;A assistant">'] + og_image_tags(base)
-    return PAGE.read_text(encoding="utf-8").replace("<title>TheoClaw</title>", "<title>TheoClaw</title>" + chr(10) + chr(10).join(head), 1).encode("utf-8")
+    page = versioned_icons(PAGE.read_text(encoding="utf-8"))
+    return page.replace("<title>TheoClaw</title>", "<title>TheoClaw</title>" + chr(10) + chr(10).join(head), 1).encode("utf-8")
 _LINK_CODE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _icon_version() -> str:
+    """A short hash of the icons, added to their addresses (?v=...): Cloudflare and browsers keep
+    icons for a week, so redrawn ones need a new address to show at once."""
+    h = hashlib.sha1()
+    for name in sorted(ICON_FILES):
+        p = ICONS / name
+        if p.exists():
+            h.update(p.read_bytes())
+    return h.hexdigest()[:8]
+
+
+ICON_V = _icon_version()
+_ICON_REF = re.compile(r"(/icons/[a-z0-9-]+\.png)(?![?\w])")
+
+
+def versioned_icons(text: str) -> str:
+    """Every /icons/....png address in a page, with the icons' version."""
+    return _ICON_REF.sub(lambda m: f"{m.group(1)}?v={ICON_V}", text)
 
 
 class Handoff:
@@ -1522,8 +1543,8 @@ def pwa_manifest(code: str = "", handoff: str = "") -> dict:
         start = "/?" + urlencode({"t": code})
         if re.fullmatch(r"[A-Za-z0-9_-]{16,64}", handoff or ""):
             start += "#h=" + handoff
-    icons = [{"src": f"/icons/icon-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "any"} for s in (192, 512)]
-    icons += [{"src": f"/icons/maskable-{s}.png", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "maskable"} for s in (192, 512)]
+    icons = [{"src": f"/icons/icon-{s}.png?v={ICON_V}", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "any"} for s in (192, 512)]
+    icons += [{"src": f"/icons/maskable-{s}.png?v={ICON_V}", "sizes": f"{s}x{s}", "type": "image/png", "purpose": "maskable"} for s in (192, 512)]
     return {"id": "/", "name": "TheoClaw", "short_name": "TheoClaw", "description": "信仰問答助手 · Faith Q&A assistant",
             "lang": "zh-Hant", "start_url": start, "scope": "/", "display": "standalone",
             "background_color": "#f8f7f4", "theme_color": "#f8f7f4", "icons": icons}
@@ -1534,8 +1555,8 @@ def pwa_manifest(code: str = "", handoff: str = "") -> dict:
 # network-first, so an update shows at once; the cached page is only for being offline.
 # The API, sign-in, shared answers (/s/...) and /admin always go to the network, never the cache.
 SW_JS = """\
-const CACHE = 'theoclaw-shell-v3';
-const SHELL = ['/', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
+const CACHE = 'theoclaw-shell-{v}';
+const SHELL = ['/', '/icons/icon-192.png?v={v}', '/icons/icon-512.png?v={v}', '/icons/apple-touch-icon.png?v={v}'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
@@ -1562,7 +1583,7 @@ def share_page(shared: dict | None, base: str = "") -> bytes:
     """The page itself, opened on one shared answer: the link preview (Open Graph) and the data
     are written into its head, so a chat app's preview shows the question without running the
     page. None: the link was revoked or never existed (the page says so, for both alike)."""
-    page = PAGE.read_text(encoding="utf-8")
+    page = versioned_icons(PAGE.read_text(encoding="utf-8"))
     head = ['<meta name="robots" content="noindex, nofollow">', '<meta property="og:site_name" content="TheoClaw">']
     if shared:
         head += ['<meta property="og:type" content="article">',
@@ -1714,7 +1735,7 @@ def make_handler(store: Store):
                                   ensure_ascii=False).encode("utf-8")
                 return self._static(body, "application/manifest+json; charset=utf-8", "no-store")
             if u.path == "/sw.js":  # the service worker: caches the icons and the bare page, never answers or the API
-                return self._static(SW_JS.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache")
+                return self._static(SW_JS.replace("{v}", ICON_V).encode("utf-8"), "text/javascript; charset=utf-8", "no-cache")
             if u.path == "/favicon.ico" or (u.path.startswith("/icons/") and u.path[7:] in ICON_FILES):
                 name = "icon-192.png" if u.path == "/favicon.ico" else u.path[7:]
                 return self._static((ICONS / name).read_bytes(), "image/png", "public, max-age=604800")
@@ -1814,7 +1835,7 @@ def make_handler(store: Store):
                 if not admin_token():
                     return self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 if u.path == "/admin":  # the page itself holds no data; it asks for the token
-                    body = ADMIN_PAGE.read_bytes()
+                    body = versioned_icons(ADMIN_PAGE.read_text(encoding="utf-8")).encode("utf-8")
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.send_header("Content-Length", str(len(body)))
