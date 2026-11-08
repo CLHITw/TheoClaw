@@ -1518,7 +1518,7 @@ def pwa_manifest(code: str = "", handoff: str = "") -> dict:
 # network-first, so an update shows at once; the cached page is only for being offline.
 # The API, sign-in, shared answers (/s/...) and /admin always go to the network, never the cache.
 SW_JS = """\
-const CACHE = 'theoclaw-shell-v1';
+const CACHE = 'theoclaw-shell-v3';
 const SHELL = ['/', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

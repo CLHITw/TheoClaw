@@ -29,11 +29,15 @@
     --border: #e0ddd5;
     --text: #2d2a26;
     --text-light: #6b6560;
-    --accent: #4a6741;
-    --accent-solid: #4a6741;
-    --accent-hover: #3d5536;
-    --accent-light: #e8f0e5;
-    --read-bg: #e3efdd;
+    /* 白天：Tiffany 藍 #81D8D0。它很淺，所以實心按鈕用它當底、配深色字 --on-accent（對比 7.5:1）；
+       白底上的連結、小字、邊框用同色系的深青 #087570（5.6:1）。黑夜維持原來的綠色。 */
+    --brand: #81d8d0;
+    --on-accent: #0b3b3a;
+    --accent: #087570;
+    --accent-solid: #81d8d0;
+    --accent-hover: #6fcfc6;
+    --accent-light: #e8f7f5;
+    --read-bg: #dff3f0;
     --danger: #c0392b;
     --success: #27ae60;
     --code-bg: #f5f3ef;
@@ -60,6 +64,8 @@
     --accent-hover: #54804a;
     --accent-light: #242e21;
     --read-bg: #45573a;
+    --brand: #4d7445;
+    --on-accent: #ffffff;
     --danger: #e08a7e;
     --success: #7fce94;
     --code-bg: #26231f;
@@ -151,7 +157,7 @@
   }
   .progress-fill {
     height: 100%;
-    background: var(--accent);
+    background: var(--brand);
     transition: width 0.3s;
   }
 
@@ -180,7 +186,7 @@
     display: inline-block;
     padding: 10px 24px;
     background: var(--accent-solid);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     border-radius: var(--radius);
     font-size: 0.95rem;
@@ -279,7 +285,7 @@
   .dim-btn:hover { border-color: var(--accent); color: var(--accent); }
   .dim-btn.active {
     background: var(--accent-solid);
-    color: #fff;
+    color: var(--on-accent);
     border-color: var(--accent-solid);
   }
   .dim-btn.na.active {
@@ -463,7 +469,7 @@
   .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .tab { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
          color: var(--text); cursor: pointer; font-size: 0.95rem; }
-  .tab.active { background: var(--accent-solid); color: #fff; border-color: var(--accent-solid); }
+  .tab.active { background: var(--accent-solid); color: var(--on-accent); border-color: var(--accent-solid); }
   .ask-input { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border);
                border-radius: var(--radius); font-size: 1rem; font-family: inherit; margin-top: 8px;
                background: var(--card); color: var(--text); }
@@ -489,7 +495,7 @@
   .q-thumb { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: var(--radius);
              padding: 5px 12px; font-size: 0.88rem; cursor: pointer; }
   .q-thumb:hover { border-color: var(--accent); }
-  .q-thumb.active { background: var(--accent-solid); border-color: var(--accent-solid); color: #fff; }
+  .q-thumb.active { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); }
   .q-score { background: var(--accent-light); border-radius: var(--radius); padding: 4px 8px; display: inline-flex;
              gap: 4px; align-items: center; flex-wrap: wrap; }
   .q-score .q-label { color: var(--accent); font-weight: 600; }
@@ -562,6 +568,9 @@
   .theme-menu button::before { content: ""; display: inline-block; width: 1em; margin-right: 4px; }
   .theme-menu button[aria-checked="true"]::before { content: "✓"; }
   /* Account: the first character of the nickname opens sign-in / sign-out */
+  /* 連結和鍵盤焦點用主題色（白天藍、黑夜綠），不用瀏覽器預設的顏色 */
+  a { color: var(--accent); }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .header-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   /* 手機：頁首固定兩排。第一排：頭像、對話列表、標題，右上角「安裝 App」；第二排：語言、聖經版本、
@@ -590,7 +599,7 @@
   .avatar {
     position: relative; display: flex; align-items: center; justify-content: center;
     width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer;
-    background: var(--accent-solid); color: #fff; border: 1px solid var(--border);
+    background: var(--brand); color: var(--on-accent); border: 1px solid var(--border);
     font-size: 0.95rem; font-weight: 600; line-height: 1;
   }
   .avatar.synced { box-shadow: 0 0 0 2px var(--accent-light); }
@@ -661,12 +670,12 @@
   .voice-float-main {
     display: inline-flex; align-items: center; justify-content: center;
     min-height: 42px; padding: 0 18px; border: 0; border-radius: 999px;
-    background: var(--accent-solid); color: #fff;
+    background: var(--accent-solid); color: var(--on-accent);
     font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer;
     white-space: nowrap;
   }
   .voice-float-main:active { transform: scale(0.98); }
-  .voice-float-main.paused { background: var(--accent); }
+  .voice-float-main.paused { background: var(--accent-hover); }
   .voice-float-pos { display: inline-flex; align-items: center; gap: 2px;
     font-size: 0.82rem; color: var(--text-light); white-space: nowrap;
     font-variant-numeric: tabular-nums; }
