@@ -32,7 +32,10 @@
     /* 白天：Tiffany 藍 #81D8D0。它很淺，所以實心按鈕用它當底、配深色字 --on-accent（對比 7.5:1）；
        白底上的連結、小字、邊框用同色系的深青 #087570（5.6:1）。黑夜維持原來的綠色。 */
     --brand: #81d8d0;
-    --on-accent: #0b3b3a;
+    /* 試驗：Tiffany 藍實心按鈕用白字（Lorenz 想看看）。白字在 #81D8D0 上只有 1.7:1，所以字加粗、加一點深青陰影。
+       要改回深色字，只要把下一行換成 --on-accent: #0b3b3a; 並把 --on-accent-shadow 設成 none。 */
+    --on-accent: #ffffff;
+    --on-accent-shadow: 0 1px 2px rgba(8, 117, 112, 0.35);
     --accent: #087570;
     --accent-solid: #81d8d0;
     --accent-hover: #6fcfc6;
@@ -66,6 +69,7 @@
     --read-bg: #45573a;
     --brand: #4d7445;
     --on-accent: #ffffff;
+    --on-accent-shadow: none;
     --danger: #e08a7e;
     --success: #7fce94;
     --code-bg: #26231f;
@@ -194,6 +198,10 @@
     transition: background 0.2s;
   }
   .btn:hover { background: var(--accent-hover); }
+  /* 實心的主題色按鈕、標籤、頭像：字加粗，加上 --on-accent-shadow（白天模式的白字試驗用） */
+  .btn:not(.btn-secondary), .tab.active, .dim-btn.active, .q-thumb.active, .avatar, .voice-float-main {
+    font-weight: 600; text-shadow: var(--on-accent-shadow, none);
+  }
   .btn-secondary {
     background: transparent;
     color: var(--accent);
