@@ -1304,3 +1304,14 @@ def test_update_button_has_a_build_version_to_compare(tmp_path, monkeypatch):
     src = hs.PAGE.read_text(encoding="utf-8")
     reload_calls = src.split("function pwaApplyUpdate()", 1)[1].split("\n}", 1)[0]
     assert "location.reload()" in reload_calls and "if (jobRunning)" in reload_calls
+
+
+def test_share_app_qr_points_at_the_public_front_page():
+    """「分享 App」: the QR code and link go to the public front page with ?install=1 — never the
+    sharer's link code, nickname or device key; the page carries its own QR encoder (no library)."""
+    page = hs.PAGE.read_text(encoding="utf-8")
+    fn = page.split("function shareAppUrl()", 1)[1].split("}", 1)[0]
+    assert fn.strip() == "{ return location.origin + '/?install=1';"
+    assert "function qrMatrix(text)" in page and "<script src=" not in page
+    assert 'onclick="acctMenuOpen(false); shareApp()">分享 App</button>' in page
+    assert "q.get('install') !== '1'" in page and "history.replaceState" in page

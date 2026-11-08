@@ -566,6 +566,14 @@
   .install-card .ios-share { display: inline-block; width: 20px; height: 20px; vertical-align: -4px; color: #007aff; }
   .install-card .install-arrow { text-align: center; font-size: 26px; color: var(--accent); line-height: 1; margin-bottom: 6px; }
   .install-card .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .share-qr { width: min(240px, 70vw); margin: 4px auto 12px; background: #fff; border-radius: 12px; padding: 6px; }
+  .share-qr svg { display: block; width: 100%; height: auto; }
+  .share-hint { text-align: center; margin: 0 0 8px; }
+  .share-link { text-align: center; font-size: 0.85rem; color: var(--accent); word-break: break-all; margin-bottom: 12px; }
+  /* 微信等內建瀏覽器：說明貼在畫面上方，箭頭指向右上角的「⋯」 */
+  .install-sheet.top { align-items: flex-start; }
+  .install-sheet.top .install-card { border-radius: 0 0 16px 16px; padding-top: calc(16px + env(safe-area-inset-top)); position: relative; }
+  .inapp-arrow { position: absolute; top: 4px; right: 14px; font-size: 34px; line-height: 1; color: var(--accent); }
   .theme-menu {
     position: absolute; top: calc(100% + 6px); right: 0; z-index: 70;
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -753,6 +761,7 @@
             <div id="acctName" class="acct-name notr">訪客</div>
             <div id="acctSub" class="acct-sub">進入後可登入 Google</div>
           </div>
+          <button id="acctShare" class="acct-item" type="button" role="menuitem" onclick="acctMenuOpen(false); shareApp()">分享 App</button>
           <button id="acctLogin" class="acct-item hidden" type="button" role="menuitem" onclick="accountLogin()">用 Google 登入</button>
           <button id="acctLogout" class="acct-item hidden" type="button" role="menuitem" onclick="logout()">退出登錄</button>
           <div id="acctNote" class="acct-note hidden">只儲存帳號編號，不存電郵、姓名或頭像。</div>
@@ -1078,6 +1087,135 @@ try {
 // the tradition is also kept for the whole site, so a choice made on the front page (no link yet) carries over
 try { nick = localStorage.getItem(NICK_KEY) || ''; denom = localStorage.getItem('theoclaw_tradition') || localStorage.getItem(NICK_KEY + '_denom') || ''; } catch (e) { nick = ''; }
 
+// ---- QR start: a small QR code encoder (byte mode, error correction M, versions 1-6, up to
+// 106 bytes) so the share sheet needs no outside library. Returns rows of booleans (true = dark).
+function qrMatrix(text) {
+  const data = Array.from(new TextEncoder().encode(text));
+  // per version: [total codewords, EC codewords per block, blocks] (level M)
+  const SPEC = [null, [26, 10, 1], [44, 16, 1], [70, 26, 1], [100, 18, 2], [134, 24, 2], [172, 16, 4]];
+  const ALIGN = [null, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34]];
+  let ver = 1;
+  while (ver <= 6 && SPEC[ver][0] - SPEC[ver][1] * SPEC[ver][2] < data.length + 2) ver++;
+  if (ver > 6) throw new Error('QR: text too long');
+  const [total, ecLen, nBlocks] = SPEC[ver];
+  const dataLen = total - ecLen * nBlocks;
+  // bit stream: mode 0100, 8-bit length, the bytes, terminator, padding
+  const bits = [];
+  const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+  put(4, 4); put(data.length, 8); data.forEach(b => put(b, 8));
+  put(0, Math.min(4, dataLen * 8 - bits.length));
+  while (bits.length % 8) bits.push(0);
+  for (let p = 0xEC; bits.length < dataLen * 8; p ^= 0xEC ^ 0x11) put(p, 8);
+  const cw = [];
+  for (let i = 0; i < bits.length; i += 8) cw.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+  // Reed-Solomon over GF(256), polynomial 0x11D
+  const EXP = new Array(512), LOG = new Array(256);
+  for (let i = 0, x = 1; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11D; }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const mul = (a, b) => (a && b) ? EXP[LOG[a] + LOG[b]] : 0;
+  let gen = [1];
+  for (let i = 0; i < ecLen; i++) {
+    const next = new Array(gen.length + 1).fill(0);
+    gen.forEach((g, j) => { next[j] ^= g; next[j + 1] ^= mul(g, EXP[i]); });
+    gen = next;
+  }
+  const ecOf = block => {
+    const rem = block.concat(new Array(ecLen).fill(0));
+    for (let i = 0; i < block.length; i++) {
+      const f = rem[i];
+      if (f) for (let j = 0; j < gen.length; j++) rem[i + j] ^= mul(gen[j], f);
+    }
+    return rem.slice(block.length);
+  };
+  const per = dataLen / nBlocks;   // versions 1-6 at level M have equal blocks
+  const blocks = [], ecs = [];
+  for (let b = 0; b < nBlocks; b++) { blocks.push(cw.slice(b * per, (b + 1) * per)); ecs.push(ecOf(blocks[b])); }
+  const seq = [];
+  for (let i = 0; i < per; i++) blocks.forEach(bl => seq.push(bl[i]));
+  for (let i = 0; i < ecLen; i++) ecs.forEach(e => seq.push(e[i]));
+  // the matrix: function patterns first
+  const n = 17 + 4 * ver;
+  const m = Array.from({length: n}, () => new Array(n).fill(false));
+  const fn = Array.from({length: n}, () => new Array(n).fill(false));
+  const set = (x, y, dark) => { m[y][x] = dark; fn[y][x] = true; };
+  for (let i = 0; i < n; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  [[3, 3], [n - 4, 3], [3, n - 4]].forEach(([cx, cy]) => {
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (x >= 0 && x < n && y >= 0 && y < n) set(x, y, d !== 2 && d !== 4);
+    }
+  });
+  const al = ALIGN[ver], last = al.length - 1;
+  al.forEach((ay, i) => al.forEach((ax, j) => {
+    if ((i === 0 && j === 0) || (i === 0 && j === last) || (i === last && j === 0)) return;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+  }));
+  const format = mask => {
+    const d = (0 << 3) | mask;   // level M = 00
+    let r = d;
+    for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+    const f = ((d << 10) | r) ^ 0x5412, bit = i => ((f >>> i) & 1) === 1;
+    for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+    set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+    for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+    for (let i = 0; i < 8; i++) set(n - 1 - i, 8, bit(i));
+    for (let i = 8; i < 15; i++) set(8, n - 15 + i, bit(i));
+    set(8, n - 8, true);   // the dark module
+  };
+  format(0);   // reserve the format areas
+  // data, in the zigzag order
+  const stream = [];
+  seq.forEach(c => { for (let i = 7; i >= 0; i--) stream.push((c >>> i) & 1); });
+  let k = 0;
+  for (let right = n - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let v = 0; v < n; v++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? n - 1 - v : v;
+      if (!fn[y][x] && k < stream.length) { m[y][x] = stream[k] === 1; k++; }
+    }
+  }
+  // masks: try all eight, keep the one with the lowest penalty
+  const MASK = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+    (x, y) => (Math.floor(y / 2) + Math.floor(x / 3)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+    (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => ((x + y) % 2 + (x * y) % 3) % 2 === 0];
+  const flip = mk => { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (!fn[y][x] && MASK[mk](x, y)) m[y][x] = !m[y][x]; };
+  const penalty = () => {
+    let p = 0, dark = 0;
+    const line = get => {
+      for (let a = 0; a < n; a++) {
+        let run = 1;
+        for (let b = 1; b <= n; b++) {
+          if (b < n && get(a, b) === get(a, b - 1)) run++;
+          else { if (run >= 5) p += run - 2; run = 1; }
+        }
+        for (let b = 0; b + 10 < n; b++) {
+          const s = Array.from({length: 11}, (_, t) => get(a, b + t) ? 1 : 0).join('');
+          if (s === '10111010000' || s === '00001011101') p += 40;
+        }
+      }
+    };
+    line((a, b) => m[a][b]); line((a, b) => m[b][a]);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      if (m[y][x]) dark++;
+      if (x < n - 1 && y < n - 1 && m[y][x] === m[y][x + 1] && m[y][x] === m[y + 1][x] && m[y][x] === m[y + 1][x + 1]) p += 3;
+    }
+    return p + (Math.floor(Math.abs(dark * 20 - n * n * 10) / (n * n))) * 10;
+  };
+  let best = 0, bestP = Infinity;
+  for (let mk = 0; mk < 8; mk++) { flip(mk); format(mk); const p = penalty(); if (p < bestP) { bestP = p; best = mk; } flip(mk); }
+  flip(best); format(best);
+  return m;
+}
+// the matrix as an SVG image: dark modules in `color`, with the 4-module quiet zone
+function qrSvg(text, color) {
+  const m = qrMatrix(text), n = m.length, q = 4;
+  let d = '';
+  m.forEach((row, y) => row.forEach((on, x) => { if (on) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z'; }));
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q) +
+         '" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="' + (color || '#000') + '"/></svg>';
+}
+// ---- QR end
+
 // Home-screen app (PWA). The installed app opens on this link (?t=code). An iPhone home-screen
 // app starts with its own empty storage, so in Safari the page posts who this browser is to the
 // server (request body) for a one-time token, and only that token goes into the app's start
@@ -1138,15 +1276,24 @@ const PWA_TEXT = {
   hant: {btn: '安裝 App', title: '把 TheoClaw 加到主畫面', ios1: '點瀏覽器的「分享」按鈕', iosWhere: '（iPhone 在畫面底部，iPad 在右上角）',
          ios2: '往下找，選「加入主畫面」', ios3: '按「新增」，以後從主畫面的圖示打開', other: '這個瀏覽器不能安裝。請先用 {b} 打開這個網頁，再按「安裝 App」。',
          safari: 'Safari', sys: '手機的瀏覽器（Chrome 或 Safari）', copy: '複製網址', copied: '已複製，請到瀏覽器貼上打開', close: '知道了',
-         upd: '有更新', updTitle: '有新版本，按一下更新', updWait: '回答完成後會自動更新', updDone: '已更新到最新版本'},
+         upd: '有更新', updTitle: '有新版本，按一下更新', updWait: '回答完成後會自動更新', updDone: '已更新到最新版本',
+         shareTitle: '分享 TheoClaw', shareHint: '用手機相機或微信掃碼，打開後按右上角「安裝 App」。', shareSys: '分享…',
+         copyLink: '複製連結', introTitle: '安裝 TheoClaw', intro: '把 TheoClaw 加到手機主畫面，以後按圖示就能打開。', installNow: '安裝',
+         wechat: '點右上角的「⋯」，選「在瀏覽器打開」，再按「安裝 App」。'},
   en:   {btn: 'Install app', title: 'Add TheoClaw to your home screen', ios1: 'Tap the browser’s Share button', iosWhere: ' (at the bottom on iPhone, top right on iPad)',
          ios2: 'Scroll down and choose “Add to Home Screen”', ios3: 'Tap “Add”, then open TheoClaw from its icon', other: 'This browser cannot install apps. Open this page in {b} first, then tap “Install app”.',
          safari: 'Safari', sys: 'your phone’s browser (Chrome or Safari)', copy: 'Copy link', copied: 'Copied — paste it into your browser', close: 'Got it',
-         upd: 'Update', updTitle: 'A new version is available — tap to update', updWait: 'Will update when the answer is finished', updDone: 'Updated to the latest version'},
+         upd: 'Update', updTitle: 'A new version is available — tap to update', updWait: 'Will update when the answer is finished', updDone: 'Updated to the latest version',
+         shareTitle: 'Share TheoClaw', shareHint: 'Scan with the phone camera or WeChat, then tap “Install app” at the top right.', shareSys: 'Share…',
+         copyLink: 'Copy link', introTitle: 'Install TheoClaw', intro: 'Add TheoClaw to your home screen and open it from its icon.', installNow: 'Install',
+         wechat: 'Tap “⋯” at the top right, choose “Open in browser”, then tap “Install app”.'},
   de:   {btn: 'App installieren', title: 'TheoClaw zum Home-Bildschirm hinzufügen', ios1: 'Tippe im Browser auf „Teilen“', iosWhere: ' (iPhone: unten, iPad: oben rechts)',
          ios2: 'Nach unten scrollen und „Zum Home-Bildschirm“ wählen', ios3: 'Auf „Hinzufügen“ tippen und TheoClaw künftig über das Symbol öffnen', other: 'In diesem Browser lässt sich nichts installieren. Öffne die Seite zuerst in {b} und tippe dann auf „App installieren“.',
          safari: 'Safari', sys: 'dem Browser des Handys (Chrome oder Safari)', copy: 'Link kopieren', copied: 'Kopiert – im Browser einfügen und öffnen', close: 'Verstanden',
-         upd: 'Aktualisieren', updTitle: 'Neue Version verfügbar – zum Aktualisieren tippen', updWait: 'Wird nach der Antwort aktualisiert', updDone: 'Auf die neueste Version aktualisiert'},
+         upd: 'Aktualisieren', updTitle: 'Neue Version verfügbar – zum Aktualisieren tippen', updWait: 'Wird nach der Antwort aktualisiert', updDone: 'Auf die neueste Version aktualisiert',
+         shareTitle: 'TheoClaw teilen', shareHint: 'Mit der Handykamera oder WeChat scannen, dann oben rechts auf „App installieren“ tippen.', shareSys: 'Teilen…',
+         copyLink: 'Link kopieren', introTitle: 'TheoClaw installieren', intro: 'TheoClaw zum Home-Bildschirm hinzufügen und über das Symbol öffnen.', installNow: 'Installieren',
+         wechat: 'Oben rechts auf „⋯“ tippen, „Im Browser öffnen“ wählen, dann „App installieren“.'},
 };
 // 簡體：用繁體的句子換成大陸用語（iPhone 的選項叫「添加到主屏幕」），再逐字轉換
 const PWA_HANS_WORDS = [['加入主畫面', '添加到主屏幕'], ['主畫面', '主屏幕'], ['新增', '添加'], ['貼上', '粘貼'], ['畫面', '屏幕'], ['圖示', '圖標'], ['按「', '點「']];
@@ -1176,14 +1323,42 @@ function pwaPaint() {
   syncHeaderHeight();
   if (!document.getElementById('installSheet').classList.contains('hidden')) pwaSheet(true);
 }
-function pwaSheet(open) {
+let pwaSheetKind = '';   // '' = the install how-to; 'share' = the QR code; 'intro' = one-tap install after a scan
+function pwaSheet(open, kind) {
   const sheet = document.getElementById('installSheet'), card = document.getElementById('installCard');
   sheet.classList.toggle('hidden', !open);
+  if (kind !== undefined) pwaSheetKind = kind;
+  sheet.classList.toggle('top', !!open && pwaSheetKind === '' && pwaMode === 'open-elsewhere' && PWA_INAPP);
   if (!open) return;
   const t = pwaT(), esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const share = '<svg class="ios-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                 '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
   let body;
+  if (pwaSheetKind === 'share') {
+    const url = shareAppUrl();
+    body = '<div class="share-qr">' + qrSvg(url, '#0b3b3a') + '</div>' +
+           '<p class="share-hint">' + esc(t.shareHint) + '</p>' +
+           '<div class="share-link notr">' + esc(url) + '</div>' +
+           '<div class="row" style="margin-bottom:10px">' +
+           (navigator.share ? '<button class="btn btn-secondary btn-sm" type="button" onclick="shareAppSystem()">' + esc(t.shareSys) + '</button>' : '') +
+           '<button class="btn btn-secondary btn-sm" type="button" onclick="pwaCopy(this, shareAppUrl())">' + esc(t.copyLink) + '</button></div>';
+    card.innerHTML = '<h3>' + esc(t.shareTitle) + '</h3>' + body +
+      '<div class="row"><button class="btn btn-sm" type="button" onclick="pwaSheet(false)">' + esc(t.close) + '</button></div>';
+    return;
+  }
+  if (pwaSheetKind === 'intro' && pwaMode === 'prompt') {
+    card.innerHTML = '<h3>' + esc(t.introTitle) + '</h3><p>' + esc(t.intro) + '</p>' +
+      '<div class="row"><button class="btn btn-secondary btn-sm" type="button" onclick="pwaSheet(false)">' + esc(t.close) + '</button>' +
+      '<button class="btn btn-sm" type="button" onclick="pwaSheet(false); pwaInstall()">' + esc(t.installNow) + '</button></div>';
+    return;
+  }
+  if (pwaMode === 'open-elsewhere' && PWA_INAPP) {
+    card.innerHTML = '<div class="inapp-arrow" aria-hidden="true">↗</div><h3>' + esc(t.title) + '</h3>' +
+      '<p><b>' + esc(t.wechat) + '</b></p>' +
+      '<div class="row"><button class="btn btn-secondary btn-sm" type="button" onclick="pwaCopy(this)">' + esc(t.copy) + '</button>' +
+      '<button class="btn btn-sm" type="button" onclick="pwaSheet(false)">' + esc(t.close) + '</button></div>';
+    return;
+  }
   if (pwaMode === 'ios') {
     body = '<ol><li>' + esc(t.ios1) + ' ' + share + esc(t.iosWhere) + '</li><li>' + esc(t.ios2) + '</li><li>' + esc(t.ios3) + '</li></ol>' +
            '<div class="install-arrow" aria-hidden="true">↓</div>';
@@ -1194,11 +1369,31 @@ function pwaSheet(open) {
   card.innerHTML = '<h3>' + esc(t.title) + '</h3>' + body +
     '<div class="row"><button class="btn btn-sm" type="button" onclick="pwaSheet(false)">' + esc(t.close) + '</button></div>';
 }
-function pwaCopy(btn) {
-  const done = () => { btn.textContent = pwaT().copied; };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(location.href).then(done, () => prompt('', location.href));
-  else prompt('', location.href);
+function pwaCopy(btn, text) {
+  const v = text || location.href, done = () => { btn.textContent = pwaT().copied; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, () => prompt('', v));
+  else prompt('', v);
 }
+// 「分享 App」：一個 QR 碼和連結，指向公開的首頁（加 ?install=1，掃了就出現安裝說明）。
+// 不含這條連結的團體代碼、暱稱或裝置鑰匙：團體代碼不公開，掃碼的人從首頁自己選信徒或牧者。
+function shareAppUrl() { return location.origin + '/?install=1'; }
+function shareApp() { pwaSheet(true, 'share'); }
+function shareAppSystem() {
+  const t = pwaT();
+  navigator.share({title: 'TheoClaw', text: t.intro, url: shareAppUrl()}).catch(() => {});
+}
+// 掃碼進來（?install=1）：去掉這個參數，等瀏覽器準備好，就打開對應的安裝畫面
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get('install') !== '1') return;
+  q.delete('install');
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  if (PWA_STANDALONE) return;
+  window.addEventListener('load', () => setTimeout(() => {
+    if (pwaMode === 'prompt') pwaSheet(true, 'intro');
+    else if (pwaMode) pwaSheet(true, '');
+  }, 1500));
+})();
 function pwaInstall() {
   if (pwaUpdate) { pwaApplyUpdate(); return; }
   if (pwaMode === 'prompt' && pwaPrompt) {
@@ -3281,7 +3476,7 @@ const EN = {
   '今天分享的次數已達上限，請明天再來': 'You have shared as many answers as allowed today; please come back tomorrow',
   '找不到這個回答': 'Answer not found',
   '問題': 'Question', '回答': 'Answer', '由 TheoClaw 生成，僅供參考': 'Generated by TheoClaw, for reference only',
-  '共 1 人評分': '1 rating', '謝謝您的評分': 'Thank you for your rating', '修改評分': 'Change my rating',
+  '共 1 人評分': '1 rating', '謝謝您的評分': 'Thank you for your rating', '修改評分': 'Change my rating', '分享 App': 'Share app',
   '意見（選填）：哪裡好、哪裡不對……': 'Comment (optional): what is good, what is wrong…',
   '評分不記名，只用於改進這個助手；評分後可以看到大家的評分。': 'Ratings are anonymous and only used to improve this assistant; after rating you can see how others rated.',
   '您的評分：有幫助': 'Your rating: helpful', '您的評分：不太行': 'Your rating: not good',
@@ -3484,7 +3679,7 @@ const DE = {
   '今天分享的次數已達上限，請明天再來': 'Sie haben heute so viele Antworten geteilt wie möglich; bitte morgen wieder',
   '找不到這個回答': 'Antwort nicht gefunden',
   '問題': 'Frage', '回答': 'Antwort', '由 TheoClaw 生成，僅供參考': 'Von TheoClaw erstellt, nur zur Orientierung',
-  '共 1 人評分': '1 Bewertung', '謝謝您的評分': 'Danke für Ihre Bewertung', '修改評分': 'Bewertung ändern',
+  '共 1 人評分': '1 Bewertung', '謝謝您的評分': 'Danke für Ihre Bewertung', '修改評分': 'Bewertung ändern', '分享 App': 'App teilen',
   '意見（選填）：哪裡好、哪裡不對……': 'Kommentar (optional): was ist gut, was stimmt nicht…',
   '評分不記名，只用於改進這個助手；評分後可以看到大家的評分。': 'Bewertungen sind anonym und dienen nur dazu, diesen Assistenten zu verbessern; nach Ihrer Bewertung sehen Sie, wie andere bewertet haben.',
   '您的評分：有幫助': 'Ihre Bewertung: hilfreich', '您的評分：不太行': 'Ihre Bewertung: nicht gut',
