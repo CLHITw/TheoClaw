@@ -1,14 +1,28 @@
 # TheoClaw: an assistant that answers questions of faith, and the harness that measures it
 
 TheoClaw is a small tool-using agent that answers questions of faith from the Bible and the
-Methodist tradition: everyday struggles, questions about doctrine, difficult passages in
-scripture. Pastors can also use it to prepare sermons. Scripture and the classic texts are
-looked up word for word by the program, and only what it has looked up is quoted. It serves a
-Mandarin-speaking Methodist fellowship, answers in Chinese (Traditional or Simplified),
-English or German, and draws on the Methodist sources:
-John Wesley's *Explanatory Notes upon the New Testament* and, through a compiled knowledge
-base, his sermons, journal, hymns, the General Rules and the fellowship's course material.
-It is deployed: church members and pastors use it through a web page, and score what it says.
+reader's own church tradition: everyday struggles, questions about doctrine, difficult
+passages in scripture. Pastors can also use it to prepare sermons. Scripture and the classic
+texts are looked up word for word by the program, and only what it has looked up is quoted.
+It began in a Mandarin-speaking Methodist fellowship and answers in Chinese (Traditional or
+Simplified), English or German, always in the language of the question.
+
+The reader picks a tradition, and each has its own compiled knowledge base of public-domain
+confessions and classic writers:
+
+- **默認 Default / Methodist** (the default): John Wesley's *Explanatory Notes upon the New
+  Testament* and his sermons, journal, hymns, the General Rules, the Articles of Religion and
+  the fellowship's course material;
+- **Lutheran** (路德宗): the Book of Concord and Luther's own writings;
+- **Baptist** (浸信會): the 1689 London Confession, Keach's Catechism, the New Hampshire
+  Confession, Spurgeon and Fuller;
+- **Anglican** (聖公會): the Thirty-Nine Articles, the Homilies, the Book of Common Prayer
+  (1928), Hooker and Jewel;
+- **Calvinist / Reformed** (加爾文宗): the Westminster Standards, the Heidelberg Catechism, the
+  Belgic Confession, the Canons of Dort and Calvin.
+
+It is deployed at [theoclaw.app](https://theoclaw.app): church members and pastors use it as a
+web page or an installed home-screen app, share answers, and score what it says.
 
 The agent is the small part. Most of this repository is the evaluation harness around
 it: every task runs N times, every model call and tool call is traced, tools can be
@@ -31,14 +45,18 @@ and at what cost.
   references) and the system prompt is assembled from the groups that are on.
 - *Scripture is never written by the model:* it writes a placeholder, and the program fills
   in the verse from the lookup tool. Every fill is traced like a tool call.
-- *Knowledge:* Methodist sources compiled into a wiki with OpenKB (PageIndex for long PDFs)
-  plus BM25 search over the source text; hymns split by program, one hymn per passage.
+- *Knowledge:* one wiki per tradition, compiled with OpenKB page by page from text-layer
+  PDFs (PageIndex), plus BM25 search over the source text; very long or OCR-only works are
+  searched, not compiled; Methodist hymns split by program, one hymn per passage.
+- *Citation check:* a numbered citation (article, chapter, question) the run never read in
+  its tool outputs is dropped from the answer before the reader sees it.
 - *Sermon pipeline (multi-agent, plain code):* two research agents in parallel, a writer that
   sees only their briefs, deterministic and model checks, one revision; and a step-by-step
   workspace where each request is answered and checked on its own.
 - *Web app:* members and pastors ask, follow up and score answers, privately per person;
-  storage behind one interface (plain files or MySQL); deployed with systemd and a Cloudflare
-  tunnel.
+  answers can be shared as read-only pages that visitors can score too; installable as a
+  home-screen app (PWA); storage behind one interface (plain files or MySQL); a production
+  server and a separate test server, both behind a named Cloudflare tunnel.
 
 **How it is tested:**
 
@@ -73,7 +91,11 @@ askers' scores with two blind LLM judges: on the rubric's own usable line (7+) t
 also passed 7 of the 10 answers users found usable (70%), but passed both answers users
 rejected too, so the overall usable-call agreement is 7 of 12 (58%); it flagged three
 they were happy with — stable enough for regression checks, not yet a rater or a proven
-alarm. Live data is still too small to judge the monitoring flags.
+alarm. Live data is still too small to judge the monitoring flags. Giving each tradition its
+own knowledge base, plus a citation check and a rule for comparisons, raised the share of
+supported claims in Lutheran, Baptist and Calvinist answers from 30–36% to 64–66% (44–48%
+counting only fully supported claims; blind-graded) and cut comparisons that claim more than was retrieved from 16 of 27
+answers to 4 of 36.
 
 ## What this project tries to answer
 
@@ -144,6 +166,14 @@ in this repository and what is still missing.
   - Lay members now get the same Methodist wiki as pastors; Bible dictionaries and the original-language word study stay pastor-only.
   - Compile cost: about $2.6 for 13 sources. The 1780 hymn book was stopped after $1.21: an Internet Archive scan with no outline and noisy OCR text, on which PageIndex spent 961 calls guessing a table of contents.
   - The hymn book was then split by program instead (`python -m theoclaw.kb.hymns build`, no model calls): 748 of its 769 hymns cut at the "HYMN n." headings (the other 21 headings are OCR-garbled and stay inside the hymn before), lines broken at punctuation joined back, one hymn per search passage labelled with its number. Asked again, the agent quoted hymns 1, 201, 385 and others by number. The OCR usually loses each hymn's large first letter, so the search tool tells the agent to quote briefly.
+- **Other traditions: their own sources made answers checkable, and a code check did more than the prompt** (2026-10-31 to 11-03; `tasks/lay_lutheran.yaml`, `lay_baptist.yaml`, `lay_anglican.yaml`, `lay_reformed.yaml`, 9 everyday questions each, one run each, deepseek-flash).
+  - Arms: *before* = the Methodist knowledge base with the tradition's stance in the prompt; *after* = the tradition's own knowledge base.
+  - First pass, graded by the groundedness evaluator (deepseek-flash): faithfulness 0.67–0.68 → 0.79–0.94 and fidelity to the tradition's reference positions 0.81–0.89 → 0.89–1.00; Anglican gained least (0.67 → 0.79).
+  - Re-graded blind by Claude (condition hidden; stricter, so lower absolute numbers): supported claims Lutheran 34% → 54%, Baptist 36% → 46%, Calvinist 30% → 44%; fidelity 93–100% → 100%. The commonest remaining errors were a section number the run never read and comparisons with other traditions written from general knowledge.
+  - Two fixes followed: `theoclaw/agent/citations.py` drops citation numbers not found in the run's tool outputs, and the prompt describes other traditions only from retrieved material (otherwise one neutral sentence or nothing). Re-tested on 36 new answers, blind, with Anglican answers from the earlier round in the same sheet as a control: supported claims Lutheran 66%, Baptist 66%, Calvinist 64%, Anglican 56% (control 48%); counting only fully supported claims 44–49%. Part of the gain over the earlier pass is grading drift, which the fully-supported column and the control are there to show. Comparisons that claimed more than was retrieved: 4 of 36 (earlier 16 of 27).
+  - Regression on the default (Methodist) answers, old code vs new, 10 lay questions: supported claims 69.5% vs 68.5%, comparison overclaims 7 of 10 → 0 of 10. The check once removed a correct citation (the General Rules number their rules "First, Secondly, Thirdly"); ordinals now count as numbered articles.
+  - Still open: a section number that appears in a contents page passes the check even when its text was never read; the next step would check the quoted text, not only the number.
+  - Cost: compiles $2.87 (Lutheran, Baptist, Anglican) + $1.14 (Reformed) + $0.93 (Anglican additions); test answers and grading about $2.4 in all.
 - **A prompt sentence did not stop a habit; a post-processor plus a grader did.**
   - The model kept explaining its own rules to the user (「按規矩，我不憑記憶寫出經文」).
   - A deterministic scrub now rewrites such phrases. An always-on grader reports what the scrub misses, so new variants surface in reports instead of reaching users.
@@ -153,7 +183,7 @@ in this repository and what is still missing.
 | module | what it does | command line |
 |---|---|---|
 | `theoclaw.agent` | the agent: hand-written loop, system prompt, scripture tools | `python -m theoclaw ask "…"` |
-| `theoclaw.kb.compile` | compiles Methodist sources into an OpenKB wiki and records what the compile cost | `python -m theoclaw.kb.compile …` |
+| `theoclaw.kb.compile` | compiles a tradition's sources into an OpenKB wiki and records what the compile cost | `python -m theoclaw.kb.compile …` |
 | `theoclaw.kb.query` | reads a compiled wiki (the agent's kb tools); measures and queries wikis | `python -m theoclaw.kb.query …` |
 | `theoclaw.evals` | runs, graders, reports, cost comparison, experiments, human scoring | `python -m theoclaw.evals …` |
 | `theoclaw.llm` | every model call's settings: roles, providers, models and prices, API clients, single completions | `python -m theoclaw.llm …` |
@@ -253,8 +283,11 @@ so it never names a tool the agent does not have. Its rules, in short: 繁體 on
 Hong Kong-style English terms are fine, but a translation of Wesley's English is translated
 whole); scripture only from the tools; when a lookup fails, say so, quote nothing from
 memory, and still answer the rest; Wesley only from his looked-up text, marked as a
-translation; keep scripture, Wesley and the agent's own inference apart; on disputed
-points, the Wesleyan view first and other traditions named.
+translation; keep scripture, the tradition's sources and the agent's own inference apart;
+on disputed points, the reader's tradition first, and other traditions described only from
+retrieved material. Each tradition's stance, source names and examples come from
+`theoclaw/common/denominations.py`; the Methodist wording is unchanged from before the other
+traditions were added.
 
 ### What happens to the answer after the model writes it
 
@@ -287,8 +320,11 @@ PDFs get a PageIndex page tree) and the agent navigates it at question time. No 
 
 ### Compile
 
-Every source comes from the Methodist folder (`source_dir` in `config/kb_profiles.yaml`,
-or `--source-dir`). A profile is a named list of sources; a source can be cut to some
+Every source comes from the profile's source folder (`source_dir` in `config/kb_profiles.yaml`,
+or `--source-dir`): the Methodist folder, or one folder per tradition with a `SOURCES.md`
+recording each text's edition, origin and why it is in the public domain. Only PDFs with a
+text layer are compiled, page by page; very long works and OCR-only scans are marked
+`search_only` and go to `wiki/library/`, where only `rag_search` reads them (no compile cost). A profile is a named list of sources; a source can be cut to some
 pages of a PDF (`pages:` or a bookmark title, `outline:`), turned into text, or
 converted to 繁體.
 
@@ -496,9 +532,21 @@ storage) for raters who will not use a terminal:
   `db.py export <folder>` writes the file layout the eval tools read, and `deploy/export.sh`
   packs that export on the server for download. Tested by importing the data pulled from
   the server and exporting it again: answers, ratings, projects and costs came back identical.
-- **Deployment.** `human_scoring/deploy/` packs the app, installs it as a systemd
-  service on a small Ubuntu server, and exposes it through a Cloudflare quick tunnel
-  (no domain needed).
+- **Sharing.** An answer can be shared as a read-only page (`/s/<token>`, with a link
+  preview of the question, not indexed by search engines); visitors can score it too, and
+  their scores are kept apart from the askers' own. 「分享 App」 shows a QR code to the
+  front page that opens the install flow.
+- **Home-screen app.** A web manifest and a service worker that caches only the page and
+  its icons, never questions, answers or shares; an install button (one tap in Chrome and
+  Edge, a short how-to in iPhone Safari), and an 「有更新」 button when a new version is
+  deployed, which keeps drafts and waits for a running answer.
+- **Operator review.** `/admin` lists answers scored below 7, thumbs down and comments,
+  with question and answer. Off unless `THEOCLAW_ADMIN_TOKEN` is set; it can read
+  feedback from the production database through a read-only account.
+- **Deployment.** `human_scoring/deploy/` packs the app and installs it as a systemd
+  service on a small Ubuntu server with MySQL, served at https://theoclaw.app through a
+  named Cloudflare tunnel. A separate test server, with its own SQLite database and test
+  groups, gets every change first; the production database is never written from it.
 
 ```powershell
 python human_scoring/human_server.py prepare runs/<a> runs/<b> --raters 牧者1,牧者2,牧者3
@@ -528,14 +576,19 @@ What changed:
   LUT)), and Wesley, whose works exist only in English, is translated and marked
   *Übersetzung*. Psalm headings are taken off verse 1 in the English and German texts, and a
   filled passage that ends mid-sentence does not end on a comma.
-- **Tradition, recorded.** Every question and rating records the asker's church tradition;
-  for now it is Methodist by default (the choice is hidden until other traditions'
-  sources are in). Answers take a Methodist perspective.
-- **Tradition, planned.** One compiled wiki per tradition. The agent answers from the
-  wiki of the asker's tradition, or compares several. "Non-denominational" would draw on
-  every tradition that confesses the Trinity. The groundedness, citation and monitoring
-  tools above are what would tell whether a tradition-specific answer stays faithful to
-  that tradition's sources.
+- **Tradition.** One site-wide choice — on the front page, the join card, the
+  conversations card and the header — among 默認 Default (answered as Methodist, recorded
+  as its own value), Methodist, Lutheran, Baptist, Anglican and Calvinist / Reformed; only
+  traditions whose knowledge base is on the server are offered. Every question and rating
+  records it. The agent answers from that tradition's wiki and search, with that tradition's
+  stance; Wesley's notes stay with the Methodist choice. The groundedness and citation tools
+  above measure whether each tradition's answers stay with its own sources (findings above).
+- **Bible versions.** English pages can choose the World English Bible (default), the
+  Berean Standard Bible, the KJV or the ASV; German pages the Luther Bible 1912 (default) or
+  the Elberfelder 1905; Chinese always uses the 和合本. Pastors may compare versions:
+  Chinese answers may set other-language versions beside the 和合本, English and German
+  answers compare within their own language.
+- **Longer input.** Questions up to 3000 characters, sermon requests up to 4000.
 
 ## Sermon workspace for pastors (`theoclaw.agent.workspace`)
 
@@ -553,8 +606,9 @@ one-shot generator.
      briefs come back in English or German accordingly.
    - Two research agents run in parallel:
      - scripture: the passage, cross references, Bible dictionaries;
-     - Wesley and Methodist sources: his notes, plus the compiled Methodist wiki (sermons,
-       journal, *Plain Account*, rules, articles, course booklets) and search, hymns included.
+     - the pastor's tradition: its compiled wiki and search (for Methodists, Wesley's notes
+       too, and the wiki of sermons, journal, *Plain Account*, rules, articles and course
+       booklets, hymns included).
    - Each returns sourced, numbered points.
 2. **Ask, one request at a time:** one assistant agent with every pastor tool answers only
    that request, in about 20–60 seconds for about $0.005–0.02.
@@ -664,7 +718,10 @@ answers the scrub would have cut the answers with internal words from 11 to 1.
 | `cuv.json` | 和合本（繁體）, via scrollmapper/bible_databases | public domain |
 | `kjv.json` | King James Version (1769), same source | public domain |
 | `web.json` | World English Bible, eBible.org (66 books; psalm headings taken out of verse 1) | public domain |
+| `bsb.json` | Berean Standard Bible, eBible.org `engbsb` | public domain |
+| `asv.json` | American Standard Version (1901), eBible.org `eng-asv` | public domain |
 | `lut.json` | Luther-Bibel 1912, eBible.org `deu1912` (66 books; psalm headings taken out of verse 1) | public domain |
+| `elb.json` | Elberfelder Bibel 1905, eBible.org `deuelo` (psalm headings taken out of verse 1) | public domain |
 | `crossrefs.json` | OpenBible.info cross references (top 25 per verse by votes) | CC-BY, credit OpenBible.info |
 | `wesley_nt.json` | Wesley, *Explanatory Notes upon the New Testament*, parsed from the PDF in the Methodist folder | text in the public domain |
 
@@ -685,6 +742,10 @@ wiki pages, the processed lexicons) is committed: `knowledge/`, `data/original/`
 | Wesley's *Sermons on Several Occasions* (the Standard Sermons), *Journal*, *A Plain Account of Christian Perfection*; the General Rules (1743); the Articles of Religion | the Methodist knowledge base (`knowledge/methodist…`, compiled with OpenKB) | public editions of 18th-century texts | public domain |
 | *A Collection of Hymns for the Use of the People Called Methodists* (1876 edition; its first 539 hymns are substantially the 1780 text) | hymn search (`theoclaw.kb.hymns`, one hymn per passage, no compiling) | CCEL e-text by John Harris (1994), released as a public-domain edition; CCEL permits non-profit use | public domain |
 | The church's own course booklets (six on the creed, one on spiritual gifts) | the Methodist knowledge base, for this church's members | the fellowship (copyright holder) | used within the church only; not published |
+| Lutheran: the Book of Concord in the *Triglot Concordia* English (Bente & Dau, 1921); Luther's 95 Theses (1915 tr.), *Christian Liberty* (1910 ed.), *Bondage of the Will* (Cole, 1823) | the Lutheran knowledge base | Project Gutenberg, CCEL, archive.org | public domain |
+| Baptist: Second London Confession (1677/1689), Keach's Catechism (1851 ed.), New Hampshire Confession (Schaff), Spurgeon's *All of Grace* and 1855 sermons, Fuller's *Gospel Worthy of All Acceptation* (1805) | the Baptist knowledge base | Wikisource, CCEL, archive.org | public domain (Wikisource layer CC BY-SA) |
+| Anglican: Thirty-Nine Articles (1571 text), Books of Homilies (1821 ed.), Book of Common Prayer 1928 (US), Hooker's *Laws* (1907 ed., selection), Jewel's *Apology* (1888 ed.) | the Anglican knowledge base | Wikisource, archive.org, Project Gutenberg | public domain |
+| Reformed: Westminster Confession (1690 ratified text) and Catechisms, Heidelberg Catechism, Belgic Confession and Canons of Dort (1840 tr.), Calvin's *Institutes* (Beveridge 1845) and *Romans* (Owen 1849) | the Calvinist / Reformed knowledge base | Wikisource, CCEL | public domain |
 | STEPBible lexicons (TBESG, TBESH) and tagged Bibles (TAGNT, TAHOT) | the original-language word study, Chinese and English | STEPBible.org, Tyndale House, Cambridge | CC BY 4.0 |
 | 和合本 with Strong's numbers | which original word each Chinese word translates | 信望愛 FHL | FDL; Strong's tags kept |
 | ISBE (1915), Easton (1897), Smith (1884) | pastors' Bible-dictionary lookups | CrossWire modules | public domain |
